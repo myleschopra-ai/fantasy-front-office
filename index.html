@@ -236,6 +236,7 @@
 
 <nav id="tabs">
   <button data-tab="command" class="active">Command Center</button>
+  <button data-tab="lineup">Lineup</button>
   <button data-tab="roster">My Roster</button>
   <button data-tab="targets">Acquisition Targets</button>
   <button data-tab="trade">Trade Analyzer</button>
@@ -271,6 +272,15 @@
   <div id="view-command" class="view active">
     <h2 class="display" style="font-size:16px; margin-bottom:16px;">Highest-Value Actions</h2>
     <div id="command-content"></div>
+  </div>
+
+  <!-- LINEUP VIEW -->
+  <div id="view-lineup" class="view">
+    <h2 class="display" style="font-size:16px; margin-bottom:6px;">Suggested Starting Lineup</h2>
+    <p class="mono" style="font-size:11px; color:var(--text-dim); margin:0 0 16px;">
+      Value-based, not a weekly point projection — use for slot structure, verify each start against real matchups/injuries before kickoff.
+    </p>
+    <div id="lineup-content"></div>
   </div>
 
   <!-- ROSTER VIEW -->
@@ -566,6 +576,7 @@
     document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
     $(`view-${tab}`).classList.add("active");
     if (tab === "command") renderCommandCenter();
+    if (tab === "lineup") renderLineup();
     if (tab === "roster") renderRoster();
     if (tab === "targets") renderTargets();
     if (tab === "trade") renderTrade();
@@ -575,6 +586,91 @@
     const btn = e.target.closest("button[data-tab]");
     if (btn) switchTab(btn.dataset.tab);
   });
+
+  // ---------- Render: Lineup ----------
+  function renderLineup() {
+    const format = formatFromLeague();
+    const fcMap = fcBySleeperId();
+    const myRoster = state.rosters.find(r => r.roster_id === state.myRosterId);
+    if (!format || !myRoster) return;
+
+    const slots = (state.league.roster_positions || [])
+      .filter(p => p !== "BN" && p !== "IR" && p !== "TAXI");
+
+    const eligibility = {
+      QB: ["QB"], RB: ["RB"], WR: ["WR"], TE: ["TE"],
+      FLEX: ["RB", "WR", "TE"],
+      SUPER_FLEX: ["QB", "RB", "WR", "TE"],
+      WRRB_FLEX: ["RB", "WR"],
+      REC_FLEX: ["WR", "TE"],
+    };
+
+    const pool = (myRoster.players || []).map(pid => {
+      const p = state.allPlayers[pid] || {};
+      const fc = fcMap[pid];
+      return {
+        id: pid,
+        name: `${p.first_name || ""} ${p.last_name || ""}`.trim() || pid,
+        position: p.position,
+        team: p.team,
+        status: p.injury_status,
+        value: fc ? fc.value : 0,
+      };
+    }).sort((a, b) => (b.value || 0) - (a.value || 0));
+
+    const used = new Set();
+    const assigned = [];
+
+    slots.forEach(slot => {
+      const eligiblePositions = eligibility[slot] || [slot];
+      const pick = pool.find(p => !used.has(p.id) && eligiblePositions.includes(p.position));
+      if (pick) {
+        used.add(pick.id);
+        assigned.push({ slot, player: pick });
+      } else {
+        assigned.push({ slot, player: null });
+      }
+    });
+
+    const bench = pool.filter(p => !used.has(p.id));
+
+    const rowHTML = (slot, p) => {
+      if (!p) {
+        return `<div class="fa-row"><div class="fa-left"><span class="pill bad">${slot}</span><span style="color:var(--text-dim);">No eligible player</span></div></div>`;
+      }
+      const statusBadge = p.status ? `<span class="pill bad">${escapeHTML(p.status)}</span>` : "";
+      return `<div class="fa-row">
+        <div class="fa-left">
+          <span class="pill gold" style="min-width:64px; text-align:center;">${slot}</span>
+          <span class="fa-name">${escapeHTML(p.name)}</span>
+          <span class="mono" style="color:var(--text-dim); font-size:12px;">${p.team || "FA"}</span>
+          ${statusBadge}
+        </div>
+        <span class="mono" style="color:var(--text-muted); font-size:12px;">val ${p.value}</span>
+      </div>`;
+    };
+
+    let html = `<div style="margin-bottom:24px;">
+      <h3 class="display" style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">Starters</h3>
+      <div style="display:grid; gap:6px;">${assigned.map(a => rowHTML(a.slot, a.player)).join("")}</div>
+    </div>`;
+
+    html += `<div>
+      <h3 class="display" style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">Bench (${bench.length})</h3>
+      <div style="display:grid; gap:6px;">${bench.map(p => `
+        <div class="fa-row">
+          <div class="fa-left">
+            <span class="pill teal">${p.position || "—"}</span>
+            <span class="fa-name">${escapeHTML(p.name)}</span>
+            <span class="mono" style="color:var(--text-dim); font-size:12px;">${p.team || "FA"}</span>
+            ${p.status ? `<span class="pill bad">${escapeHTML(p.status)}</span>` : ""}
+          </div>
+          <span class="mono" style="color:var(--text-muted); font-size:12px;">val ${p.value}</span>
+        </div>`).join("")}</div>
+    </div>`;
+
+    $("lineup-content").innerHTML = html;
+  }
 
   // ---------- Render: Command Center ----------
   function renderCommandCenter() {
