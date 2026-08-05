@@ -702,6 +702,37 @@
       });
     }
 
+    // FAAB budgets + trade deadline — defensive against missing fields
+    const owners = ownerMap();
+    const totalBudget = state.league && state.league.settings ? state.league.settings.waiver_budget : undefined;
+    if (totalBudget !== undefined && state.rosters.length) {
+      const budgetRows = state.rosters.map(r => {
+        const used = (r.settings && r.settings.waiver_budget_used) || 0;
+        const remaining = totalBudget - used;
+        const isMe = r.roster_id === state.myRosterId;
+        return { name: owners[r.roster_id] || "Unknown", remaining, isMe };
+      }).sort((a, b) => b.remaining - a.remaining);
+
+      sections.push({
+        title: "FAAB Budgets Remaining",
+        rows: budgetRows.map(b => `
+          <div class="fa-row">
+            <div class="fa-left">
+              <span class="fa-name" style="${b.isMe ? 'color:var(--gold-light);' : ''}">${escapeHTML(b.name)}${b.isMe ? ' (you)' : ''}</span>
+            </div>
+            <span class="mono" style="font-size:13px;">$${b.remaining}</span>
+          </div>`),
+      });
+    }
+
+    const tradeDeadlineWeek = state.league && state.league.settings ? state.league.settings.trade_deadline : undefined;
+    if (tradeDeadlineWeek) {
+      sections.push({
+        title: "Trade Deadline",
+        rows: [`<div style="color:var(--text-muted); font-size:13px;">Week ${tradeDeadlineWeek}</div>`],
+      });
+    }
+
     // Sell-high / risk on own roster
     if (myRoster) {
       const flagged = (myRoster.players || []).map(pid => {
