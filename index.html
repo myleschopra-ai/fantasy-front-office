@@ -849,6 +849,18 @@
     }).sort((a, b) => b.total - a.total);
 
     if (powerRanked.length) {
+      const myRank = powerRanked.findIndex(t => t.isMe) + 1;
+      const n = powerRanked.length;
+      let teamState = "Unknown";
+      if (myRank <= Math.ceil(n / 3)) teamState = "Contender";
+      else if (myRank <= Math.ceil((n * 2) / 3)) teamState = "Fringe Contender";
+      else teamState = "Rebuilder";
+
+      sections.push({
+        title: "Team State",
+        rows: [`<div style="font-size:13px;"><span class="pill gold">${teamState}</span> <span style="color:var(--text-dim); font-size:11px;">— based on roster-value rank (#${myRank}/${n}), not standings. Preseason heuristic, will be less reliable once games start.</span></div>`],
+      });
+
       sections.push({
         title: "Power Ranking (total roster value)",
         rows: powerRanked.map((t, i) => `
