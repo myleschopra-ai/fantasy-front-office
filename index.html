@@ -1012,6 +1012,43 @@
       verdictBox.textContent = "Add assets to both sides";
     }
 
+    // Roster-impact checks — depth risk on outgoing, injury-gap-fix on incoming.
+    // Best-effort name matching; only fires when it can genuinely verify against your real roster.
+    const impactNotes = [];
+    const myRoster = state.rosters.find(r => r.roster_id === state.myRosterId);
+    if (myRoster) {
+      const myPositionCounts = {};
+      (myRoster.players || []).forEach(pid => {
+        const p = state.allPlayers[pid] || {};
+        if (p.position) myPositionCounts[p.position] = (myPositionCounts[p.position] || 0) + 1;
+      });
+      const myPlayerNames = new Set((myRoster.players || []).map(pid => {
+        const p = state.allPlayers[pid] || {};
+        return `${p.first_name || ""} ${p.last_name || ""}`.trim();
+      }));
+
+      state.sideA.filter(i => i.type === "player").forEach(i => {
+        if (myPlayerNames.has(i.name) && i.position && (myPositionCounts[i.position] || 0) <= 1) {
+          impactNotes.push(`<div style="color:var(--red); font-size:12px;">⚠ ${escapeHTML(i.name)} is your only rostered ${i.position} — this trade would leave that slot empty.</div>`);
+        }
+      });
+
+      const { assigned } = computeAssignedLineup();
+      const injuredPositions = new Set(assigned.filter(a => a.player && a.player.status).map(a => a.player.position));
+      state.sideB.filter(i => i.type === "player").forEach(i => {
+        if (i.position && injuredPositions.has(i.position)) {
+          impactNotes.push(`<div style="color:var(--green); font-size:12px;">✓ ${escapeHTML(i.name)} could help cover your current ${i.position} injury gap.</div>`);
+        }
+      });
+    }
+    // Remove any impact notes from a previous render before adding fresh ones
+    const oldNotes = $("trade-impact-notes");
+    if (oldNotes) oldNotes.remove();
+    if (impactNotes.length) {
+      $("verdict-box").insertAdjacentHTML("afterend",
+        `<div id="trade-impact-notes" style="margin-top:8px; display:grid; gap:4px;">${impactNotes.join("")}</div>`);
+    }
+
     document.querySelectorAll(".remove-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         const side = btn.dataset.side, idx = Number(btn.dataset.idx);
@@ -1022,7 +1059,12 @@
   }
 
   function addToSide(side, entry) {
-    const item = { type: entry.player.position === "PICK" ? "pick" : "player", name: entry.player.name, value: entry.value };
+    const item = {
+      type: entry.player.position === "PICK" ? "pick" : "player",
+      name: entry.player.name,
+      value: entry.value,
+      position: entry.player.position,
+    };
     if (side === "A") state.sideA.push(item); else state.sideB.push(item);
     $("trade-search").value = "";
     $("trade-search-results").style.display = "none";
