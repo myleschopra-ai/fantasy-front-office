@@ -861,6 +861,28 @@
       });
     }
 
+    // NFL team concentration — correlated downside from over-exposure to one offense
+    if (myRoster) {
+      const teamCounts = {};
+      (myRoster.players || []).forEach(pid => {
+        const p = state.allPlayers[pid] || {};
+        if (p.team) teamCounts[p.team] = (teamCounts[p.team] || 0) + 1;
+      });
+      const concentrated = Object.entries(teamCounts).filter(([team, count]) => count >= 3);
+      if (concentrated.length) {
+        sections.push({
+          title: "NFL Team Exposure",
+          rows: concentrated.map(([team, count]) => `
+            <div class="fa-row">
+              <div class="fa-left">
+                <span class="pill teal">${team}</span>
+                <span style="color:var(--text-muted); font-size:13px;">${count} rostered players — bye week and team-performance risk correlated</span>
+              </div>
+            </div>`),
+        });
+      }
+    }
+
     // Validation issues
     if (myRoster) {
       const unmatched = (myRoster.players || []).filter(pid => !fcMap[pid]);
