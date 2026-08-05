@@ -232,6 +232,11 @@
   @media (max-width: 480px) {
     .trade-cols { grid-template-columns: 1fr; }
   }
+  .draft-embed-shell { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .draft-embed-toolbar { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  .draft-embed-frame { width:100%; min-height:760px; border:0; display:block; background:var(--bg); }
+  @media (max-width: 700px) { .draft-embed-frame { min-height:980px; } }
+
 </style>
 </head>
 <body>
@@ -242,7 +247,7 @@
     <div>
       <h1 class="display">Front Office</h1>
       <p id="header-sub" class="mono">Not connected</p>
-      <p class="mono" style="font-size:9px; color:var(--text-dim); margin:2px 0 0;">build 2026-08-04.5</p>
+      <p class="mono" style="font-size:9px; color:var(--text-dim); margin:2px 0 0;">build 2026-08-05.1</p>
     </div>
   </div>
   <div class="pills" id="header-pills"></div>
@@ -379,60 +384,15 @@
 
   <!-- DRAFT VIEW -->
   <div id="view-draft" class="view">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-      <h2 class="display" style="font-size:16px; margin:0;">Draft Center</h2>
-      <div style="display:flex; gap:8px;">
-        <button id="draft-board-toggle" class="filter-btn active" style="text-transform:none;">Board</button>
-        <button id="draft-mock-toggle" class="filter-btn" style="text-transform:none;">Mock Simulator</button>
-      </div>
-    </div>
-
-    <!-- BOARD SUB-VIEW -->
-    <div id="draft-board-view">
-      <div id="draft-team-needs" style="margin:16px 0;"></div>
-
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:8px;">
-        <div class="filter-row" id="draft-pos-filters" style="margin-bottom:0;"></div>
-        <button id="draft-rookie-toggle" class="filter-btn" style="text-transform:none;">Rookies Only</button>
-      </div>
-      <p class="mono" id="draft-board-count" style="color:var(--text-muted); font-size:12px; margin-bottom:14px;"></p>
-
-      <div id="draft-watchlist-section" style="margin-bottom:20px; display:none;">
-        <h3 class="display" style="font-size:11px; color:var(--gold-light); margin-bottom:8px;">★ Your Queue</h3>
-        <div id="draft-watchlist" style="display:grid; gap:4px;"></div>
-      </div>
-
-      <div id="draft-board-list"></div>
-    </div>
-
-    <!-- MOCK SIMULATOR SUB-VIEW -->
-    <div id="draft-mock-view" style="display:none;">
-      <div id="mock-setup">
-        <p style="color:var(--text-muted); font-size:13px; margin-bottom:8px;">
-          Practice against AI opponents that draft using realistic team-need logic — not random picks. Not a live event, not synced with real people.
-        </p>
-        <p style="color:var(--text-dim); font-size:12px; margin-bottom:16px;">
-          This league's startup draft already happened — every future draft here is rookies-only. "Full Pool" below is a hypothetical, not this league's actual next draft.
-          <br><br>
-          ⚠ Known gap: this only covers players already in the NFL. Next year's incoming rookie class (still in college right now) isn't in this data at all — that needs a college-prospect data source not yet built into this system.
-        </p>
-        <div style="display:grid; gap:12px; max-width:360px;">
-          <div>
-            <p class="mono" style="font-size:11px; color:var(--text-dim); margin-bottom:6px;">Draft pool</p>
-            <div style="display:flex; gap:8px;">
-              <button id="mock-pool-rookies" class="filter-btn active" style="text-transform:none;">Rookies Only (this league's real draft type)</button>
-              <button id="mock-pool-full" class="filter-btn" style="text-transform:none;">Full Pool (hypothetical)</button>
-            </div>
-          </div>
-          <div>
-            <p class="mono" style="font-size:11px; color:var(--text-dim); margin-bottom:6px;">Rounds</p>
-            <input type="text" id="mock-rounds-input" value="4" inputmode="numeric"
-              style="width:80px; background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:8px 10px; color:var(--text); font-family:inherit;" />
-          </div>
-          <button id="mock-start-btn" class="btn" style="width:fit-content;">Start Mock Draft</button>
+    <div class="draft-embed-shell">
+      <div class="draft-embed-toolbar">
+        <div>
+          <h2 class="display" style="font-size:16px; margin:0 0 3px;">Live Draft Center</h2>
+          <p class="mono" style="font-size:10px; color:var(--text-dim); margin:0;">Sleeper league, roster, draft order, and completed picks are mapped automatically.</p>
         </div>
+        <a id="draft-open-external" class="btn secondary" style="text-decoration:none; padding:7px 11px; font-size:11px;" href="draft.html" target="_blank" rel="noopener">Open full screen</a>
       </div>
-      <div id="mock-draft-active" style="display:none;"></div>
+      <iframe id="draft-assistant-frame" class="draft-embed-frame" title="Live Sleeper Draft Assistant" loading="lazy"></iframe>
     </div>
   </div>
 
@@ -692,7 +652,7 @@
     if (tab === "targets") renderTargets();
     if (tab === "trade") renderTrade();
     if (tab === "validation") renderValidation();
-    if (tab === "draft") initDraftCenter();
+    if (tab === "draft") renderEmbeddedDraft();
   }
 
   tabsNav.addEventListener("click", (e) => {
@@ -1831,6 +1791,20 @@
       $("mock-setup").style.display = "block";
       $("mock-draft-active").style.display = "none";
     });
+  }
+
+  function renderEmbeddedDraft() {
+    const frame = $("draft-assistant-frame");
+    if (!frame) return;
+    const leagueId = (state.league && state.league.league_id) || localStorage.getItem(STORAGE_KEY) || "";
+    const rosterId = state.myRosterId || "";
+    const embeddedSrc = `draft.html?embed=1&league=${encodeURIComponent(leagueId)}&roster=${encodeURIComponent(rosterId)}`;
+    if (frame.dataset.src !== embeddedSrc) {
+      frame.src = embeddedSrc;
+      frame.dataset.src = embeddedSrc;
+    }
+    const external = $("draft-open-external");
+    if (external) external.href = `draft.html?league=${encodeURIComponent(leagueId)}&roster=${encodeURIComponent(rosterId)}`;
   }
 
   // ---------- Restore last league ----------
