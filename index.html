@@ -588,11 +588,11 @@
   });
 
   // ---------- Render: Lineup ----------
-  function renderLineup() {
-    const format = formatFromLeague();
+  // ---------- Shared: compute starter/bench assignment ----------
+  function computeAssignedLineup() {
     const fcMap = fcBySleeperId();
     const myRoster = state.rosters.find(r => r.roster_id === state.myRosterId);
-    if (!format || !myRoster) return;
+    if (!myRoster || !state.league) return { assigned: [], bench: [] };
 
     const slots = (state.league.roster_positions || [])
       .filter(p => p !== "BN" && p !== "IR" && p !== "TAXI");
@@ -633,6 +633,13 @@
     });
 
     const bench = pool.filter(p => !used.has(p.id));
+    return { assigned, bench };
+  }
+
+  function renderLineup() {
+    const format = formatFromLeague();
+    if (!format) return;
+    const { assigned, bench } = computeAssignedLineup();
 
     const rowHTML = (slot, p) => {
       if (!p) {
@@ -677,6 +684,23 @@
     const fcMap = fcBySleeperId();
     const myRoster = state.rosters.find(r => r.roster_id === state.myRosterId);
     const sections = [];
+
+    // Starter injury risk — highest priority, checked first
+    const { assigned } = computeAssignedLineup();
+    const injuredStarters = assigned.filter(a => a.player && a.player.status);
+    if (injuredStarters.length) {
+      sections.push({
+        title: "⚠ Starters With Injury Designations",
+        rows: injuredStarters.map(a => `
+          <div class="fa-row">
+            <div class="fa-left">
+              <span class="pill gold" style="min-width:64px; text-align:center;">${a.slot}</span>
+              <span class="fa-name">${escapeHTML(a.player.name)}</span>
+            </div>
+            <span class="pill bad">${escapeHTML(a.player.status)}</span>
+          </div>`),
+      });
+    }
 
     // Sell-high / risk on own roster
     if (myRoster) {
