@@ -585,10 +585,15 @@
       const fpCell = fp ? `<span class="mono" style="font-size:12px;">#${fp.rank} <span style="color:var(--text-dim);">(T${fp.tier})</span></span>` : '<span style="color:var(--text-dim); font-size:12px;">—</span>';
       const news = fpInjuryFor(p.name);
       const newsCell = news ? `<span class="pill bad">${escapeHTML(news.team)}</span>` : (p.status ? `<span class="pill bad">${escapeHTML(p.status)}</span>` : '<span style="color:var(--text-dim); font-size:12px;">—</span>');
+      let flag = "";
+      if (p.trend !== null && p.trend !== undefined) {
+        if (p.trend >= 50) flag = '<span class="pill gold" title="Trending up 50+ over 30 days — market value elevated">SELL HIGH</span>';
+        else if (p.trend <= -50) flag = '<span class="pill bad" title="Trending down 50+ over 30 days — value eroding">RISK</span>';
+      }
       return `
       <tr>
         <td><span class="pill teal">${p.position || "—"}</span></td>
-        <td style="font-weight:500;">${escapeHTML(p.name)}</td>
+        <td style="font-weight:500;">${escapeHTML(p.name)} ${flag}</td>
         <td class="mono" style="color:var(--text-muted); font-size:12px;">${p.team || "FA"}</td>
         <td class="mono">${p.value ?? "—"}</td>
         <td class="mono" style="color:var(--text-muted); font-size:12px;">${p.rank ? "#" + p.rank : "unranked"}</td>
@@ -721,15 +726,18 @@
     if (!q) { resultsBox.style.display = "none"; return; }
     const results = state.fcData.filter(entry => entry.player.name.toLowerCase().includes(q)).slice(0, 8);
     if (!results.length) { resultsBox.style.display = "none"; return; }
-    resultsBox.innerHTML = results.map((entry, i) => `
+    resultsBox.innerHTML = results.map((entry, i) => {
+      const fp = fpRankFor(entry.player.name, entry.player.position);
+      const fpTag = fp ? ` <span style="color:var(--gold-light); font-size:11px;">FP #${fp.rank}</span>` : "";
+      return `
       <div class="search-item">
-        <span>${escapeHTML(entry.player.name)} <span class="mono" style="color:var(--text-dim); font-size:12px;">(${entry.value})</span></span>
+        <span>${escapeHTML(entry.player.name)} <span class="mono" style="color:var(--text-dim); font-size:12px;">(${entry.value})</span>${fpTag}</span>
         <div>
           <button class="add-btn give" data-idx="${i}" data-target="A">+ Give</button>
           <button class="add-btn get" data-idx="${i}" data-target="B">+ Get</button>
         </div>
-      </div>
-    `).join("");
+      </div>`;
+    }).join("");
     resultsBox.style.display = "block";
     resultsBox.querySelectorAll("button").forEach(btn => {
       btn.addEventListener("click", () => addToSide(btn.dataset.target, results[Number(btn.dataset.idx)]));
