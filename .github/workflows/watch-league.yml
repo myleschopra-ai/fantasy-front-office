@@ -2,7 +2,7 @@ name: Watch League Activity
 
 on:
   schedule:
-    - cron: "0 * * * *"   # every hour
+    - cron: "17 * * * *"   # every hour, offset off :00 to avoid GitHub's peak-minute queue congestion
   workflow_dispatch: {}
 
 permissions:
