@@ -1,0 +1,88 @@
+name: Integrate Draft Assistant
+
+on:
+  push:
+    branches:
+      - feature/integrate-draft-assistant
+    paths:
+      - .github/workflows/integrate-draft.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/integrate-draft-assistant
+          fetch-depth: 0
+
+      - name: Embed live draft assistant
+        shell: python
+        run: |
+          from pathlib import Path
+
+          index_path = Path('index.html')
+          draft_path = Path('draft.html')
+          index = index_path.read_text(encoding='utf-8')
+          draft = draft_path.read_text(encoding='utf-8')
+
+          css = '''\n  .draft-embed-shell { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }\n  .draft-embed-toolbar { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--border); flex-wrap:wrap; }\n  .draft-embed-frame { width:100%; min-height:760px; border:0; display:block; background:var(--bg); }\n  @media (max-width: 700px) { .draft-embed-frame { min-height:980px; } }\n'''
+          if '.draft-embed-shell' not in index:
+              index = index.replace('\n</style>', css + '\n</style>', 1)
+
+          start = index.index('  <!-- DRAFT VIEW -->')
+          end = index.index('\n\n</main>', start)
+          new_view = '''  <!-- DRAFT VIEW -->\n  <div id="view-draft" class="view">\n    <div class="draft-embed-shell">\n      <div class="draft-embed-toolbar">\n        <div>\n          <h2 class="display" style="font-size:16px; margin:0 0 3px;">Live Draft Center</h2>\n          <p class="mono" style="font-size:10px; color:var(--text-dim); margin:0;">Sleeper league, roster, draft order, and completed picks are mapped automatically.</p>\n        </div>\n        <a id="draft-open-external" class="btn secondary" style="text-decoration:none; padding:7px 11px; font-size:11px;" href="draft.html" target="_blank" rel="noopener">Open full screen</a>\n      </div>\n      <iframe id="draft-assistant-frame" class="draft-embed-frame" title="Live Sleeper Draft Assistant" loading="lazy"></iframe>\n    </div>\n  </div>'''
+          index = index[:start] + new_view + index[end:]
+
+          index = index.replace('if (tab === "draft") initDraftCenter();', 'if (tab === "draft") renderEmbeddedDraft();')
+
+          function_marker = '  // ---------- Restore last league ----------'
+          embed_function = '''  function renderEmbeddedDraft() {\n    const frame = $("draft-assistant-frame");\n    if (!frame) return;\n    const leagueId = (state.league && state.league.league_id) || localStorage.getItem(STORAGE_KEY) || "";\n    const rosterId = state.myRosterId || "";\n    const embeddedSrc = `draft.html?embed=1&league=${encodeURIComponent(leagueId)}&roster=${encodeURIComponent(rosterId)}`;\n    if (frame.dataset.src !== embeddedSrc) {\n      frame.src = embeddedSrc;\n      frame.dataset.src = embeddedSrc;\n    }\n    const external = $("draft-open-external");\n    if (external) external.href = `draft.html?league=${encodeURIComponent(leagueId)}&roster=${encodeURIComponent(rosterId)}`;\n  }\n\n'''
+          if 'function renderEmbeddedDraft()' not in index:
+              index = index.replace(function_marker, embed_function + function_marker)
+
+          index = index.replace('build 2026-08-04.5', 'build 2026-08-05.1')
+
+          embedded_css = '''\nbody.embedded header{display:none}body.embedded main{max-width:none;padding:12px}body.embedded .setup{margin:12px auto}body.embedded #back-btn{display:none}\n'''
+          if 'body.embedded header' not in draft:
+              draft = draft.replace('\n</style>', embedded_css + '\n</style>', 1)
+
+          if "const PARAMS=new URLSearchParams" not in draft:
+              draft = draft.replace("'use strict';\n", "'use strict';\nconst PARAMS=new URLSearchParams(location.search);\nconst EMBEDDED=PARAMS.get('embed')==='1';\nif(EMBEDDED)document.body.classList.add('embedded');\n", 1)
+
+          old_setup = "const savedTeam=localStorage.getItem(LS.team);const savedDraft=localStorage.getItem(LS.draft);if(savedTeam)$('team-select').value=savedTeam;if(savedDraft)$('draft-select').value=savedDraft"
+          new_setup = "const savedTeam=PARAMS.get('roster')||localStorage.getItem(LS.team);const savedDraft=PARAMS.get('draft')||localStorage.getItem(LS.draft);if(savedTeam)$('team-select').value=savedTeam;if(savedDraft)$('draft-select').value=savedDraft"
+          if old_setup not in draft:
+              raise SystemExit('draft setup marker not found')
+          draft = draft.replace(old_setup, new_setup)
+
+          old_boot = "const savedLeague=localStorage.getItem(LS.league);if(savedLeague)$('league-input').value=savedLeague;\nsetInterval(()=>{if(state.draft&&state.draft.status==='drafting')refreshDraft()},30000);"
+          new_boot = """const queryLeague=PARAMS.get('league');\nconst savedLeague=queryLeague||localStorage.getItem(LS.league);\nif(savedLeague)$('league-input').value=savedLeague;\nif(queryLeague){\n  connectLeague(queryLeague).then(()=>{\n    const rosterParam=PARAMS.get('roster');\n    if(rosterParam)$('team-select').value=rosterParam;\n    const draftParam=PARAMS.get('draft');\n    if(draftParam){\n      $('draft-select').value=draftParam;\n    }else if(state.drafts.length){\n      const preferred=state.drafts.find(d=>d.status==='drafting')||state.drafts.find(d=>d.status==='pre_draft')||[...state.drafts].sort((a,b)=>Number(b.season||0)-Number(a.season||0))[0];\n      if(preferred)$('draft-select').value=preferred.draft_id;\n    }\n    if($('team-select').value&&$('draft-select').value)openDraft();\n  });\n}\nsetInterval(()=>{if(state.draft&&state.draft.status==='drafting')refreshDraft()},30000);"""
+          if old_boot not in draft:
+              raise SystemExit('draft boot marker not found')
+          draft = draft.replace(old_boot, new_boot)
+
+          index_path.write_text(index, encoding='utf-8')
+          draft_path.write_text(draft, encoding='utf-8')
+
+      - name: Validate integration markers
+        shell: bash
+        run: |
+          grep -q 'draft-assistant-frame' index.html
+          grep -q 'renderEmbeddedDraft' index.html
+          grep -q "PARAMS.get('league')" draft.html
+          grep -q "API}/draft/" draft.html
+
+      - name: Commit integration
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html draft.html
+          git commit -m "feat: embed live Sleeper draft assistant" || exit 0
+          git push origin HEAD:feature/integrate-draft-assistant
