@@ -11,6 +11,7 @@ import json
 import os
 import sys
 import urllib.request
+from datetime import datetime, date
 
 LEAGUE_ID = "1337549680476721152"
 MY_ROSTER_ID = 9
@@ -29,6 +30,9 @@ def get(url, headers=None):
         return json.loads(r.read())
 
 
+_history_buffer = []
+
+
 def notify(title, message, priority="default"):
     req = urllib.request.Request(
         f"https://ntfy.sh/{NTFY_TOPIC}",
@@ -38,16 +42,27 @@ def notify(title, message, priority="default"):
     )
     urllib.request.urlopen(req, timeout=10)
     print(f"Notified: {title} — {message}")
+    _history_buffer.append({
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "title": title,
+        "message": message,
+        "priority": priority,
+    })
 
 
 def load_state():
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE) as f:
-            return json.load(f)
-    return {"seen_trade_ids": [], "flagged_players": {}}
+            state = json.load(f)
+            state.setdefault("history", [])
+            state.setdefault("faab_used", {})
+            return state
+    return {"seen_trade_ids": [], "flagged_players": {}, "history": [], "faab_used": {}}
 
 
 def save_state(state):
+    # Append this run's alerts to history, capped to the most recent 200 entries
+    state["history"] = (state.get("history", []) + _history_buffer)[-200:]
     with open(STATE_FILE, "w") as f:
         json.dump(state, f)
 
@@ -165,9 +180,33 @@ def main():
                 new_injury_alerts += 1
                 state["seen_injuries"].append(key)
 
+    # ---- 5. Detect FAAB spend changes across the league (competitive intel) ----
+    new_faab_alerts = 0
+    try:
+        league_total_budget = get(f"https://api.sleeper.app/v1/league/{LEAGUE_ID}")["settings"].get("waiver_budget")
+    except Exception:
+        league_total_budget = None
+
+    if league_total_budget is not None:
+        for r in rosters:
+            rid = str(r["roster_id"])
+            used = (r.get("settings") or {}).get("waiver_budget_used", 0)
+            prev_used = state["faab_used"].get(rid, 0)
+            if used > prev_used:
+                owner_name = owner_by_roster.get(r["roster_id"], "Unknown")
+                spent = used - prev_used
+                remaining = league_total_budget - used
+                if owner_name != owner_by_roster.get(MY_ROSTER_ID):
+                    notify(
+                        f"FAAB spent: {owner_name}",
+                        f"{owner_name} spent ${spent} on waivers (${remaining} remaining).",
+                    )
+                    new_faab_alerts += 1
+            state["faab_used"][rid] = used
+
     save_state(state)
     print(f"Done. {new_trade_alerts} trade, {new_flag_alerts} roster-flag, "
-          f"{new_target_alerts} target, {new_injury_alerts} injury alert(s).")
+          f"{new_target_alerts} target, {new_injury_alerts} injury, {new_faab_alerts} FAAB alert(s).")
 
 
 if __name__ == "__main__":
