@@ -265,7 +265,7 @@
     <div style="overflow-x:auto;">
       <table>
         <thead>
-          <tr><th>Pos</th><th>Player</th><th>Team</th><th>Value</th><th>Rank</th><th>30d</th><th>Status</th></tr>
+          <tr><th>Pos</th><th>Player</th><th>Team</th><th>Value</th><th>Rank</th><th>30d</th><th>FP Rank</th><th>News</th></tr>
         </thead>
         <tbody id="roster-body"></tbody>
       </table>
@@ -327,8 +327,20 @@
   const state = {
     league: null, rosters: [], users: [], allPlayers: {}, fcData: [],
     tradedPicks: [], myRosterId: null, activeTab: "roster",
-    sideA: [], sideB: [], posFilter: "ALL",
+    sideA: [], sideB: [], posFilter: "ALL", fpData: null,
   };
+
+  function fpRankFor(name, position) {
+    if (!state.fpData || !state.fpData.rankings) return null;
+    const list = state.fpData.rankings[position];
+    if (!list) return null;
+    return list.find(p => p.name === name) || null;
+  }
+
+  function fpInjuryFor(name) {
+    if (!state.fpData || !state.fpData.injuries) return null;
+    return state.fpData.injuries.find(i => i.name === name) || null;
+  }
 
   // ---------- DOM refs ----------
   const $ = (id) => document.getElementById(id);
@@ -403,6 +415,16 @@
 
       const pRes = await fetch("https://api.sleeper.app/v1/players/nfl");
       state.allPlayers = await pRes.json();
+
+      // Same-origin static snapshot — FantasyPros blocks cross-origin fetch,
+      // so this file is exported from Colab and committed alongside index.html.
+      // Non-fatal if missing: dashboard still works without it.
+      try {
+        const fpRes = await fetch("fantasypros.json");
+        if (fpRes.ok) state.fpData = await fpRes.json();
+      } catch (e) {
+        console.warn("fantasypros.json not found or unreadable — continuing without it.");
+      }
 
       localStorage.setItem(STORAGE_KEY, leagueId);
       renderHeader();
@@ -517,7 +539,12 @@
       };
     }).sort((a, b) => (b.value || 0) - (a.value || 0));
 
-    $("roster-body").innerHTML = players.map(p => `
+    $("roster-body").innerHTML = players.map(p => {
+      const fp = fpRankFor(p.name, p.position);
+      const fpCell = fp ? `<span class="mono" style="font-size:12px;">#${fp.rank} <span style="color:var(--text-dim);">(T${fp.tier})</span></span>` : '<span style="color:var(--text-dim); font-size:12px;">—</span>';
+      const news = fpInjuryFor(p.name);
+      const newsCell = news ? `<span class="pill bad">${escapeHTML(news.team)}</span>` : (p.status ? `<span class="pill bad">${escapeHTML(p.status)}</span>` : '<span style="color:var(--text-dim); font-size:12px;">—</span>');
+      return `
       <tr>
         <td><span class="pill teal">${p.position || "—"}</span></td>
         <td style="font-weight:500;">${escapeHTML(p.name)}</td>
@@ -525,9 +552,10 @@
         <td class="mono">${p.value ?? "—"}</td>
         <td class="mono" style="color:var(--text-muted); font-size:12px;">${p.rank ? "#" + p.rank : "unranked"}</td>
         <td>${trendBadgeHTML(p.trend)}</td>
-        <td>${p.status ? `<span class="pill bad">${escapeHTML(p.status)}</span>` : '<span style="color:var(--text-dim); font-size:12px;">—</span>'}</td>
-      </tr>
-    `).join("");
+        <td>${fpCell}</td>
+        <td>${newsCell}</td>
+      </tr>`;
+    }).join("");
   }
 
   // ---------- Render: Targets ----------
