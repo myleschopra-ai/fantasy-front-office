@@ -14,7 +14,7 @@ import urllib.request
 
 LEAGUE_ID = "1337549680476721152"
 MY_ROSTER_ID = 9
-NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
+NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "").strip()
 STATE_FILE = "watcher_state.json"
 TREND_THRESHOLD = 50
 
