@@ -4,6 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Front Office — Fantasy Dashboard</title>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Front Office" />
+<meta name="theme-color" content="#020617" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23020617'/%3E%3Crect x='12' y='12' width='76' height='76' rx='12' fill='%23f59e0b'/%3E%3Ctext x='50' y='64' font-family='Arial,sans-serif' font-weight='900' font-size='38' fill='%23020617' text-anchor='middle'%3EFO%3C/text%3E%3C/svg%3E" />
 <style>
   :root {
     --bg: #020617;
@@ -230,7 +235,8 @@
 <div id="freshness-bar" style="display:none; padding:6px 20px; background:var(--surface); border-bottom:1px solid var(--border); font-size:11px; color:var(--text-dim);" class="mono"></div>
 
 <nav id="tabs">
-  <button data-tab="roster" class="active">My Roster</button>
+  <button data-tab="command" class="active">Command Center</button>
+  <button data-tab="roster">My Roster</button>
   <button data-tab="targets">Acquisition Targets</button>
   <button data-tab="trade">Trade Analyzer</button>
 </nav>
@@ -261,9 +267,16 @@
     </div>
   </div>
 
+  <!-- COMMAND CENTER VIEW -->
+  <div id="view-command" class="view active">
+    <h2 class="display" style="font-size:16px; margin-bottom:16px;">Highest-Value Actions</h2>
+    <div id="command-content"></div>
+  </div>
+
   <!-- ROSTER VIEW -->
   <div id="view-roster" class="view">
     <h2 class="display" style="font-size:16px;" id="roster-title">Your Roster</h2>
+    <p class="mono" id="roster-validation" style="font-size:11px; color:var(--text-dim); margin:-4px 0 14px;"></p>
     <div style="overflow-x:auto;">
       <table>
         <thead>
@@ -543,7 +556,7 @@
     state.myRosterId = rosterId;
     $("view-connect").classList.remove("active");
     tabsNav.classList.add("visible");
-    switchTab("roster");
+    switchTab("command");
   }
 
   // ---------- Tabs ----------
@@ -552,6 +565,7 @@
     document.querySelectorAll("nav button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
     document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
     $(`view-${tab}`).classList.add("active");
+    if (tab === "command") renderCommandCenter();
     if (tab === "roster") renderRoster();
     if (tab === "targets") renderTargets();
     if (tab === "trade") renderTrade();
@@ -561,6 +575,80 @@
     const btn = e.target.closest("button[data-tab]");
     if (btn) switchTab(btn.dataset.tab);
   });
+
+  // ---------- Render: Command Center ----------
+  function renderCommandCenter() {
+    const fcMap = fcBySleeperId();
+    const myRoster = state.rosters.find(r => r.roster_id === state.myRosterId);
+    const sections = [];
+
+    // Sell-high / risk on own roster
+    if (myRoster) {
+      const flagged = (myRoster.players || []).map(pid => {
+        const p = state.allPlayers[pid] || {};
+        const fc = fcMap[pid];
+        const name = `${p.first_name || ""} ${p.last_name || ""}`.trim() || pid;
+        return { name, trend: fc ? fc.trend30Day : null, value: fc ? fc.value : null };
+      }).filter(p => p.trend !== null && p.trend !== undefined && Math.abs(p.trend) >= 50)
+        .sort((a, b) => Math.abs(b.trend) - Math.abs(a.trend));
+
+      if (flagged.length) {
+        sections.push({
+          title: "Roster Alerts",
+          rows: flagged.map(p => {
+            const isSell = p.trend >= 50;
+            return `<div class="fa-row">
+              <div class="fa-left">
+                <span class="pill ${isSell ? 'gold' : 'bad'}">${isSell ? 'SELL HIGH' : 'RISK'}</span>
+                <span class="fa-name">${escapeHTML(p.name)}</span>
+              </div>
+              <div>${trendBadgeHTML(p.trend)}</div>
+            </div>`;
+          }),
+        });
+      }
+    }
+
+    // Top acquisition targets
+    const freeAgents = computeFreeAgents().slice(0, 3);
+    if (freeAgents.length) {
+      sections.push({
+        title: "Top Acquisition Targets",
+        rows: freeAgents.map(e => `
+          <div class="fa-row">
+            <div class="fa-left">
+              <span class="pill teal">${e.player.position}</span>
+              <span class="fa-name">${escapeHTML(e.player.name)}</span>
+              <span class="mono" style="color:var(--text-dim); font-size:12px;">${e.player.maybeTeam || "FA"}</span>
+            </div>
+            <div>${trendBadgeHTML(e.trend30Day)}</div>
+          </div>`),
+      });
+    }
+
+    // Validation issues
+    if (myRoster) {
+      const unmatched = (myRoster.players || []).filter(pid => !fcMap[pid]);
+      if (unmatched.length) {
+        sections.push({
+          title: "Data Validation",
+          rows: [`<div style="color:var(--text-dim); font-size:13px;">⚠ ${unmatched.length} roster player(s) unmatched to market values — check the Roster tab.</div>`],
+        });
+      }
+    }
+
+    if (!sections.length) {
+      $("command-content").innerHTML = `<p style="color:var(--text-muted); font-size:14px;">No material alerts right now. Check back after your next data refresh, or browse the other tabs directly.</p>`;
+      return;
+    }
+
+    $("command-content").innerHTML = sections.map(s => `
+      <div style="margin-bottom:24px;">
+        <h3 class="display" style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">${s.title}</h3>
+        <div style="display:grid; gap:6px;">${s.rows.join("")}</div>
+      </div>
+    `).join("");
+  }
 
   // ---------- Render: Roster ----------
   function renderRoster() {
@@ -580,6 +668,13 @@
         value: fc ? fc.value : null, rank: fc ? fc.overallRank : null, trend: fc ? fc.trend30Day : null,
       };
     }).sort((a, b) => (b.value || 0) - (a.value || 0));
+
+    const unmatched = players.filter(p => p.value === null);
+    if (unmatched.length > 0) {
+      $("roster-validation").innerHTML = `⚠ ${unmatched.length}/${players.length} players unmatched to market values: ${unmatched.map(p => escapeHTML(p.name)).join(", ")}`;
+    } else {
+      $("roster-validation").textContent = `✓ All ${players.length} players matched to market values`;
+    }
 
     $("roster-body").innerHTML = players.map(p => {
       const fp = fpRankFor(p.name, p.position);
