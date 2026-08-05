@@ -1,8 +1,690 @@
 <!DOCTYPE html>
-<html>
-<head><title>Front Office Test</title></head>
-<body style="background:#0B0F14;color:#ECE8DF;font-family:sans-serif;padding:40px;">
-  <h1>Front Office — Hosting Test</h1>
-  <p>If you can see this styled page, GitHub Pages is live.</p>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Front Office — Fantasy Dashboard</title>
+<style>
+  :root {
+    --bg: #020617;
+    --surface: #0f172a;
+    --surface2: #1e293b;
+    --border: #1e293b;
+    --border-hover: #334155;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --text-dim: #64748b;
+    --gold: #f59e0b;
+    --gold-light: #fbbf24;
+    --teal: #14b8a6;
+    --teal-light: #2dd4bf;
+    --green: #34d399;
+    --red: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace; }
+  .display { font-weight: 900; text-transform: uppercase; letter-spacing: 0.02em; }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    background: rgba(2, 6, 23, 0.95);
+    backdrop-filter: blur(8px);
+    z-index: 10;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-icon {
+    width: 34px; height: 34px; border-radius: 6px;
+    background: var(--gold);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--bg); font-weight: 900; font-size: 16px;
+  }
+  .brand h1 { font-size: 14px; margin: 0; line-height: 1; }
+  .brand p { font-size: 11px; color: var(--text-muted); margin: 3px 0 0; }
+  .pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pill {
+    padding: 2px 8px; border-radius: 4px; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.03em;
+    background: var(--surface2); color: var(--text-muted);
+  }
+  .pill.gold { background: rgba(245,158,11,0.15); color: var(--gold-light); }
+  .pill.teal { background: rgba(20,184,166,0.15); color: var(--teal-light); }
+  .pill.bad { background: rgba(248,113,113,0.15); color: var(--red); }
+
+  nav {
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    display: none;
+    gap: 24px;
+    overflow-x: auto;
+  }
+  nav.visible { display: flex; }
+  nav button {
+    background: none; border: none; color: var(--text-muted);
+    padding: 12px 0; font-size: 12px; text-transform: uppercase;
+    letter-spacing: 0.03em; border-bottom: 2px solid transparent;
+    cursor: pointer; white-space: nowrap; font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+  nav button.active { color: var(--gold-light); border-bottom-color: var(--gold); }
+
+  main { padding: 20px; max-width: 960px; margin: 0 auto; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .connect-box { max-width: 420px; margin: 60px auto 0; }
+  .connect-box h2 { margin: 0 0 6px; font-size: 20px; }
+  .connect-box p.desc { color: var(--text-muted); font-size: 13px; margin: 0 0 20px; }
+  .input-row { display: flex; gap: 8px; }
+  input[type=text], textarea {
+    flex: 1; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 12px; color: var(--text);
+    font-size: 14px; font-family: inherit; -webkit-appearance: none;
+  }
+  input[type=text]:focus, textarea:focus { outline: none; border-color: var(--gold); }
+  button.btn {
+    background: var(--gold); color: var(--bg); border: none; border-radius: 6px;
+    padding: 10px 18px; font-weight: 700; font-size: 14px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  }
+  button.btn:disabled { opacity: 0.5; }
+  button.btn.secondary { background: var(--surface2); color: var(--text); }
+  button.link {
+    background: none; border: none; color: var(--text-muted);
+    font-size: 12px; text-decoration: underline; cursor: pointer;
+    padding: 0; font-family: inherit; margin-top: 14px; display: block;
+  }
+
+  .error-box {
+    margin-top: 16px; background: rgba(248,113,113,0.08);
+    border: 1px solid rgba(248,113,113,0.3); border-radius: 6px;
+    padding: 12px; font-size: 13px; color: var(--red);
+  }
+  .error-box a.link { color: var(--gold-light); }
+
+  .team-grid { display: grid; gap: 8px; margin-top: 16px; }
+  .team-card {
+    text-align: left; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 14px; font-size: 14px; color: var(--text);
+    cursor: pointer; touch-action: manipulation;
+  }
+  .team-card:active { border-color: var(--gold); }
+  .team-card span { color: var(--text-dim); font-size: 12px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; color: var(--text-muted); font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--border); padding: 8px 10px;
+  }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--surface); }
+  tr:last-child td { border-bottom: none; }
+  .trend-up { color: var(--green); }
+  .trend-down { color: var(--red); }
+  .trend-flat { color: var(--text-dim); }
+
+  .filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .filter-btn {
+    padding: 5px 12px; border-radius: 4px; font-size: 11px; text-transform: uppercase;
+    background: var(--surface); color: var(--text-muted); border: none; cursor: pointer;
+    font-family: inherit; touch-action: manipulation;
+  }
+  .filter-btn.active { background: var(--gold); color: var(--bg); }
+
+  .fa-row {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--surface); border-radius: 6px; padding: 10px 14px; margin-bottom: 6px;
+  }
+  .fa-left { display: flex; align-items: center; gap: 10px; }
+  .fa-name { font-weight: 500; font-size: 14px; }
+
+  .search-wrap { position: relative; margin-bottom: 20px; }
+  .search-results {
+    position: absolute; z-index: 20; margin-top: 4px; width: 100%;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    overflow: hidden; max-height: 280px; overflow-y: auto;
+  }
+  .search-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--surface2);
+  }
+  .search-item:last-child { border-bottom: none; }
+  .add-btn {
+    font-size: 10px; text-transform: uppercase; padding: 4px 8px; border-radius: 4px;
+    border: none; cursor: pointer; font-family: inherit; margin-left: 4px;
+    touch-action: manipulation;
+  }
+  .add-btn.give { background: rgba(20,184,166,0.2); color: var(--teal-light); }
+  .add-btn.get { background: rgba(245,158,11,0.2); color: var(--gold-light); }
+
+  .trade-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .trade-side { background: var(--surface); border-radius: 6px; padding: 14px; }
+  .trade-side-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em;
+    margin: 0 0 10px; font-weight: 700;
+  }
+  .trade-side-label.give { color: var(--teal-light); }
+  .trade-side-label.get { color: var(--gold-light); }
+  .trade-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0; border-bottom: 1px solid var(--surface2); font-size: 13px;
+  }
+  .trade-item:last-of-type { border-bottom: none; }
+  .remove-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px; padding: 0 4px; }
+  .trade-total { margin-top: 10px; font-size: 13px; font-weight: 700; }
+
+  .scale-box { background: var(--surface); border-radius: 6px; padding: 14px; margin-bottom: 14px; }
+  .scale-bar { height: 10px; border-radius: 5px; background: var(--surface2); display: flex; overflow: hidden; }
+  .scale-fill-give { background: var(--teal); height: 100%; }
+  .scale-fill-get { background: var(--gold); height: 100%; }
+  .scale-labels { display: flex; justify-content: space-between; margin-top: 8px; font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
+
+  .verdict {
+    display: flex; align-items: center; gap: 8px; padding: 12px 16px;
+    border-radius: 6px; font-size: 14px; font-weight: 600;
+  }
+  .verdict.good { background: rgba(52,211,153,0.1); color: var(--green); }
+  .verdict.bad { background: rgba(248,113,113,0.1); color: var(--red); }
+  .verdict.neutral { background: var(--surface2); color: var(--text-muted); }
+  .verdict .gap { margin-left: auto; font-size: 12px; }
+
+  .loading-spinner {
+    display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(2,6,23,0.3);
+    border-top-color: var(--bg); border-radius: 50%; animation: spin 0.7s linear infinite;
+    vertical-align: middle; margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 480px) {
+    .trade-cols { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-icon">FO</div>
+    <div>
+      <h1 class="display">Front Office</h1>
+      <p id="header-sub" class="mono">Not connected</p>
+    </div>
+  </div>
+  <div class="pills" id="header-pills"></div>
+</header>
+
+<nav id="tabs">
+  <button data-tab="roster" class="active">My Roster</button>
+  <button data-tab="targets">Acquisition Targets</button>
+  <button data-tab="trade">Trade Analyzer</button>
+</nav>
+
+<main>
+
+  <!-- CONNECT VIEW -->
+  <div id="view-connect" class="view active">
+    <div class="connect-box">
+      <h2 class="display" id="connect-title">Connect Your League</h2>
+      <p class="desc" id="connect-desc">Paste your Sleeper League ID. Format and roster data pull live — no API key needed.</p>
+      <div class="input-row">
+        <input type="text" id="league-id-input" placeholder="e.g. 1124567890123456789"
+               inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+        <button class="btn" id="connect-btn">Connect</button>
+      </div>
+      <div id="error-box" style="display:none;" class="error-box"></div>
+      <button class="link" id="paste-toggle">Or paste data pulled from Colab</button>
+      <div id="paste-area" style="display:none; margin-top:10px;">
+        <textarea id="paste-input" rows="6" placeholder='{"league":{...},"rosters":[...],"users":[...],"traded_picks":[...],"fc_data":[...],"all_players":{...}}'></textarea>
+        <button class="btn secondary" id="paste-load-btn" style="margin-top:8px;">Load pasted data</button>
+      </div>
+    </div>
+
+    <div id="team-picker" style="display:none;" class="connect-box">
+      <h2 class="display" style="font-size:16px;">Which team is yours?</h2>
+      <div class="team-grid" id="team-grid"></div>
+    </div>
+  </div>
+
+  <!-- ROSTER VIEW -->
+  <div id="view-roster" class="view">
+    <h2 class="display" style="font-size:16px;" id="roster-title">Your Roster</h2>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Pos</th><th>Player</th><th>Team</th><th>Value</th><th>Rank</th><th>30d</th><th>Status</th></tr>
+        </thead>
+        <tbody id="roster-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TARGETS VIEW -->
+  <div id="view-targets" class="view">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:8px;">
+      <h2 class="display" style="font-size:16px; margin:0;">Acquisition Targets</h2>
+      <div class="filter-row" id="pos-filters" style="margin-bottom:0;"></div>
+    </div>
+    <p class="mono" id="targets-count" style="color:var(--text-muted); font-size:12px; margin-bottom:14px;"></p>
+    <div id="targets-list"></div>
+  </div>
+
+  <!-- TRADE VIEW -->
+  <div id="view-trade" class="view">
+    <h2 class="display" style="font-size:16px;">Trade Analyzer</h2>
+    <div class="search-wrap">
+      <input type="text" id="trade-search" placeholder="Search a player or pick…" />
+      <div class="search-results" id="trade-search-results" style="display:none;"></div>
+    </div>
+    <div class="trade-cols">
+      <div class="trade-side">
+        <p class="trade-side-label give">You Give</p>
+        <div id="side-a-items"></div>
+        <p class="trade-total" style="color:var(--teal-light);" id="side-a-total">Total: 0</p>
+      </div>
+      <div class="trade-side">
+        <p class="trade-side-label get">You Get</p>
+        <div id="side-b-items"></div>
+        <p class="trade-total" style="color:var(--gold-light);" id="side-b-total">Total: 0</p>
+      </div>
+    </div>
+    <div class="scale-box">
+      <div class="scale-bar">
+        <div class="scale-fill-give" id="scale-give" style="width:50%;"></div>
+        <div class="scale-fill-get" id="scale-get" style="width:50%;"></div>
+      </div>
+      <div class="scale-labels"><span id="scale-give-label">Give: 0</span><span id="scale-get-label">Get: 0</span></div>
+    </div>
+    <div class="verdict neutral" id="verdict-box">Add assets to both sides</div>
+    <div id="traded-picks-section" style="margin-top:28px; display:none;">
+      <h3 class="display" style="font-size:12px; color:var(--text-muted);">Traded Picks in League</h3>
+      <div id="traded-picks-list" class="mono" style="font-size:12px; color:var(--text-muted); display:grid; gap:4px;"></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  const FC_URL = "https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=2&numTeams=12&ppr=0.5";
+  const STORAGE_KEY = "ffo_league_id";
+
+  const state = {
+    league: null, rosters: [], users: [], allPlayers: {}, fcData: [],
+    tradedPicks: [], myRosterId: null, activeTab: "roster",
+    sideA: [], sideB: [], posFilter: "ALL",
+  };
+
+  // ---------- DOM refs ----------
+  const $ = (id) => document.getElementById(id);
+  const leagueIdInput = $("league-id-input");
+  const connectBtn = $("connect-btn");
+  const errorBox = $("error-box");
+  const teamPicker = $("team-picker");
+  const teamGrid = $("team-grid");
+  const tabsNav = $("tabs");
+
+  // ---------- Helpers ----------
+  function ownerMap() {
+    const userById = {};
+    state.users.forEach(u => userById[u.user_id] = u.display_name);
+    const map = {};
+    state.rosters.forEach(r => map[r.roster_id] = userById[r.owner_id] || "Unknown");
+    return map;
+  }
+
+  function fcBySleeperId() {
+    const m = {};
+    state.fcData.forEach(e => {
+      const sid = e.player && e.player.sleeperId;
+      if (sid) m[String(sid)] = e;
+    });
+    return m;
+  }
+
+  function formatFromLeague() {
+    if (!state.league) return null;
+    const scoring = state.league.scoring_settings || {};
+    const rec = scoring.rec ?? 0;
+    const scoringType = rec === 1 ? "PPR" : rec === 0.5 ? "Half-PPR" : "Standard";
+    const type = (state.league.settings && state.league.settings.type) || 0;
+    return {
+      name: state.league.name, season: state.league.season, scoringType,
+      isDynasty: type === 2, isKeeper: type === 1, numTeams: state.league.total_rosters,
+    };
+  }
+
+  function trendBadgeHTML(value) {
+    if (value === undefined || value === null) return '<span class="mono trend-flat">—</span>';
+    const cls = value > 0 ? "trend-up" : value < 0 ? "trend-down" : "trend-flat";
+    const sign = value > 0 ? "+" : "";
+    return `<span class="mono ${cls}">${sign}${value}</span>`;
+  }
+
+  function escapeHTML(s) {
+    return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+
+  // ---------- Fetch ----------
+  async function loadLeague(leagueId) {
+    errorBox.style.display = "none";
+    connectBtn.disabled = true;
+    connectBtn.innerHTML = '<span class="loading-spinner"></span>Loading…';
+    try {
+      const [leagueRes, rostersRes, usersRes, picksRes, fcRes] = await Promise.all([
+        fetch(`https://api.sleeper.app/v1/league/${leagueId}`),
+        fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`),
+        fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`),
+        fetch(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`),
+        fetch(FC_URL),
+      ]);
+      if (!leagueRes.ok) throw new Error("League not found — check the League ID");
+
+      state.league = await leagueRes.json();
+      state.rosters = await rostersRes.json();
+      state.users = await usersRes.json();
+      state.tradedPicks = await picksRes.json();
+      state.fcData = await fcRes.json();
+
+      const pRes = await fetch("https://api.sleeper.app/v1/players/nfl");
+      state.allPlayers = await pRes.json();
+
+      localStorage.setItem(STORAGE_KEY, leagueId);
+      renderHeader();
+      showTeamPicker();
+    } catch (e) {
+      showError(e.message || "Fetch failed — check your connection and League ID.");
+    } finally {
+      connectBtn.disabled = false;
+      connectBtn.textContent = "Connect";
+    }
+  }
+
+  function loadFromPasteData(text) {
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed.league) state.league = parsed.league;
+      if (parsed.rosters) state.rosters = parsed.rosters;
+      if (parsed.users) state.users = parsed.users;
+      if (parsed.traded_picks) state.tradedPicks = parsed.traded_picks;
+      if (parsed.fc_data) state.fcData = parsed.fc_data;
+      if (parsed.all_players) state.allPlayers = parsed.all_players;
+      errorBox.style.display = "none";
+      renderHeader();
+      showTeamPicker();
+    } catch (e) {
+      showError("Couldn't parse that JSON — check it's the full bundle export.");
+    }
+  }
+
+  function showError(msg) {
+    errorBox.innerHTML = escapeHTML(msg) +
+      '<br><button class="link" style="margin-top:6px; display:inline;" id="err-paste-link">Paste JSON instead</button>';
+    errorBox.style.display = "block";
+    const link = $("err-paste-link");
+    if (link) link.addEventListener("click", () => { $("paste-area").style.display = "block"; });
+  }
+
+  // ---------- Render: header ----------
+  function renderHeader() {
+    const format = formatFromLeague();
+    if (!format) return;
+    $("header-sub").textContent = `${format.name} · ${format.season}`;
+    $("header-pills").innerHTML = `
+      <span class="pill gold">${format.scoringType}</span>
+      <span class="pill teal">${format.isDynasty ? "Dynasty" : format.isKeeper ? "Keeper" : "Redraft"}</span>
+      <span class="pill">${format.numTeams} teams</span>
+    `;
+  }
+
+  // ---------- Render: team picker ----------
+  function showTeamPicker() {
+    $("connect-title").style.display = "none";
+    $("connect-desc").style.display = "none";
+    document.querySelector(".input-row").style.display = "none";
+    $("paste-toggle").style.display = "none";
+    $("paste-area").style.display = "none";
+    errorBox.style.display = "none";
+
+    const owners = ownerMap();
+    teamGrid.innerHTML = state.rosters.map(r => `
+      <button class="team-card" data-roster-id="${r.roster_id}">
+        ${escapeHTML(owners[r.roster_id])}
+        <span> (${(r.players || []).length} players)</span>
+      </button>
+    `).join("");
+    teamPicker.style.display = "block";
+
+    teamGrid.querySelectorAll(".team-card").forEach(btn => {
+      btn.addEventListener("click", () => selectMyRoster(Number(btn.dataset.rosterId)));
+    });
+  }
+
+  function selectMyRoster(rosterId) {
+    state.myRosterId = rosterId;
+    $("view-connect").classList.remove("active");
+    tabsNav.classList.add("visible");
+    switchTab("roster");
+  }
+
+  // ---------- Tabs ----------
+  function switchTab(tab) {
+    state.activeTab = tab;
+    document.querySelectorAll("nav button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+    document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+    $(`view-${tab}`).classList.add("active");
+    if (tab === "roster") renderRoster();
+    if (tab === "targets") renderTargets();
+    if (tab === "trade") renderTrade();
+  }
+
+  tabsNav.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-tab]");
+    if (btn) switchTab(btn.dataset.tab);
+  });
+
+  // ---------- Render: Roster ----------
+  function renderRoster() {
+    const owners = ownerMap();
+    $("roster-title").textContent = `Your Roster — ${owners[state.myRosterId]}`;
+    const myRoster = state.rosters.find(r => r.roster_id === state.myRosterId);
+    const fcMap = fcBySleeperId();
+    if (!myRoster) return;
+
+    const players = (myRoster.players || []).map(pid => {
+      const p = state.allPlayers[pid] || {};
+      const fc = fcMap[pid];
+      return {
+        id: pid,
+        name: `${p.first_name || ""} ${p.last_name || ""}`.trim() || pid,
+        position: p.position, team: p.team, status: p.injury_status,
+        value: fc ? fc.value : null, rank: fc ? fc.overallRank : null, trend: fc ? fc.trend30Day : null,
+      };
+    }).sort((a, b) => (b.value || 0) - (a.value || 0));
+
+    $("roster-body").innerHTML = players.map(p => `
+      <tr>
+        <td><span class="pill teal">${p.position || "—"}</span></td>
+        <td style="font-weight:500;">${escapeHTML(p.name)}</td>
+        <td class="mono" style="color:var(--text-muted); font-size:12px;">${p.team || "FA"}</td>
+        <td class="mono">${p.value ?? "—"}</td>
+        <td class="mono" style="color:var(--text-muted); font-size:12px;">${p.rank ? "#" + p.rank : "unranked"}</td>
+        <td>${trendBadgeHTML(p.trend)}</td>
+        <td>${p.status ? `<span class="pill bad">${escapeHTML(p.status)}</span>` : '<span style="color:var(--text-dim); font-size:12px;">—</span>'}</td>
+      </tr>
+    `).join("");
+  }
+
+  // ---------- Render: Targets ----------
+  function computeFreeAgents() {
+    const rosteredIds = new Set();
+    state.rosters.forEach(r => (r.players || []).forEach(pid => rosteredIds.add(pid)));
+    return state.fcData
+      .filter(e => e.player.position && e.player.position !== "PICK")
+      .filter(e => e.player.sleeperId && !rosteredIds.has(String(e.player.sleeperId)))
+      .sort((a, b) => (b.trend30Day || 0) - (a.trend30Day || 0));
+  }
+
+  function renderTargets() {
+    const freeAgents = computeFreeAgents();
+    $("targets-count").textContent = `${freeAgents.length} valued free agents league-wide, sorted by 30-day market momentum. Verify against real news before acting.`;
+
+    const positions = ["ALL", "QB", "RB", "WR", "TE"];
+    $("pos-filters").innerHTML = positions.map(p =>
+      `<button class="filter-btn ${state.posFilter === p ? "active" : ""}" data-pos="${p}">${p}</button>`
+    ).join("");
+    $("pos-filters").querySelectorAll("button").forEach(btn => {
+      btn.addEventListener("click", () => { state.posFilter = btn.dataset.pos; renderTargets(); });
+    });
+
+    const filtered = (state.posFilter === "ALL" ? freeAgents : freeAgents.filter(e => e.player.position === state.posFilter)).slice(0, 40);
+
+    $("targets-list").innerHTML = filtered.map(e => `
+      <div class="fa-row">
+        <div class="fa-left">
+          <span class="pill teal">${e.player.position}</span>
+          <span class="fa-name">${escapeHTML(e.player.name)}</span>
+          <span class="mono" style="color:var(--text-dim); font-size:12px;">${e.player.maybeTeam || "FA"}</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px;">
+          <span class="mono" style="color:var(--text-muted); font-size:12px;">val ${e.value}</span>
+          ${trendBadgeHTML(e.trend30Day)}
+        </div>
+      </div>
+    `).join("");
+  }
+
+  // ---------- Render: Trade ----------
+  function renderTrade() {
+    const owners = ownerMap();
+    const tradedResolved = state.tradedPicks.map(tp => ({
+      ...tp,
+      originalOwner: owners[tp.roster_id] || "Unknown",
+      currentOwner: owners[tp.owner_id] || "Unknown",
+    }));
+    if (tradedResolved.length) {
+      $("traded-picks-section").style.display = "block";
+      $("traded-picks-list").innerHTML = tradedResolved.slice(0, 10).map(tp =>
+        `<div>${tp.season} Rd${tp.round} (orig. ${escapeHTML(tp.originalOwner)}) → now owned by <span style="color:var(--text);">${escapeHTML(tp.currentOwner)}</span></div>`
+      ).join("");
+    }
+    renderTradeSides();
+  }
+
+  function renderTradeSides() {
+    const renderSide = (items, containerId) => items.map((item, i) => `
+      <div class="trade-item">
+        <span>${escapeHTML(item.name)}</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="mono" style="color:var(--text-muted); font-size:12px;">${item.value}</span>
+          <button class="remove-btn" data-side="${containerId}" data-idx="${i}">✕</button>
+        </div>
+      </div>
+    `).join("") || '<p style="color:var(--text-dim); font-size:12px;">Search above to add players or picks</p>';
+
+    $("side-a-items").innerHTML = renderSide(state.sideA, "A");
+    $("side-b-items").innerHTML = renderSide(state.sideB, "B");
+
+    const totalA = state.sideA.reduce((s, i) => s + (i.value || 0), 0);
+    const totalB = state.sideB.reduce((s, i) => s + (i.value || 0), 0);
+    $("side-a-total").textContent = `Total: ${totalA}`;
+    $("side-b-total").textContent = `Total: ${totalB}`;
+
+    const pctA = (totalA / (totalA + totalB || 1)) * 100;
+    $("scale-give").style.width = pctA + "%";
+    $("scale-get").style.width = (100 - pctA) + "%";
+    $("scale-give-label").textContent = `Give: ${totalA}`;
+    $("scale-get-label").textContent = `Get: ${totalB}`;
+
+    const diff = totalA - totalB;
+    const maxTotal = Math.max(totalA, totalB, 1);
+    const pctGap = maxTotal > 0 ? (Math.abs(diff) / maxTotal) * 100 : 0;
+    const verdictBox = $("verdict-box");
+    verdictBox.className = "verdict";
+    if (state.sideA.length && state.sideB.length) {
+      if (pctGap < 10) { verdictBox.classList.add("good"); verdictBox.innerHTML = `Fair trade — within 10% value gap <span class="gap mono">${pctGap.toFixed(1)}% gap</span>`; }
+      else if (diff > 0) { verdictBox.classList.add("bad"); verdictBox.innerHTML = `You're giving more value away <span class="gap mono">${pctGap.toFixed(1)}% gap</span>`; }
+      else { verdictBox.classList.add("good"); verdictBox.innerHTML = `You're receiving more value <span class="gap mono">${pctGap.toFixed(1)}% gap</span>`; }
+    } else {
+      verdictBox.classList.add("neutral");
+      verdictBox.textContent = "Add assets to both sides";
+    }
+
+    document.querySelectorAll(".remove-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const side = btn.dataset.side, idx = Number(btn.dataset.idx);
+        if (side === "A") state.sideA.splice(idx, 1); else state.sideB.splice(idx, 1);
+        renderTradeSides();
+      });
+    });
+  }
+
+  function addToSide(side, entry) {
+    const item = { type: entry.player.position === "PICK" ? "pick" : "player", name: entry.player.name, value: entry.value };
+    if (side === "A") state.sideA.push(item); else state.sideB.push(item);
+    $("trade-search").value = "";
+    $("trade-search-results").style.display = "none";
+    renderTradeSides();
+  }
+
+  $("trade-search").addEventListener("input", (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    const resultsBox = $("trade-search-results");
+    if (!q) { resultsBox.style.display = "none"; return; }
+    const results = state.fcData.filter(entry => entry.player.name.toLowerCase().includes(q)).slice(0, 8);
+    if (!results.length) { resultsBox.style.display = "none"; return; }
+    resultsBox.innerHTML = results.map((entry, i) => `
+      <div class="search-item">
+        <span>${escapeHTML(entry.player.name)} <span class="mono" style="color:var(--text-dim); font-size:12px;">(${entry.value})</span></span>
+        <div>
+          <button class="add-btn give" data-idx="${i}" data-target="A">+ Give</button>
+          <button class="add-btn get" data-idx="${i}" data-target="B">+ Get</button>
+        </div>
+      </div>
+    `).join("");
+    resultsBox.style.display = "block";
+    resultsBox.querySelectorAll("button").forEach(btn => {
+      btn.addEventListener("click", () => addToSide(btn.dataset.target, results[Number(btn.dataset.idx)]));
+    });
+  });
+
+  // ---------- Wire up connect screen ----------
+  connectBtn.addEventListener("click", () => {
+    const id = leagueIdInput.value.trim();
+    if (id) loadLeague(id);
+  });
+  leagueIdInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") connectBtn.click();
+  });
+  $("paste-toggle").addEventListener("click", () => {
+    const area = $("paste-area");
+    area.style.display = area.style.display === "none" ? "block" : "none";
+  });
+  $("paste-load-btn").addEventListener("click", () => {
+    loadFromPasteData($("paste-input").value);
+  });
+
+  // ---------- Restore last league ----------
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) leagueIdInput.value = saved;
+
+})();
+</script>
+
 </body>
 </html>
