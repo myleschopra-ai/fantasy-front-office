@@ -227,6 +227,7 @@
     <div>
       <h1 class="display">Front Office</h1>
       <p id="header-sub" class="mono">Not connected</p>
+      <p class="mono" style="font-size:9px; color:var(--text-dim); margin:2px 0 0;">build 2026-08-04.5</p>
     </div>
   </div>
   <div class="pills" id="header-pills"></div>
@@ -702,6 +703,25 @@
       });
     }
 
+    // Positional depth risk — structural weakness check
+    if (myRoster) {
+      const posCounts = {};
+      (myRoster.players || []).forEach(pid => {
+        const p = state.allPlayers[pid] || {};
+        if (p.position) posCounts[p.position] = (posCounts[p.position] || 0) + 1;
+      });
+      const requiredMin = { QB: 2, RB: 3, WR: 3, TE: 1 }; // conservative floor for a 25-man dynasty roster
+      const thin = Object.entries(requiredMin)
+        .filter(([pos, min]) => (posCounts[pos] || 0) <= min)
+        .map(([pos]) => ({ pos, count: posCounts[pos] || 0 }));
+      if (thin.length) {
+        sections.push({
+          title: "Positional Depth Risk",
+          rows: thin.map(t => `<div class="fa-row"><div class="fa-left"><span class="pill bad">${t.pos}</span><span style="color:var(--text-muted); font-size:13px;">Only ${t.count} rostered — thin at this position</span></div></div>`),
+        });
+      }
+    }
+
     // FAAB budgets + trade deadline — defensive against missing fields
     const owners = ownerMap();
     const totalBudget = state.league && state.league.settings ? state.league.settings.waiver_budget : undefined;
@@ -723,6 +743,22 @@
             <span class="mono" style="font-size:13px;">$${b.remaining}</span>
           </div>`),
       });
+    }
+
+    // Draft capital summary — picks gained/lost via trade
+    const myName = owners[state.myRosterId];
+    if (myName && state.tradedPicks.length) {
+      const gained = state.tradedPicks.filter(tp => owners[tp.owner_id] === myName && owners[tp.roster_id] !== myName);
+      const lost = state.tradedPicks.filter(tp => owners[tp.roster_id] === myName && owners[tp.owner_id] !== myName);
+      if (gained.length || lost.length) {
+        sections.push({
+          title: "Draft Capital (via trade)",
+          rows: [
+            `<div style="color:var(--teal-light, var(--text-muted)); font-size:13px;">+${gained.length} pick(s) acquired: ${gained.map(tp => `${tp.season} Rd${tp.round}`).join(", ") || "none"}</div>`,
+            `<div style="color:var(--text-dim); font-size:13px;">-${lost.length} pick(s) traded away: ${lost.map(tp => `${tp.season} Rd${tp.round}`).join(", ") || "none"}</div>`,
+          ],
+        });
+      }
     }
 
     const tradeDeadlineWeek = state.league && state.league.settings ? state.league.settings.trade_deadline : undefined;
