@@ -1070,15 +1070,36 @@
 
     const filtered = (state.posFilter === "ALL" ? freeAgents : freeAgents.filter(e => e.player.position === state.posFilter)).slice(0, 40);
 
-    // FAAB bid suggestion — heuristic: % of remaining budget scaled by trend magnitude, capped conservatively.
-    // This is a starting-point suggestion, not a market-tested formula. Verify against league norms.
+    // FAAB bid suggestion. When real projections exist for both the target and
+    // your weakest eligible current starter, compare them directly — a proven
+    // point-for-point upgrade warrants a much stronger bid than trend alone would
+    // suggest. Falls back to the original trend-based heuristic otherwise.
     const myRoster = state.rosters.find(r => r.roster_id === state.myRosterId);
     const totalBudget = state.league && state.league.settings ? state.league.settings.waiver_budget : undefined;
     const myUsed = myRoster && myRoster.settings ? (myRoster.settings.waiver_budget_used || 0) : 0;
     const myRemaining = totalBudget !== undefined ? totalBudget - myUsed : undefined;
+    const { assigned: myStarters } = computeAssignedLineup();
 
-    function suggestBid(trend) {
-      if (myRemaining === undefined || trend === null || trend === undefined) return null;
+    function weakestStarterProjectionFor(position) {
+      const eligible = myStarters.filter(a => a.player && a.player.position === position && a.player.projPoints !== null);
+      if (!eligible.length) return null;
+      return Math.min(...eligible.map(a => a.player.projPoints));
+    }
+
+    function suggestBid(trend, targetProj, position) {
+      if (myRemaining === undefined) return null;
+
+      if (targetProj !== null) {
+        const weakestStarterProj = weakestStarterProjectionFor(position);
+        if (weakestStarterProj !== null && targetProj > weakestStarterProj) {
+          // Proven, apples-to-apples upgrade over a current starter — bid aggressively
+          const marginPct = Math.min((targetProj - weakestStarterProj) / weakestStarterProj, 1);
+          const pct = Math.max(0.25, Math.min(0.6, 0.25 + marginPct));
+          return Math.round(myRemaining * pct);
+        }
+      }
+
+      if (trend === null || trend === undefined) return null;
       const pct = Math.max(0.02, Math.min(0.35, trend / 500));
       return Math.round(myRemaining * pct);
     }
@@ -1092,9 +1113,9 @@
       const fpBadge = fp ? `<span class="pill gold">FP #${fp.rank}</span>` : "";
       const news = fpInjuryFor(e.player.name);
       const newsBadge = news ? `<span class="pill bad" title="${escapeHTML(news.name)}">${escapeHTML(news.team)} news</span>` : "";
-      const bid = suggestBid(e.trend30Day);
-      const bidBadge = bid !== null ? `<span class="pill teal" title="Heuristic suggestion, not a guarantee">Suggested $${bid}</span>` : "";
       const proj = fpProjectionFor(e.player.name, e.player.position);
+      const bid = suggestBid(e.trend30Day, proj, e.player.position);
+      const bidBadge = bid !== null ? `<span class="pill teal" title="Heuristic suggestion, not a guarantee">Suggested $${bid}</span>` : "";
       const projBadge = proj !== null ? `<span class="mono" style="color:var(--green); font-size:12px;">${proj} pts (proj)</span>` : "";
       return `
       <div class="fa-row">
