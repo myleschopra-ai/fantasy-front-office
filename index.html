@@ -1094,6 +1094,8 @@
       const newsBadge = news ? `<span class="pill bad" title="${escapeHTML(news.name)}">${escapeHTML(news.team)} news</span>` : "";
       const bid = suggestBid(e.trend30Day);
       const bidBadge = bid !== null ? `<span class="pill teal" title="Heuristic suggestion, not a guarantee">Suggested $${bid}</span>` : "";
+      const proj = fpProjectionFor(e.player.name, e.player.position);
+      const projBadge = proj !== null ? `<span class="mono" style="color:var(--green); font-size:12px;">${proj} pts (proj)</span>` : "";
       return `
       <div class="fa-row">
         <div class="fa-left">
@@ -1103,6 +1105,7 @@
           ${fpBadge}${newsBadge}
         </div>
         <div style="display:flex; align-items:center; gap:14px;">
+          ${projBadge}
           <span class="mono" style="color:var(--text-muted); font-size:12px;">val ${e.value}</span>
           ${trendBadgeHTML(e.trend30Day)}
           ${bidBadge}
