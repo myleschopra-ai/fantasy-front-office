@@ -63,6 +63,7 @@ def load_state():
 def save_state(state):
     # Append this run's alerts to history, capped to the most recent 200 entries
     state["history"] = (state.get("history", []) + _history_buffer)[-200:]
+    state["last_run"] = datetime.utcnow().isoformat() + "Z"
     with open(STATE_FILE, "w") as f:
         json.dump(state, f)
 
