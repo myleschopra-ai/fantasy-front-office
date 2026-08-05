@@ -295,7 +295,7 @@
   <div id="view-lineup" class="view">
     <h2 class="display" style="font-size:16px; margin-bottom:6px;">Suggested Starting Lineup</h2>
     <p class="mono" style="font-size:11px; color:var(--text-dim); margin:0 0 16px;">
-      Value-based, not a weekly point projection — use for slot structure, verify each start against real matchups/injuries before kickoff.
+      Ranked by real FantasyPros projections where available (labeled "pts (proj)"), falling back to dynasty trade value for players outside the free-tier projection depth. Verify each start against real matchups/injuries before kickoff.
     </p>
     <div id="lineup-content"></div>
   </div>
@@ -307,7 +307,7 @@
     <div style="overflow-x:auto;">
       <table>
         <thead>
-          <tr><th>Pos</th><th>Player</th><th>Team</th><th>Value</th><th>Rank</th><th>30d</th><th>FP Rank</th><th>News</th></tr>
+          <tr><th>Pos</th><th>Player</th><th>Team</th><th>Value</th><th>Proj</th><th>Rank</th><th>30d</th><th>FP Rank</th><th>News</th></tr>
         </thead>
         <tbody id="roster-body"></tbody>
       </table>
@@ -401,6 +401,14 @@
   function fpInjuryFor(name) {
     if (!state.fpData || !state.fpData.injuries) return null;
     return state.fpData.injuries.find(i => i.name === name) || null;
+  }
+
+  function fpProjectionFor(name, position) {
+    if (!state.fpData || !state.fpData.projections) return null;
+    const list = state.fpData.projections[position];
+    if (!list) return null;
+    const entry = list.find(p => p.name === name);
+    return entry ? entry.points_half : null;
   }
 
   // ---------- DOM refs ----------
@@ -652,22 +660,34 @@
     const pool = (myRoster.players || []).map(pid => {
       const p = state.allPlayers[pid] || {};
       const fc = fcMap[pid];
+      const name = `${p.first_name || ""} ${p.last_name || ""}`.trim() || pid;
+      const projPoints = p.position ? fpProjectionFor(name, p.position) : null;
       return {
         id: pid,
-        name: `${p.first_name || ""} ${p.last_name || ""}`.trim() || pid,
+        name,
         position: p.position,
         team: p.team,
         status: p.injury_status,
         value: fc ? fc.value : 0,
+        projPoints,
       };
-    }).sort((a, b) => (b.value || 0) - (a.value || 0));
+    });
+
+    // Real weekly/season projections and dynasty trade value are on completely
+    // different scales — never sort them together directly. Rank anyone with a
+    // real projection first (by points, more relevant for "who starts"), then
+    // fill remaining slots from value-based fallback for players the free-tier
+    // projection data doesn't cover.
+    const withProjection = pool.filter(p => p.projPoints !== null).sort((a, b) => b.projPoints - a.projPoints);
+    const withoutProjection = pool.filter(p => p.projPoints === null).sort((a, b) => (b.value || 0) - (a.value || 0));
+    const rankedPool = [...withProjection, ...withoutProjection];
 
     const used = new Set();
     const assigned = [];
 
     slots.forEach(slot => {
       const eligiblePositions = eligibility[slot] || [slot];
-      const pick = pool.find(p => !used.has(p.id) && eligiblePositions.includes(p.position));
+      const pick = rankedPool.find(p => !used.has(p.id) && eligiblePositions.includes(p.position));
       if (pick) {
         used.add(pick.id);
         assigned.push({ slot, player: pick });
@@ -676,7 +696,7 @@
       }
     });
 
-    const bench = pool.filter(p => !used.has(p.id));
+    const bench = rankedPool.filter(p => !used.has(p.id));
     return { assigned, bench };
   }
 
@@ -684,6 +704,10 @@
     const format = formatFromLeague();
     if (!format) return;
     const { assigned, bench } = computeAssignedLineup();
+
+    const metricHTML = (p) => p.projPoints !== null
+      ? `<span class="mono" style="color:var(--green); font-size:12px;">${p.projPoints} pts (proj)</span>`
+      : `<span class="mono" style="color:var(--text-muted); font-size:12px;">val ${p.value}</span>`;
 
     const rowHTML = (slot, p) => {
       if (!p) {
@@ -697,7 +721,7 @@
           <span class="mono" style="color:var(--text-dim); font-size:12px;">${p.team || "FA"}</span>
           ${statusBadge}
         </div>
-        <span class="mono" style="color:var(--text-muted); font-size:12px;">val ${p.value}</span>
+        ${metricHTML(p)}
       </div>`;
     };
 
@@ -716,7 +740,7 @@
             <span class="mono" style="color:var(--text-dim); font-size:12px;">${p.team || "FA"}</span>
             ${p.status ? `<span class="pill bad">${escapeHTML(p.status)}</span>` : ""}
           </div>
-          <span class="mono" style="color:var(--text-muted); font-size:12px;">val ${p.value}</span>
+          ${metricHTML(p)}
         </div>`).join("")}</div>
     </div>`;
 
@@ -964,12 +988,14 @@
     const players = (myRoster.players || []).map(pid => {
       const p = state.allPlayers[pid] || {};
       const fc = fcMap[pid];
+      const name = `${p.first_name || ""} ${p.last_name || ""}`.trim() || pid;
       return {
         id: pid,
-        name: `${p.first_name || ""} ${p.last_name || ""}`.trim() || pid,
+        name,
         position: p.position, team: p.team, status: p.injury_status,
         value: fc ? fc.value : null, rank: fc ? fc.overallRank : null, trend: fc ? fc.trend30Day : null,
         isRookie: p.years_exp === 0,
+        projPoints: p.position ? fpProjectionFor(name, p.position) : null,
       };
     }).sort((a, b) => (b.value || 0) - (a.value || 0));
 
@@ -985,6 +1011,7 @@
       const fpCell = fp ? `<span class="mono" style="font-size:12px;">#${fp.rank} <span style="color:var(--text-dim);">(T${fp.tier})</span></span>` : '<span style="color:var(--text-dim); font-size:12px;">—</span>';
       const news = fpInjuryFor(p.name);
       const newsCell = news ? `<span class="pill bad">${escapeHTML(news.team)}</span>` : (p.status ? `<span class="pill bad">${escapeHTML(p.status)}</span>` : '<span style="color:var(--text-dim); font-size:12px;">—</span>');
+      const projCell = p.projPoints !== null ? `<span class="mono" style="color:var(--green); font-size:12px;">${p.projPoints}</span>` : '<span style="color:var(--text-dim); font-size:12px;">—</span>';
       let flag = "";
       if (p.trend !== null && p.trend !== undefined) {
         if (p.trend >= 50) flag = '<span class="pill gold" title="Trending up 50+ over 30 days — market value elevated">SELL HIGH</span>';
@@ -997,6 +1024,7 @@
         <td style="font-weight:500;">${escapeHTML(p.name)} ${flag}</td>
         <td class="mono" style="color:var(--text-muted); font-size:12px;">${p.team || "FA"}</td>
         <td class="mono">${p.value ?? "—"}</td>
+        <td>${projCell}</td>
         <td class="mono" style="color:var(--text-muted); font-size:12px;">${p.rank ? "#" + p.rank : "unranked"}</td>
         <td>${trendBadgeHTML(p.trend)}</td>
         <td>${fpCell}</td>
