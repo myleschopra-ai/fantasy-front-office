@@ -1,0 +1,37 @@
+name: Upgrade Draft V2
+
+on:
+  push:
+    branches:
+      - feature/elite-draft-engine
+    paths:
+      - scripts/upgrade_draft_v2.py
+      - data/prospect_board.json
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/elite-draft-engine
+      - name: Apply elite draft upgrade
+        run: python scripts/upgrade_draft_v2.py
+      - name: Validate required corrections
+        run: |
+          grep -q "rostered and drafted players excluded" draft.html
+          grep -q "Open Sleeper Draft" draft.html
+          grep -q "Projected Rookie Pick Order" draft.html
+          grep -q "fantasypros.json" draft.html
+          grep -q "watcher_state.json" draft.html
+          grep -q "prospect_board.json" draft.html
+      - name: Commit upgraded draft
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add draft.html
+          git diff --cached --quiet || git commit -m "feat: upgrade draft decision engine"
+          git push
