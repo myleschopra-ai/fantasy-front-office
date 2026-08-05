@@ -1544,24 +1544,41 @@
     renderDraftBoard();
   }
 
+  let draftCenterInitialized = false;
+  let mockState = null;
+
   function initDraftCenter() {
-    $("draft-board-toggle").addEventListener("click", () => {
-      $("draft-board-toggle").classList.add("active");
-      $("draft-mock-toggle").classList.remove("active");
-      $("draft-board-view").style.display = "block";
-      $("draft-mock-view").style.display = "none";
-    });
-    $("draft-mock-toggle").addEventListener("click", () => {
-      $("draft-mock-toggle").classList.add("active");
-      $("draft-board-toggle").classList.remove("active");
-      $("draft-mock-view").style.display = "block";
-      $("draft-board-view").style.display = "none";
-    });
-    $("draft-rookie-toggle").addEventListener("click", () => {
-      draftRookieOnly = !draftRookieOnly;
-      $("draft-rookie-toggle").classList.toggle("active", draftRookieOnly);
-      renderDraftBoard();
-    });
+    if (!draftCenterInitialized) {
+      draftCenterInitialized = true;
+
+      $("draft-board-toggle").addEventListener("click", () => {
+        $("draft-board-toggle").classList.add("active");
+        $("draft-mock-toggle").classList.remove("active");
+        $("draft-board-view").style.display = "block";
+        $("draft-mock-view").style.display = "none";
+      });
+      $("draft-mock-toggle").addEventListener("click", () => {
+        $("draft-mock-toggle").classList.add("active");
+        $("draft-board-toggle").classList.remove("active");
+        $("draft-mock-view").style.display = "block";
+        $("draft-board-view").style.display = "none";
+      });
+      $("draft-rookie-toggle").addEventListener("click", () => {
+        draftRookieOnly = !draftRookieOnly;
+        $("draft-rookie-toggle").classList.toggle("active", draftRookieOnly);
+        renderDraftBoard();
+      });
+
+      $("mock-pool-rookies").addEventListener("click", () => {
+        $("mock-pool-rookies").classList.add("active");
+        $("mock-pool-full").classList.remove("active");
+      });
+      $("mock-pool-full").addEventListener("click", () => {
+        $("mock-pool-full").classList.add("active");
+        $("mock-pool-rookies").classList.remove("active");
+      });
+      $("mock-start-btn").addEventListener("click", startMockDraft);
+    }
 
     const positions = ["ALL", "QB", "RB", "WR", "TE"];
     $("draft-pos-filters").innerHTML = positions.map(p =>
@@ -1643,6 +1660,172 @@
       </div>
       <span class="mono" style="color:var(--text-muted); font-size:12px;">val ${e.value}</span>
     </div>`;
+  }
+
+  // ---------- Mock Draft Simulator ----------
+  // Practice tool only. Opponents use a real-data-driven heuristic (team need
+  // then best-available-value), not random picks. Not synced with real people
+  // or Sleeper's own mock draft feature — that would require an undocumented
+  // internal API, which this project deliberately avoids.
+
+  function computeMockDraftOrder() {
+    // Weakest total roster value picks first, snake thereafter — a reasonable
+    // preseason proxy for "worst record picks first" since real standings don't exist yet.
+    const owners = ownerMap();
+    const fcMap = fcBySleeperId();
+    const ranked = state.rosters.map(r => {
+      const total = (r.players || []).reduce((sum, pid) => {
+        const fc = fcMap[pid];
+        return sum + (fc ? fc.value : 0);
+      }, 0);
+      return { rosterId: r.roster_id, total, name: owners[r.roster_id] || "Unknown" };
+    }).sort((a, b) => a.total - b.total);
+    return ranked.map(r => r.rosterId);
+  }
+
+  function startMockDraft() {
+    const rookiesOnly = $("mock-pool-rookies").classList.contains("active");
+    const rounds = Math.max(1, Math.min(10, parseInt($("mock-rounds-input").value, 10) || 4));
+
+    let pool = state.fcData
+      .filter(e => e.player.position && e.player.position !== "PICK" && e.player.sleeperId)
+      .filter(e => !allRosteredIdsSet().has(String(e.player.sleeperId)));
+
+    if (rookiesOnly) {
+      pool = pool.filter(e => {
+        const sp = state.allPlayers[String(e.player.sleeperId)];
+        return sp && sp.years_exp === 0;
+      });
+    }
+    pool.sort((a, b) => (b.value || 0) - (a.value || 0));
+
+    const order = computeMockDraftOrder();
+    const virtualCounts = {};
+    state.rosters.forEach(r => { virtualCounts[r.roster_id] = computePositionCounts(r); });
+
+    mockState = {
+      pool,
+      order,
+      rounds,
+      totalPicks: order.length * rounds,
+      currentPickIdx: 0,
+      picks: [],
+      virtualCounts,
+    };
+
+    $("mock-setup").style.display = "none";
+    $("mock-draft-active").style.display = "block";
+    advanceMockDraft();
+  }
+
+  function allRosteredIdsSet() {
+    const s = new Set();
+    state.rosters.forEach(r => (r.players || []).forEach(pid => s.add(pid)));
+    return s;
+  }
+
+  function currentPickRosterId() {
+    const { order, currentPickIdx } = mockState;
+    const round = Math.floor(currentPickIdx / order.length);
+    const posInRound = currentPickIdx % order.length;
+    const idx = round % 2 === 0 ? posInRound : order.length - 1 - posInRound;
+    return order[idx];
+  }
+
+  function aiPick(rosterId) {
+    const requiredMin = { QB: 2, RB: 3, WR: 3, TE: 1 };
+    const counts = mockState.virtualCounts[rosterId] || {};
+    const thin = Object.entries(requiredMin).filter(([pos, min]) => (counts[pos] || 0) < min).map(([pos]) => pos);
+
+    let candidatePool = mockState.pool;
+    if (thin.length) {
+      const thinPool = candidatePool.filter(e => thin.includes(e.player.position));
+      if (thinPool.length) candidatePool = thinPool;
+    }
+    return candidatePool[0] || null;
+  }
+
+  function advanceMockDraft() {
+    while (mockState.currentPickIdx < mockState.totalPicks) {
+      const rosterId = currentPickRosterId();
+      if (rosterId === state.myRosterId) {
+        renderMockDraftUI();
+        return; // wait for user to click a player
+      }
+      const pick = aiPick(rosterId);
+      if (!pick) break; // pool exhausted
+      makeMockPick(rosterId, pick);
+    }
+    renderMockDraftUI();
+  }
+
+  function makeMockPick(rosterId, entry) {
+    mockState.pool = mockState.pool.filter(e => e !== entry);
+    mockState.picks.push({
+      pickNo: mockState.currentPickIdx + 1,
+      rosterId,
+      player: entry.player,
+      value: entry.value,
+    });
+    const pos = entry.player.position;
+    if (!mockState.virtualCounts[rosterId]) mockState.virtualCounts[rosterId] = {};
+    mockState.virtualCounts[rosterId][pos] = (mockState.virtualCounts[rosterId][pos] || 0) + 1;
+    mockState.currentPickIdx++;
+  }
+
+  function renderMockDraftUI() {
+    const owners = ownerMap();
+    const done = mockState.currentPickIdx >= mockState.totalPicks;
+    const isMyTurn = !done && currentPickRosterId() === state.myRosterId;
+
+    let html = `<div style="margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
+      <span class="mono" style="color:var(--text-muted); font-size:12px;">Pick ${Math.min(mockState.currentPickIdx + 1, mockState.totalPicks)} of ${mockState.totalPicks}</span>
+      <button id="mock-reset-btn" style="touch-action:manipulation; background:var(--surface2); color:var(--text-muted); border:none; padding:6px 12px; border-radius:5px; font-size:11px; text-transform:uppercase; cursor:pointer;">Reset</button>
+    </div>`;
+
+    if (done) {
+      html += `<div style="color:var(--green); font-weight:600; margin-bottom:16px;">Mock draft complete.</div>`;
+    } else if (isMyTurn) {
+      html += `<div style="color:var(--gold-light); font-weight:600; margin-bottom:12px;">Your pick — tap a player below</div>`;
+      html += `<div style="display:grid; gap:6px; margin-bottom:20px;">` +
+        mockState.pool.slice(0, 25).map((e, i) => `
+          <div class="fa-row" data-mock-pick-idx="${i}" style="cursor:pointer; touch-action:manipulation;">
+            <div class="fa-left">
+              <span class="pill teal">${e.player.position}</span>
+              <span class="fa-name">${escapeHTML(e.player.name)}</span>
+              <span class="mono" style="color:var(--text-dim); font-size:12px;">${e.player.maybeTeam || "FA"}</span>
+            </div>
+            <span class="mono" style="color:var(--text-muted); font-size:12px;">val ${e.value}</span>
+          </div>`).join("") + `</div>`;
+    } else {
+      html += `<div style="color:var(--text-muted); margin-bottom:16px;">Waiting on ${escapeHTML(owners[currentPickRosterId()] || "opponent")}...</div>`;
+    }
+
+    html += `<h3 class="display" style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">Pick History</h3>`;
+    html += `<div style="display:grid; gap:4px;">` +
+      [...mockState.picks].reverse().slice(0, 20).map(p => {
+        const isMe = p.rosterId === state.myRosterId;
+        return `<div style="font-size:12px; color:${isMe ? 'var(--gold-light)' : 'var(--text-muted)'};">
+          #${p.pickNo} ${escapeHTML(owners[p.rosterId] || "?")} — ${p.player.position} ${escapeHTML(p.player.name)}
+        </div>`;
+      }).join("") + `</div>`;
+
+    $("mock-draft-active").innerHTML = html;
+
+    $("mock-draft-active").querySelectorAll("[data-mock-pick-idx]").forEach(row => {
+      row.addEventListener("click", () => {
+        const idx = Number(row.dataset.mockPickIdx);
+        const entry = mockState.pool[idx];
+        makeMockPick(state.myRosterId, entry);
+        advanceMockDraft();
+      });
+    });
+    const resetBtn = $("mock-reset-btn");
+    if (resetBtn) resetBtn.addEventListener("click", () => {
+      mockState = null;
+      $("mock-setup").style.display = "block";
+      $("mock-draft-active").style.display = "none";
+    });
   }
 
   // ---------- Restore last league ----------
