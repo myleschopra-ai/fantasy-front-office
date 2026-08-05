@@ -1067,6 +1067,19 @@
     return counts;
   }
 
+  function getLowestValueAtPosition(roster, position) {
+    const fcMap = fcBySleeperId();
+    const candidates = (roster.players || [])
+      .map(pid => {
+        const p = state.allPlayers[pid] || {};
+        const fc = fcMap[pid];
+        return { name: `${p.first_name || ""} ${p.last_name || ""}`.trim() || pid, position: p.position, value: fc ? fc.value : 0 };
+      })
+      .filter(p => p.position === position)
+      .sort((a, b) => a.value - b.value);
+    return candidates.length ? candidates[0] : null;
+  }
+
   function renderTradePartners() {
     const owners = ownerMap();
     const myRoster = state.rosters.find(r => r.roster_id === state.myRosterId);
@@ -1089,7 +1102,11 @@
       const theyCanHelpMe = theirSurplus.filter(pos => myThin.includes(pos));
 
       if (iCanHelpThem.length || theyCanHelpMe.length) {
-        partners.push({ name: owners[r.roster_id] || "Unknown", iCanHelpThem, theyCanHelpMe });
+        partners.push({
+          name: owners[r.roster_id] || "Unknown",
+          iCanHelpThem: iCanHelpThem.map(pos => ({ pos, player: getLowestValueAtPosition(myRoster, pos) })),
+          theyCanHelpMe: theyCanHelpMe.map(pos => ({ pos, player: getLowestValueAtPosition(r, pos) })),
+        });
       }
     });
 
@@ -1099,11 +1116,15 @@
 
     $("trade-partners-list").innerHTML = partners.map(p => {
       const lines = [];
-      if (p.iCanHelpThem.length) lines.push(`<div style="color:var(--teal-light); font-size:12px;">You could send: ${p.iCanHelpThem.join(", ")} depth</div>`);
-      if (p.theyCanHelpMe.length) lines.push(`<div style="color:var(--gold-light); font-size:12px;">They could send: ${p.theyCanHelpMe.join(", ")} depth</div>`);
+      p.iCanHelpThem.forEach(({ pos, player }) => {
+        if (player) lines.push(`<div style="color:var(--teal-light); font-size:12px;">You could send: ${escapeHTML(player.name)} (${pos}, val ${player.value})</div>`);
+      });
+      p.theyCanHelpMe.forEach(({ pos, player }) => {
+        if (player) lines.push(`<div style="color:var(--gold-light); font-size:12px;">They could send: ${escapeHTML(player.name)} (${pos}, val ${player.value})</div>`);
+      });
       return `<div style="background:var(--surface); border-radius:6px; padding:12px;">
         <div style="font-weight:600; font-size:13px; margin-bottom:4px;">${escapeHTML(p.name)}</div>
-        ${lines.join("")}
+        ${lines.join("") || '<div style="color:var(--text-dim); font-size:12px;">No specific candidates found</div>'}
       </div>`;
     }).join("");
   }
