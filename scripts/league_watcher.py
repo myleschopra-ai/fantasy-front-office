@@ -162,9 +162,12 @@ def main():
     # ---- 4. Cross-check own roster against committed FantasyPros injury snapshot ----
     new_injury_alerts = 0
     state.setdefault("seen_injuries", [])
-    if os.path.exists("fantasypros.json") and my_roster:
+    fp_data = None
+    if os.path.exists("fantasypros.json"):
         with open("fantasypros.json") as f:
             fp_data = json.load(f)
+
+    if fp_data and my_roster:
         my_names = set()
         for pid in my_player_ids:
             p = fc_by_sid.get(pid)
@@ -205,9 +208,56 @@ def main():
                     new_faab_alerts += 1
             state["faab_used"][rid] = used
 
+    # ---- 6. Detect free agents whose real projection beats your weakest rostered
+    #         player at that position — a proven upgrade, not just a trend blip.
+    #         Simplified proxy vs the dashboard's slot-aware version: compares
+    #         against your weakest ROSTERED player at the position, not weakest STARTER.
+    new_upgrade_alerts = 0
+    state.setdefault("flagged_upgrades", [])
+    if fp_data and fp_data.get("projections") and my_roster:
+        def fp_proj_for(name, position):
+            lst = fp_data["projections"].get(position, [])
+            for p in lst:
+                if p["name"] == name:
+                    return p["points_half"]
+            return None
+
+        my_proj_by_position = {}
+        for pid in my_player_ids:
+            fc = fc_by_sid.get(pid)
+            if not fc:
+                continue
+            pos = fc["player"].get("position")
+            proj = fp_proj_for(fc["player"]["name"], pos) if pos else None
+            if proj is not None:
+                my_proj_by_position.setdefault(pos, []).append(proj)
+
+        for e in fc_data:
+            sid = e["player"].get("sleeperId")
+            pos = e["player"].get("position")
+            if not sid or pos in (None, "PICK") or str(sid) in all_rostered_ids:
+                continue
+            target_proj = fp_proj_for(e["player"]["name"], pos)
+            if target_proj is None:
+                continue
+            my_positional = my_proj_by_position.get(pos)
+            if not my_positional:
+                continue
+            weakest = min(my_positional)
+            key = f"{sid}|{pos}"
+            if target_proj > weakest and key not in state["flagged_upgrades"]:
+                notify(
+                    f"Upgrade available: {e['player']['name']}",
+                    f"{e['player']['name']} ({pos}) projects {target_proj} pts vs your weakest rostered {pos} at {weakest} pts.",
+                    priority="high",
+                )
+                new_upgrade_alerts += 1
+                state["flagged_upgrades"].append(key)
+
     save_state(state)
     print(f"Done. {new_trade_alerts} trade, {new_flag_alerts} roster-flag, "
-          f"{new_target_alerts} target, {new_injury_alerts} injury, {new_faab_alerts} FAAB alert(s).")
+          f"{new_target_alerts} target, {new_injury_alerts} injury, {new_faab_alerts} FAAB, "
+          f"{new_upgrade_alerts} upgrade alert(s).")
 
 
 if __name__ == "__main__":
