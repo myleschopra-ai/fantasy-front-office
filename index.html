@@ -1314,9 +1314,11 @@
     resultsBox.innerHTML = results.map((entry, i) => {
       const fp = fpRankFor(entry.player.name, entry.player.position);
       const fpTag = fp ? ` <span style="color:var(--gold-light); font-size:11px;">FP #${fp.rank}</span>` : "";
+      const proj = entry.player.position ? fpProjectionFor(entry.player.name, entry.player.position) : null;
+      const projTag = proj !== null ? ` <span style="color:var(--green); font-size:11px;">${proj}pts</span>` : "";
       return `
       <div class="search-item">
-        <span>${escapeHTML(entry.player.name)} <span class="mono" style="color:var(--text-dim); font-size:12px;">(${entry.value})</span>${fpTag}</span>
+        <span>${escapeHTML(entry.player.name)} <span class="mono" style="color:var(--text-dim); font-size:12px;">(${entry.value})</span>${fpTag}${projTag}</span>
         <div>
           <button class="add-btn give" data-idx="${i}" data-target="A">+ Give</button>
           <button class="add-btn get" data-idx="${i}" data-target="B">+ Get</button>
