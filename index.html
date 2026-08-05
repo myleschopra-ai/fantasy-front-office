@@ -227,6 +227,8 @@
   <div class="pills" id="header-pills"></div>
 </header>
 
+<div id="freshness-bar" style="display:none; padding:6px 20px; background:var(--surface); border-bottom:1px solid var(--border); font-size:11px; color:var(--text-dim);" class="mono"></div>
+
 <nav id="tabs">
   <button data-tab="roster" class="active">My Roster</button>
   <button data-tab="targets">Acquisition Targets</button>
@@ -327,7 +329,7 @@
   const state = {
     league: null, rosters: [], users: [], allPlayers: {}, fcData: [],
     tradedPicks: [], myRosterId: null, activeTab: "roster",
-    sideA: [], sideB: [], posFilter: "ALL", fpData: null,
+    sideA: [], sideB: [], posFilter: "ALL", fpData: null, fetchedAt: null,
   };
 
   function fpRankFor(name, position) {
@@ -427,6 +429,7 @@
       }
 
       localStorage.setItem(STORAGE_KEY, leagueId);
+      state.fetchedAt = new Date();
       renderHeader();
       showTeamPicker();
     } catch (e) {
@@ -472,6 +475,44 @@
       <span class="pill teal">${format.isDynasty ? "Dynasty" : format.isKeeper ? "Keeper" : "Redraft"}</span>
       <span class="pill">${format.numTeams} teams</span>
     `;
+    renderFreshnessBar();
+    $("header-sub").innerHTML += ' &nbsp;·&nbsp; <button class="link" id="change-league-btn" style="display:inline; margin:0; font-size:11px;">change league</button>';
+    const changeLeagueBtn = $("change-league-btn");
+    if (changeLeagueBtn) changeLeagueBtn.addEventListener("click", resetToConnect);
+  }
+
+  function resetToConnect() {
+    state.league = null; state.rosters = []; state.users = []; state.allPlayers = {};
+    state.fcData = []; state.tradedPicks = []; state.myRosterId = null; state.fpData = null;
+    state.sideA = []; state.sideB = []; state.fetchedAt = null;
+    tabsNav.classList.remove("visible");
+    $("freshness-bar").style.display = "none";
+    $("view-connect").classList.add("active");
+    document.querySelectorAll(".view").forEach(v => { if (v.id !== "view-connect") v.classList.remove("active"); });
+    teamPicker.style.display = "none";
+    $("connect-title").style.display = "block";
+    $("connect-desc").style.display = "block";
+    document.querySelector(".input-row").style.display = "flex";
+    $("paste-toggle").style.display = "block";
+
+  function renderFreshnessBar() {
+    const bar = $("freshness-bar");
+    const parts = [];
+    if (state.fetchedAt) {
+      parts.push(`Live data (Sleeper/FantasyCalc): fetched ${state.fetchedAt.toLocaleTimeString()}`);
+    } else {
+      parts.push("Live data: loaded from pasted snapshot, not a live fetch");
+    }
+    if (state.fpData && state.fpData.generated_at) {
+      const genDate = new Date(state.fpData.generated_at);
+      const daysOld = Math.floor((Date.now() - genDate) / 86400000);
+      const staleWarn = daysOld > 3 ? ` ⚠ ${daysOld}d old — re-export from Colab` : "";
+      parts.push(`FantasyPros snapshot: ${state.fpData.generated_at}${staleWarn}`);
+    } else {
+      parts.push("FantasyPros snapshot: not loaded (rankings/injury columns unavailable)");
+    }
+    bar.textContent = parts.join("  ·  ");
+    bar.style.display = "block";
   }
 
   // ---------- Render: team picker ----------
@@ -582,19 +623,23 @@
 
     const filtered = (state.posFilter === "ALL" ? freeAgents : freeAgents.filter(e => e.player.position === state.posFilter)).slice(0, 40);
 
-    $("targets-list").innerHTML = filtered.map(e => `
+    $("targets-list").innerHTML = filtered.map(e => {
+      const fp = fpRankFor(e.player.name, e.player.position);
+      const fpBadge = fp ? `<span class="pill gold">FP #${fp.rank}</span>` : "";
+      return `
       <div class="fa-row">
         <div class="fa-left">
           <span class="pill teal">${e.player.position}</span>
           <span class="fa-name">${escapeHTML(e.player.name)}</span>
           <span class="mono" style="color:var(--text-dim); font-size:12px;">${e.player.maybeTeam || "FA"}</span>
+          ${fpBadge}
         </div>
         <div style="display:flex; align-items:center; gap:14px;">
           <span class="mono" style="color:var(--text-muted); font-size:12px;">val ${e.value}</span>
           ${trendBadgeHTML(e.trend30Day)}
         </div>
-      </div>
-    `).join("");
+      </div>`;
+    }).join("");
   }
 
   // ---------- Render: Trade ----------
