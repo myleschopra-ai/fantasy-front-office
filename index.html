@@ -336,6 +336,12 @@
       <div class="scale-labels"><span id="scale-give-label">Give: 0</span><span id="scale-get-label">Get: 0</span></div>
     </div>
     <div class="verdict neutral" id="verdict-box">Add assets to both sides</div>
+    <div id="trade-partners-section" style="margin-top:28px; display:none;">
+      <h3 class="display" style="font-size:12px; color:var(--text-muted);">Potential Trade Partners</h3>
+      <p class="mono" style="font-size:10px; color:var(--text-dim); margin:4px 0 10px;">Based on rostered position counts vs a conservative depth floor. A starting point for who to call, not a guarantee they'll deal.</p>
+      <div id="trade-partners-list" style="display:grid; gap:8px;"></div>
+    </div>
+
     <div id="traded-picks-section" style="margin-top:28px; display:none;">
       <h3 class="display" style="font-size:12px; color:var(--text-muted);">Traded Picks in League</h3>
       <div id="traded-picks-list" class="mono" style="font-size:12px; color:var(--text-muted); display:grid; gap:4px;"></div>
@@ -989,6 +995,57 @@
       }).join("");
     }
     renderTradeSides();
+    renderTradePartners();
+  }
+
+  function computePositionCounts(roster) {
+    const counts = {};
+    (roster.players || []).forEach(pid => {
+      const p = state.allPlayers[pid] || {};
+      if (p.position) counts[p.position] = (counts[p.position] || 0) + 1;
+    });
+    return counts;
+  }
+
+  function renderTradePartners() {
+    const owners = ownerMap();
+    const myRoster = state.rosters.find(r => r.roster_id === state.myRosterId);
+    if (!myRoster) return;
+
+    const requiredMin = { QB: 2, RB: 3, WR: 3, TE: 1 };
+    const positions = Object.keys(requiredMin);
+    const myCounts = computePositionCounts(myRoster);
+    const mySurplus = positions.filter(pos => (myCounts[pos] || 0) > requiredMin[pos] + 1);
+    const myThin = positions.filter(pos => (myCounts[pos] || 0) <= requiredMin[pos]);
+
+    const partners = [];
+    state.rosters.forEach(r => {
+      if (r.roster_id === state.myRosterId) return;
+      const theirCounts = computePositionCounts(r);
+      const theirThin = positions.filter(pos => (theirCounts[pos] || 0) <= requiredMin[pos]);
+      const theirSurplus = positions.filter(pos => (theirCounts[pos] || 0) > requiredMin[pos] + 1);
+
+      const iCanHelpThem = mySurplus.filter(pos => theirThin.includes(pos));
+      const theyCanHelpMe = theirSurplus.filter(pos => myThin.includes(pos));
+
+      if (iCanHelpThem.length || theyCanHelpMe.length) {
+        partners.push({ name: owners[r.roster_id] || "Unknown", iCanHelpThem, theyCanHelpMe });
+      }
+    });
+
+    const section = $("trade-partners-section");
+    if (!partners.length) { section.style.display = "none"; return; }
+    section.style.display = "block";
+
+    $("trade-partners-list").innerHTML = partners.map(p => {
+      const lines = [];
+      if (p.iCanHelpThem.length) lines.push(`<div style="color:var(--teal-light); font-size:12px;">You could send: ${p.iCanHelpThem.join(", ")} depth</div>`);
+      if (p.theyCanHelpMe.length) lines.push(`<div style="color:var(--gold-light); font-size:12px;">They could send: ${p.theyCanHelpMe.join(", ")} depth</div>`);
+      return `<div style="background:var(--surface); border-radius:6px; padding:12px;">
+        <div style="font-weight:600; font-size:13px; margin-bottom:4px;">${escapeHTML(p.name)}</div>
+        ${lines.join("")}
+      </div>`;
+    }).join("");
   }
 
   function renderTradeSides() {
