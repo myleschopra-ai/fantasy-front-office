@@ -632,13 +632,15 @@
     $("targets-list").innerHTML = filtered.map(e => {
       const fp = fpRankFor(e.player.name, e.player.position);
       const fpBadge = fp ? `<span class="pill gold">FP #${fp.rank}</span>` : "";
+      const news = fpInjuryFor(e.player.name);
+      const newsBadge = news ? `<span class="pill bad" title="${escapeHTML(news.name)}">${escapeHTML(news.team)} news</span>` : "";
       return `
       <div class="fa-row">
         <div class="fa-left">
           <span class="pill teal">${e.player.position}</span>
           <span class="fa-name">${escapeHTML(e.player.name)}</span>
           <span class="mono" style="color:var(--text-dim); font-size:12px;">${e.player.maybeTeam || "FA"}</span>
-          ${fpBadge}
+          ${fpBadge}${newsBadge}
         </div>
         <div style="display:flex; align-items:center; gap:14px;">
           <span class="mono" style="color:var(--text-muted); font-size:12px;">val ${e.value}</span>
@@ -651,16 +653,20 @@
   // ---------- Render: Trade ----------
   function renderTrade() {
     const owners = ownerMap();
+    const myName = owners[state.myRosterId];
     const tradedResolved = state.tradedPicks.map(tp => ({
       ...tp,
       originalOwner: owners[tp.roster_id] || "Unknown",
       currentOwner: owners[tp.owner_id] || "Unknown",
-    }));
+      involvesMe: owners[tp.roster_id] === myName || owners[tp.owner_id] === myName,
+    })).sort((a, b) => (b.involvesMe - a.involvesMe));
+
     if (tradedResolved.length) {
       $("traded-picks-section").style.display = "block";
-      $("traded-picks-list").innerHTML = tradedResolved.slice(0, 10).map(tp =>
-        `<div>${tp.season} Rd${tp.round} (orig. ${escapeHTML(tp.originalOwner)}) → now owned by <span style="color:var(--text);">${escapeHTML(tp.currentOwner)}</span></div>`
-      ).join("");
+      $("traded-picks-list").innerHTML = tradedResolved.slice(0, 12).map(tp => {
+        const mineTag = tp.involvesMe ? '<span class="pill gold" style="margin-right:6px;">MINE</span>' : "";
+        return `<div>${mineTag}${tp.season} Rd${tp.round} (orig. ${escapeHTML(tp.originalOwner)}) → now owned by <span style="color:var(--text);">${escapeHTML(tp.currentOwner)}</span></div>`;
+      }).join("");
     }
     renderTradeSides();
   }
