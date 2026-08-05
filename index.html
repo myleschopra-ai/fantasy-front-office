@@ -489,14 +489,14 @@
       // so this file is exported from Colab and committed alongside index.html.
       // Non-fatal if missing: dashboard still works without it.
       try {
-        const fpRes = await fetch("fantasypros.json");
+        const fpRes = await fetch("fantasypros.json?t=" + Date.now());
         if (fpRes.ok) state.fpData = await fpRes.json();
       } catch (e) {
         console.warn("fantasypros.json not found or unreadable — continuing without it.");
       }
 
       try {
-        const wsRes = await fetch("watcher_state.json");
+        const wsRes = await fetch("watcher_state.json?t=" + Date.now());
         if (wsRes.ok) state.watcherState = await wsRes.json();
       } catch (e) {
         console.warn("watcher_state.json not found or unreadable — continuing without it.");
@@ -1368,9 +1368,14 @@
       const genDate = new Date(state.fpData.generated_at);
       const daysOld = Math.floor((Date.now() - genDate) / 86400000);
       const color = daysOld > 3 ? "var(--red)" : "var(--green)";
+      let projCount = 0;
+      if (state.fpData.projections) {
+        Object.values(state.fpData.projections).forEach(list => { projCount += list.length; });
+      }
       blocks.push({
         title: "FantasyPros Snapshot",
-        html: `<div style="color:${color}; font-size:13px;">${daysOld === 0 ? "Today" : daysOld + "d old"} (${state.fpData.generated_at})${daysOld > 3 ? " — re-export from Colab" : ""}</div>`,
+        html: `<div style="color:${color}; font-size:13px;">${daysOld === 0 ? "Today" : daysOld + "d old"} (${state.fpData.generated_at})${daysOld > 3 ? " — re-export from Colab" : ""}</div>
+               <div style="color:var(--text-dim); font-size:12px; margin-top:4px;">${projCount} player projections loaded (real count, confirms data actually arrived)</div>`,
       });
     } else {
       blocks.push({ title: "FantasyPros Snapshot", html: `<div style="color:var(--text-dim); font-size:13px;">Not loaded</div>` });
