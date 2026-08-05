@@ -327,7 +327,10 @@
 
   <!-- TRADE VIEW -->
   <div id="view-trade" class="view">
-    <h2 class="display" style="font-size:16px;">Trade Analyzer</h2>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <h2 class="display" style="font-size:16px; margin:0;">Trade Analyzer</h2>
+      <button id="clear-trade-btn" style="touch-action:manipulation; background:var(--surface2); color:var(--text-muted); border:none; padding:6px 12px; border-radius:5px; font-size:11px; text-transform:uppercase; cursor:pointer;">Clear</button>
+    </div>
     <div class="search-wrap">
       <input type="text" id="trade-search" placeholder="Search a player or pick…" />
       <div class="search-results" id="trade-search-results" style="display:none;"></div>
@@ -1296,6 +1299,13 @@
   $("paste-load-btn").addEventListener("click", () => {
     loadFromPasteData($("paste-input").value);
   });
+  $("clear-trade-btn").addEventListener("click", () => {
+    state.sideA = [];
+    state.sideB = [];
+    renderTradeSides();
+    const notes = $("trade-impact-notes");
+    if (notes) notes.remove();
+  });
 
   // ---------- Render: Validation ----------
   function renderValidation() {
@@ -1328,11 +1338,16 @@
     if (myRoster) {
       const total = (myRoster.players || []).length;
       const matched = (myRoster.players || []).filter(pid => fcMap[pid]).length;
+      const noTrend = (myRoster.players || []).filter(pid => {
+        const fc = fcMap[pid];
+        return fc && (fc.trend30Day === null || fc.trend30Day === undefined);
+      }).length;
       const color = matched === total ? "var(--green)" : "var(--red)";
-      blocks.push({
-        title: "Roster Identity Matching",
-        html: `<div style="color:${color}; font-size:13px;">${matched}/${total} players matched to market values</div>`,
-      });
+      let html = `<div style="color:${color}; font-size:13px;">${matched}/${total} players matched to market values</div>`;
+      if (noTrend > 0) {
+        html += `<div style="color:var(--text-dim); font-size:12px; margin-top:4px;">${noTrend} matched player(s) show "—" for 30d trend — this is real: FantasyCalc has no price history yet for that player (common for rookies/deep bench), not a bug.</div>`;
+      }
+      blocks.push({ title: "Roster Identity Matching", html });
     }
 
     // Watcher status
