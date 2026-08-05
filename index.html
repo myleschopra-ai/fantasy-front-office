@@ -157,6 +157,21 @@
   .fa-left { display: flex; align-items: center; gap: 10px; }
   .fa-name { font-weight: 500; font-size: 14px; }
 
+  .cc-section { margin-bottom: 10px; border-bottom: 1px solid var(--border); }
+  .cc-section summary {
+    list-style: none; cursor: pointer; padding: 12px 0;
+    display: flex; align-items: center; justify-content: space-between;
+    touch-action: manipulation;
+  }
+  .cc-section summary::-webkit-details-marker { display: none; }
+  .cc-section summary .cc-title {
+    font-family: 'Archivo Black', 'Inter', sans-serif; font-size: 12px;
+    color: var(--text-muted); text-transform: uppercase;
+  }
+  .cc-section summary .cc-chevron { color: var(--text-dim); font-size: 12px; transition: transform 0.15s; }
+  .cc-section[open] summary .cc-chevron { transform: rotate(90deg); }
+  .cc-section .cc-body { padding-bottom: 14px; display: grid; gap: 6px; }
+
   .search-wrap { position: relative; margin-bottom: 20px; }
   .search-results {
     position: absolute; z-index: 20; margin-top: 4px; width: 100%;
@@ -912,11 +927,14 @@
       return;
     }
 
-    $("command-content").innerHTML = sections.map(s => `
-      <div style="margin-bottom:24px;">
-        <h3 class="display" style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">${s.title}</h3>
-        <div style="display:grid; gap:6px;">${s.rows.join("")}</div>
-      </div>
+    $("command-content").innerHTML = sections.map((s, i) => `
+      <details class="cc-section" ${i < 2 ? "open" : ""}>
+        <summary>
+          <span class="cc-title">${s.title}</span>
+          <span class="cc-chevron">▶</span>
+        </summary>
+        <div class="cc-body">${s.rows.join("")}</div>
+      </details>
     `).join("");
   }
 
