@@ -705,6 +705,18 @@
     if (!format) return;
     const { assigned, bench } = computeAssignedLineup();
 
+    const startersWithReal = assigned.filter(a => a.player && a.player.projPoints !== null);
+    const startersTotal = assigned.filter(a => a.player).length;
+    const partialSum = startersWithReal.reduce((sum, a) => sum + a.player.projPoints, 0);
+    const summaryHTML = startersWithReal.length
+      ? `<div style="background:var(--surface); border-radius:6px; padding:12px; margin-bottom:16px;">
+          <span class="mono" style="color:var(--green); font-size:14px; font-weight:600;">${partialSum.toFixed(1)} pts</span>
+          <span style="color:var(--text-dim); font-size:11px; margin-left:8px;">
+            from ${startersWithReal.length}/${startersTotal} starters with real projections — not a full lineup total, the rest use value-based fallback on a different scale and aren't included here.
+          </span>
+        </div>`
+      : "";
+
     const metricHTML = (p) => p.projPoints !== null
       ? `<span class="mono" style="color:var(--green); font-size:12px;">${p.projPoints} pts (proj)</span>`
       : `<span class="mono" style="color:var(--text-muted); font-size:12px;">val ${p.value}</span>`;
@@ -725,7 +737,7 @@
       </div>`;
     };
 
-    let html = `<div style="margin-bottom:24px;">
+    let html = summaryHTML + `<div style="margin-bottom:24px;">
       <h3 class="display" style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">Starters</h3>
       <div style="display:grid; gap:6px;">${assigned.map(a => rowHTML(a.slot, a.player)).join("")}</div>
     </div>`;
