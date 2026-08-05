@@ -408,15 +408,20 @@
     <!-- MOCK SIMULATOR SUB-VIEW -->
     <div id="draft-mock-view" style="display:none;">
       <div id="mock-setup">
-        <p style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom:8px;">
           Practice against AI opponents that draft using realistic team-need logic — not random picks. Not a live event, not synced with real people.
+        </p>
+        <p style="color:var(--text-dim); font-size:12px; margin-bottom:16px;">
+          This league's startup draft already happened — every future draft here is rookies-only. "Full Pool" below is a hypothetical, not this league's actual next draft.
+          <br><br>
+          ⚠ Known gap: this only covers players already in the NFL. Next year's incoming rookie class (still in college right now) isn't in this data at all — that needs a college-prospect data source not yet built into this system.
         </p>
         <div style="display:grid; gap:12px; max-width:360px;">
           <div>
             <p class="mono" style="font-size:11px; color:var(--text-dim); margin-bottom:6px;">Draft pool</p>
             <div style="display:flex; gap:8px;">
-              <button id="mock-pool-rookies" class="filter-btn active" style="text-transform:none;">Rookies Only</button>
-              <button id="mock-pool-full" class="filter-btn" style="text-transform:none;">Full Player Pool</button>
+              <button id="mock-pool-rookies" class="filter-btn active" style="text-transform:none;">Rookies Only (this league's real draft type)</button>
+              <button id="mock-pool-full" class="filter-btn" style="text-transform:none;">Full Pool (hypothetical)</button>
             </div>
           </div>
           <div>
