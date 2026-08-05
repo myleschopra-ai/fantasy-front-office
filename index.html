@@ -874,9 +874,21 @@
       else if (myRank <= Math.ceil((n * 2) / 3)) teamState = "Fringe Contender";
       else teamState = "Rebuilder";
 
+      // Structural override: a critical positional gap matters more than overall value rank
+      let structuralNote = "";
+      if (myRoster) {
+        const reqMin = { QB: 2, RB: 3, WR: 3, TE: 1 };
+        const counts = computePositionCounts(myRoster);
+        const criticalGaps = Object.entries(reqMin).filter(([pos, min]) => (counts[pos] || 0) < min);
+        if (criticalGaps.length) {
+          teamState = "Structurally Weak";
+          structuralNote = ` Overridden from value rank due to critical gap(s) at ${criticalGaps.map(([pos]) => pos).join(", ")}.`;
+        }
+      }
+
       sections.push({
         title: "Team State",
-        rows: [`<div style="font-size:13px;"><span class="pill gold">${teamState}</span> <span style="color:var(--text-dim); font-size:11px;">— based on roster-value rank (#${myRank}/${n}), not standings. Preseason heuristic, will be less reliable once games start.</span></div>`],
+        rows: [`<div style="font-size:13px;"><span class="pill gold">${teamState}</span> <span style="color:var(--text-dim); font-size:11px;">— based on roster-value rank (#${myRank}/${n}), not standings. Preseason heuristic, will be less reliable once games start.${structuralNote}</span></div>`],
       });
 
       sections.push({
@@ -957,6 +969,7 @@
         name: `${p.first_name || ""} ${p.last_name || ""}`.trim() || pid,
         position: p.position, team: p.team, status: p.injury_status,
         value: fc ? fc.value : null, rank: fc ? fc.overallRank : null, trend: fc ? fc.trend30Day : null,
+        isRookie: p.years_exp === 0,
       };
     }).sort((a, b) => (b.value || 0) - (a.value || 0));
 
@@ -977,6 +990,7 @@
         if (p.trend >= 50) flag = '<span class="pill gold" title="Trending up 50+ over 30 days — market value elevated">SELL HIGH</span>';
         else if (p.trend <= -50) flag = '<span class="pill bad" title="Trending down 50+ over 30 days — value eroding">RISK</span>';
       }
+      if (p.isRookie) flag += ' <span class="pill teal" title="0 years NFL experience per Sleeper">ROOKIE</span>';
       return `
       <tr>
         <td><span class="pill teal">${p.position || "—"}</span></td>
