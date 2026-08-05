@@ -306,6 +306,7 @@
       <div class="filter-row" id="pos-filters" style="margin-bottom:0;"></div>
     </div>
     <p class="mono" id="targets-count" style="color:var(--text-muted); font-size:12px; margin-bottom:14px;"></p>
+    <div id="drop-candidates" style="margin-bottom:20px;"></div>
     <div id="targets-list"></div>
   </div>
 
@@ -970,6 +971,19 @@
   function renderTargets() {
     const freeAgents = computeFreeAgents();
     $("targets-count").textContent = `${freeAgents.length} valued free agents league-wide, sorted by 30-day market momentum. Verify against real news before acting.`;
+
+    // Drop candidates — your lowest-value bench players, for context while browsing targets
+    const { bench } = computeAssignedLineup();
+    if (bench.length) {
+      const lowest = [...bench].sort((a, b) => (a.value || 0) - (b.value || 0)).slice(0, 3);
+      $("drop-candidates").innerHTML = `
+        <h3 class="display" style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">Likely Drop Candidates (lowest bench value)</h3>
+        <div style="display:grid; gap:4px;">
+          ${lowest.map(p => `<div class="fa-row"><div class="fa-left"><span class="pill teal">${p.position || "—"}</span><span style="font-size:13px;">${escapeHTML(p.name)}</span></div><span class="mono" style="color:var(--text-muted); font-size:12px;">val ${p.value}</span></div>`).join("")}
+        </div>`;
+    } else {
+      $("drop-candidates").innerHTML = "";
+    }
 
     const positions = ["ALL", "QB", "RB", "WR", "TE"];
     $("pos-filters").innerHTML = positions.map(p =>
