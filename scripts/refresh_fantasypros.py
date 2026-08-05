@@ -41,11 +41,38 @@ def main():
     ]
     print(f"injuries: {len(injuries)} items")
 
+    # Real point projections (week=0 = preseason/full-season outlook per FantasyPros' own docs).
+    # points_half matches this league's actual Half-PPR scoring exactly.
+    projections = {}
+    for pos in POSITIONS:
+        try:
+            url = f"https://api.fantasypros.com/public/v2/json/nfl/2026/projections?position={pos}&week=0"
+            data = get(url)
+            players = data.get("players", [])
+            proj_list = []
+            for p in players:
+                stats_raw = p.get("stats", {})
+                # Defensive: schema shows 'stats' as an array of stat objects, but
+                # behavior wasn't verified against a live call. Handle both shapes.
+                if isinstance(stats_raw, list):
+                    stats = stats_raw[0] if stats_raw else {}
+                else:
+                    stats = stats_raw or {}
+                pts = stats.get("points_half")
+                if pts is not None:
+                    proj_list.append({"name": p["name"], "points_half": round(pts, 1)})
+            projections[pos] = proj_list
+            print(f"{pos} projections: {len(proj_list)} players")
+        except Exception as e:
+            print(f"WARNING: projections fetch failed for {pos}: {e}", file=sys.stderr)
+            projections[pos] = []
+
     from datetime import date
     snapshot = {
         "generated_at": date.today().isoformat(),
         "rankings": rankings,
         "injuries": injuries,
+        "projections": projections,
     }
 
     with open("fantasypros.json", "w") as f:
