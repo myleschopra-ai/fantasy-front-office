@@ -837,6 +837,30 @@
       });
     }
 
+    // League power ranking by total roster value (dynasty asset strength proxy)
+    const owners2 = ownerMap();
+    const powerRanked = state.rosters.map(r => {
+      const total = (r.players || []).reduce((sum, pid) => {
+        const fc = fcMap[pid];
+        return sum + (fc ? fc.value : 0);
+      }, 0);
+      return { name: owners2[r.roster_id] || "Unknown", total, isMe: r.roster_id === state.myRosterId };
+    }).sort((a, b) => b.total - a.total);
+
+    if (powerRanked.length) {
+      sections.push({
+        title: "Power Ranking (total roster value)",
+        rows: powerRanked.map((t, i) => `
+          <div class="fa-row">
+            <div class="fa-left">
+              <span class="mono" style="color:var(--text-dim); font-size:12px; min-width:20px;">#${i + 1}</span>
+              <span class="fa-name" style="${t.isMe ? 'color:var(--gold-light);' : ''}">${escapeHTML(t.name)}${t.isMe ? ' (you)' : ''}</span>
+            </div>
+            <span class="mono" style="font-size:13px;">${t.total.toLocaleString()}</span>
+          </div>`),
+      });
+    }
+
     // Validation issues
     if (myRoster) {
       const unmatched = (myRoster.players || []).filter(pid => !fcMap[pid]);
