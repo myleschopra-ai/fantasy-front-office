@@ -241,6 +241,7 @@
   <button data-tab="roster">My Roster</button>
   <button data-tab="targets">Acquisition Targets</button>
   <button data-tab="trade">Trade Analyzer</button>
+  <button data-tab="validation">Validation</button>
 </nav>
 
 <main>
@@ -341,6 +342,15 @@
     </div>
   </div>
 
+  <!-- VALIDATION VIEW -->
+  <div id="view-validation" class="view">
+    <h2 class="display" style="font-size:16px; margin-bottom:6px;">Data Validation</h2>
+    <p class="mono" style="font-size:11px; color:var(--text-dim); margin:0 0 16px;">
+      How much to trust what you're seeing. No recommendation here is a backtested model — everything is a heuristic threshold applied to real data.
+    </p>
+    <div id="validation-content"></div>
+  </div>
+
 </main>
 
 <script>
@@ -353,7 +363,7 @@
   const state = {
     league: null, rosters: [], users: [], allPlayers: {}, fcData: [],
     tradedPicks: [], myRosterId: null, activeTab: "roster",
-    sideA: [], sideB: [], posFilter: "ALL", fpData: null, fetchedAt: null,
+    sideA: [], sideB: [], posFilter: "ALL", fpData: null, fetchedAt: null, watcherState: null,
   };
 
   function fpRankFor(name, position) {
@@ -450,6 +460,13 @@
         if (fpRes.ok) state.fpData = await fpRes.json();
       } catch (e) {
         console.warn("fantasypros.json not found or unreadable — continuing without it.");
+      }
+
+      try {
+        const wsRes = await fetch("watcher_state.json");
+        if (wsRes.ok) state.watcherState = await wsRes.json();
+      } catch (e) {
+        console.warn("watcher_state.json not found or unreadable — continuing without it.");
       }
 
       localStorage.setItem(STORAGE_KEY, leagueId);
@@ -581,6 +598,7 @@
     if (tab === "roster") renderRoster();
     if (tab === "targets") renderTargets();
     if (tab === "trade") renderTrade();
+    if (tab === "validation") renderValidation();
   }
 
   tabsNav.addEventListener("click", (e) => {
@@ -1110,6 +1128,79 @@
   $("paste-load-btn").addEventListener("click", () => {
     loadFromPasteData($("paste-input").value);
   });
+
+  // ---------- Render: Validation ----------
+  function renderValidation() {
+    const myRoster = state.rosters.find(r => r.roster_id === state.myRosterId);
+    const fcMap = fcBySleeperId();
+    const blocks = [];
+
+    // Live data freshness
+    blocks.push({
+      title: "Live Data",
+      html: state.fetchedAt
+        ? `<div style="color:var(--green); font-size:13px;">✓ Sleeper + FantasyCalc fetched ${state.fetchedAt.toLocaleString()}</div>`
+        : `<div style="color:var(--text-dim); font-size:13px;">Loaded from pasted snapshot, not a live fetch</div>`,
+    });
+
+    // FantasyPros snapshot freshness
+    if (state.fpData && state.fpData.generated_at) {
+      const genDate = new Date(state.fpData.generated_at);
+      const daysOld = Math.floor((Date.now() - genDate) / 86400000);
+      const color = daysOld > 3 ? "var(--red)" : "var(--green)";
+      blocks.push({
+        title: "FantasyPros Snapshot",
+        html: `<div style="color:${color}; font-size:13px;">${daysOld === 0 ? "Today" : daysOld + "d old"} (${state.fpData.generated_at})${daysOld > 3 ? " — re-export from Colab" : ""}</div>`,
+      });
+    } else {
+      blocks.push({ title: "FantasyPros Snapshot", html: `<div style="color:var(--text-dim); font-size:13px;">Not loaded</div>` });
+    }
+
+    // Roster identity-match rate
+    if (myRoster) {
+      const total = (myRoster.players || []).length;
+      const matched = (myRoster.players || []).filter(pid => fcMap[pid]).length;
+      const color = matched === total ? "var(--green)" : "var(--red)";
+      blocks.push({
+        title: "Roster Identity Matching",
+        html: `<div style="color:${color}; font-size:13px;">${matched}/${total} players matched to market values</div>`,
+      });
+    }
+
+    // Watcher status
+    if (state.watcherState && state.watcherState.last_run) {
+      const lastRun = new Date(state.watcherState.last_run);
+      const minsAgo = Math.floor((Date.now() - lastRun) / 60000);
+      const stale = minsAgo > 180; // watcher runs hourly; 3x miss = stale
+      blocks.push({
+        title: "League Watcher",
+        html: `<div style="color:${stale ? 'var(--red)' : 'var(--green)'}; font-size:13px;">
+          Last ran ${minsAgo < 60 ? minsAgo + "m ago" : Math.floor(minsAgo / 60) + "h ago"}${stale ? " — check GitHub Actions" : ""}
+        </div>`,
+      });
+    } else {
+      blocks.push({ title: "League Watcher", html: `<div style="color:var(--text-dim); font-size:13px;">No run data yet — trigger it manually once from the Actions tab</div>` });
+    }
+
+    // Recent alert history
+    if (state.watcherState && state.watcherState.history && state.watcherState.history.length) {
+      const recent = state.watcherState.history.slice(-10).reverse();
+      blocks.push({
+        title: "Recent Alerts (last 10)",
+        html: `<div style="display:grid; gap:4px;">${recent.map(h => {
+          const t = new Date(h.timestamp);
+          return `<div style="font-size:12px; color:var(--text-muted);"><span class="mono" style="color:var(--text-dim);">${t.toLocaleString()}</span> — ${escapeHTML(h.title)}</div>`;
+        }).join("")}</div>`,
+      });
+    }
+
+    $("validation-content").innerHTML = blocks.map(b => `
+      <div style="margin-bottom:20px;">
+        <h3 class="display" style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">${b.title}</h3>
+        ${b.html}
+      </div>
+    `).join("");
+  }
 
   // ---------- Restore last league ----------
   const saved = localStorage.getItem(STORAGE_KEY);
