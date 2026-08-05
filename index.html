@@ -257,6 +257,7 @@
   <button data-tab="targets">Acquisition Targets</button>
   <button data-tab="trade">Trade Analyzer</button>
   <button data-tab="validation">Validation</button>
+  <button data-tab="draft">Draft</button>
 </nav>
 
 <main>
@@ -374,6 +375,60 @@
       How much to trust what you're seeing. No recommendation here is a backtested model — everything is a heuristic threshold applied to real data.
     </p>
     <div id="validation-content"></div>
+  </div>
+
+  <!-- DRAFT VIEW -->
+  <div id="view-draft" class="view">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+      <h2 class="display" style="font-size:16px; margin:0;">Draft Center</h2>
+      <div style="display:flex; gap:8px;">
+        <button id="draft-board-toggle" class="filter-btn active" style="text-transform:none;">Board</button>
+        <button id="draft-mock-toggle" class="filter-btn" style="text-transform:none;">Mock Simulator</button>
+      </div>
+    </div>
+
+    <!-- BOARD SUB-VIEW -->
+    <div id="draft-board-view">
+      <div id="draft-team-needs" style="margin:16px 0;"></div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:8px;">
+        <div class="filter-row" id="draft-pos-filters" style="margin-bottom:0;"></div>
+        <button id="draft-rookie-toggle" class="filter-btn" style="text-transform:none;">Rookies Only</button>
+      </div>
+      <p class="mono" id="draft-board-count" style="color:var(--text-muted); font-size:12px; margin-bottom:14px;"></p>
+
+      <div id="draft-watchlist-section" style="margin-bottom:20px; display:none;">
+        <h3 class="display" style="font-size:11px; color:var(--gold-light); margin-bottom:8px;">★ Your Queue</h3>
+        <div id="draft-watchlist" style="display:grid; gap:4px;"></div>
+      </div>
+
+      <div id="draft-board-list"></div>
+    </div>
+
+    <!-- MOCK SIMULATOR SUB-VIEW -->
+    <div id="draft-mock-view" style="display:none;">
+      <div id="mock-setup">
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">
+          Practice against AI opponents that draft using realistic team-need logic — not random picks. Not a live event, not synced with real people.
+        </p>
+        <div style="display:grid; gap:12px; max-width:360px;">
+          <div>
+            <p class="mono" style="font-size:11px; color:var(--text-dim); margin-bottom:6px;">Draft pool</p>
+            <div style="display:flex; gap:8px;">
+              <button id="mock-pool-rookies" class="filter-btn active" style="text-transform:none;">Rookies Only</button>
+              <button id="mock-pool-full" class="filter-btn" style="text-transform:none;">Full Player Pool</button>
+            </div>
+          </div>
+          <div>
+            <p class="mono" style="font-size:11px; color:var(--text-dim); margin-bottom:6px;">Rounds</p>
+            <input type="text" id="mock-rounds-input" value="4" inputmode="numeric"
+              style="width:80px; background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:8px 10px; color:var(--text); font-family:inherit;" />
+          </div>
+          <button id="mock-start-btn" class="btn" style="width:fit-content;">Start Mock Draft</button>
+        </div>
+      </div>
+      <div id="mock-draft-active" style="display:none;"></div>
+    </div>
   </div>
 
 </main>
@@ -632,6 +687,7 @@
     if (tab === "targets") renderTargets();
     if (tab === "trade") renderTrade();
     if (tab === "validation") renderValidation();
+    if (tab === "draft") initDraftCenter();
   }
 
   tabsNav.addEventListener("click", (e) => {
@@ -1468,6 +1524,125 @@
         ${b.html}
       </div>
     `).join("");
+  }
+
+  // ---------- Draft Center: shared state ----------
+  const DRAFT_WATCHLIST_KEY = "ffo_draft_watchlist";
+  let draftPosFilter = "ALL";
+  let draftRookieOnly = false;
+
+  function getWatchlist() {
+    try {
+      return JSON.parse(localStorage.getItem(DRAFT_WATCHLIST_KEY) || "[]");
+    } catch (e) { return []; }
+  }
+  function toggleWatchlist(sid) {
+    let list = getWatchlist();
+    if (list.includes(sid)) list = list.filter(x => x !== sid);
+    else list.push(sid);
+    localStorage.setItem(DRAFT_WATCHLIST_KEY, JSON.stringify(list));
+    renderDraftBoard();
+  }
+
+  function initDraftCenter() {
+    $("draft-board-toggle").addEventListener("click", () => {
+      $("draft-board-toggle").classList.add("active");
+      $("draft-mock-toggle").classList.remove("active");
+      $("draft-board-view").style.display = "block";
+      $("draft-mock-view").style.display = "none";
+    });
+    $("draft-mock-toggle").addEventListener("click", () => {
+      $("draft-mock-toggle").classList.add("active");
+      $("draft-board-toggle").classList.remove("active");
+      $("draft-mock-view").style.display = "block";
+      $("draft-board-view").style.display = "none";
+    });
+    $("draft-rookie-toggle").addEventListener("click", () => {
+      draftRookieOnly = !draftRookieOnly;
+      $("draft-rookie-toggle").classList.toggle("active", draftRookieOnly);
+      renderDraftBoard();
+    });
+
+    const positions = ["ALL", "QB", "RB", "WR", "TE"];
+    $("draft-pos-filters").innerHTML = positions.map(p =>
+      `<button class="filter-btn ${draftPosFilter === p ? "active" : ""}" data-pos="${p}">${p}</button>`
+    ).join("");
+    $("draft-pos-filters").querySelectorAll("button").forEach(btn => {
+      btn.addEventListener("click", () => { draftPosFilter = btn.dataset.pos; renderDraftBoard(); });
+    });
+
+    renderDraftBoard();
+  }
+
+  function renderDraftBoard() {
+    const myRoster = state.rosters.find(r => r.roster_id === state.myRosterId);
+
+    // Team needs — same requiredMin logic as Command Center's positional depth check
+    if (myRoster) {
+      const requiredMin = { QB: 2, RB: 3, WR: 3, TE: 1 };
+      const counts = computePositionCounts(myRoster);
+      const rows = Object.entries(requiredMin).map(([pos, min]) => {
+        const have = counts[pos] || 0;
+        const status = have <= min ? "thin" : have <= min + 1 ? "ok" : "deep";
+        const color = status === "thin" ? "var(--red)" : status === "ok" ? "var(--gold-light)" : "var(--green)";
+        return `<span class="pill" style="background:${color}22; color:${color};">${pos}: ${have} (${status})</span>`;
+      }).join(" ");
+      $("draft-team-needs").innerHTML = `
+        <h3 class="display" style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">Your Team Needs</h3>
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">${rows}</div>`;
+    }
+
+    // Full player pool from FantasyCalc, not just free agents — a real draft board
+    // needs the whole universe, filtered by position/rookie as the user chooses.
+    const watchlist = getWatchlist();
+    let pool = state.fcData.filter(e => e.player.position && e.player.position !== "PICK");
+    if (draftPosFilter !== "ALL") pool = pool.filter(e => e.player.position === draftPosFilter);
+    if (draftRookieOnly) {
+      pool = pool.filter(e => {
+        const sid = e.player.sleeperId;
+        const sp = sid ? state.allPlayers[String(sid)] : null;
+        return sp && sp.years_exp === 0;
+      });
+    }
+    pool = pool.sort((a, b) => (b.value || 0) - (a.value || 0));
+
+    $("draft-board-count").textContent = `${pool.length} players${draftRookieOnly ? " (rookies only)" : ""}, ranked by dynasty value.`;
+
+    // Watchlist section
+    const watchedEntries = pool.filter(e => watchlist.includes(String(e.player.sleeperId)));
+    if (watchedEntries.length) {
+      $("draft-watchlist-section").style.display = "block";
+      $("draft-watchlist").innerHTML = watchedEntries.map(e => draftRowHTML(e, true)).join("");
+    } else {
+      $("draft-watchlist-section").style.display = "none";
+    }
+
+    $("draft-board-list").innerHTML = pool.slice(0, 60).map(e => draftRowHTML(e, watchlist.includes(String(e.player.sleeperId)))).join("");
+
+    $("draft-board-list").querySelectorAll("[data-watch-sid]").forEach(btn => {
+      btn.addEventListener("click", () => toggleWatchlist(btn.dataset.watchSid));
+    });
+    $("draft-watchlist").querySelectorAll("[data-watch-sid]").forEach(btn => {
+      btn.addEventListener("click", () => toggleWatchlist(btn.dataset.watchSid));
+    });
+  }
+
+  function draftRowHTML(e, isWatched) {
+    const sid = String(e.player.sleeperId);
+    const fp = fpRankFor(e.player.name, e.player.position);
+    const fpBadge = fp ? `<span class="pill gold">FP #${fp.rank} T${fp.tier}</span>` : "";
+    const sp = state.allPlayers[sid];
+    const rookieBadge = sp && sp.years_exp === 0 ? `<span class="pill teal">ROOKIE</span>` : "";
+    return `<div class="fa-row">
+      <div class="fa-left">
+        <button data-watch-sid="${sid}" style="background:none; border:none; cursor:pointer; font-size:16px; color:${isWatched ? 'var(--gold-light)' : 'var(--text-dim)'};" title="Toggle watchlist">★</button>
+        <span class="pill teal">${e.player.position}</span>
+        <span class="fa-name">${escapeHTML(e.player.name)}</span>
+        <span class="mono" style="color:var(--text-dim); font-size:12px;">${e.player.maybeTeam || "FA"}</span>
+        ${fpBadge}${rookieBadge}
+      </div>
+      <span class="mono" style="color:var(--text-muted); font-size:12px;">val ${e.value}</span>
+    </div>`;
   }
 
   // ---------- Restore last league ----------
