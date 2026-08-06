@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-08-05",
+  "policy": {
+    "default_strategy": "reference_or_dependency",
+    "mirror_only_when": [
+      "upstream is abandoned and license permits redistribution",
+      "a pinned immutable copy is required for reproducibility",
+      "only the minimum required files are mirrored with attribution"
+    ],
+    "never_mirror": [
+      "large generated datasets already distributed through releases",
+      "repositories with unclear or incompatible licenses",
+      "credentials, proprietary data, or rate-limit circumvention code"
+    ]
+  },
+  "repositories": [
+    {
+      "id": "nflreadpy",
+      "repository": "nflverse/nflreadpy",
+      "strategy": "python_dependency",
+      "license": "MIT",
+      "purpose": ["NFL rosters", "player IDs", "weekly and seasonal stats", "draft and combine data", "nflverse release access"],
+      "status": "approved",
+      "notes": "Preferred over deprecated nfl_data_py. Do not mirror the repository; pin the package and cache downloaded artifacts locally."
+    },
+    {
+      "id": "nflverse_data",
+      "repository": "nflverse/nflverse-data",
+      "strategy": "release_artifacts",
+      "license": "CC-BY-4.0 (dataset-specific exceptions must be checked)",
+      "purpose": ["play-by-play", "players", "rosters", "weekly stats", "trades", "ID mappings"],
+      "status": "approved",
+      "notes": "Consume release assets through nflreadpy or documented URLs; do not mirror the large automated data repository."
+    },
+    {
+      "id": "dynastyprocess_data",
+      "repository": "dynastyprocess/data",
+      "strategy": "upstream_dataset_reference",
+      "license": "verify per dataset before publication",
+      "purpose": ["fantasy player values", "draft-pick values", "cross-platform identifiers"],
+      "status": "approved_with_license_gate",
+      "notes": "Use through nflreadpy where supported and preserve source attribution and retrieval date."
+    },
+    {
+      "id": "cfbfastR",
+      "repository": "sportsdataverse/cfbfastR",
+      "strategy": "method_reference",
+      "license": "verify repository license before copying code",
+      "purpose": ["college play-by-play", "college player and team analytics", "EPA and contextual production methodology"],
+      "status": "approved_as_reference",
+      "notes": "The dashboard is Python-first. Use its documented methodology and upstream data products rather than vendoring the R package."
+    },
+    {
+      "id": "college_football_data",
+      "repository": "CFBD/cfb.js",
+      "strategy": "direct_api_adapter",
+      "license": "verify client license; API terms also apply",
+      "purpose": ["college rosters", "recruiting", "player season stats", "draft history", "team context"],
+      "status": "approved_with_api_key",
+      "notes": "Use the official API with CFBD_API_KEY stored as a GitHub secret. Do not commit keys or mirror API responses without provenance."
+    },
+    {
+      "id": "sportsdataverse_py",
+      "repository": "sportsdataverse/sportsdataverse-py",
+      "strategy": "optional_dependency",
+      "license": "MIT",
+      "purpose": ["Python access to sports data", "supplemental college football collection"],
+      "status": "evaluation",
+      "notes": "Not required for Phase 1; prefer direct CFBD and nflreadpy adapters to reduce dependency surface."
+    }
+  ]
+}
