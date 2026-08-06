@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-05",
+  "class_year": 2027,
+  "players": [],
+  "field_definitions": {
+    "prospect_id": "Stable repository identifier",
+    "name": "Player name",
+    "position": "QB, RB, WR, or TE",
+    "school": "Current college",
+    "draft_year": "Expected NFL draft year",
+    "declaration_status": "declared, expected, eligible, returning_likely, or unknown",
+    "market_value": "Optional dynasty market estimate; omit rather than fabricate",
+    "tier": "Optional draft tier",
+    "projection": "Optional fantasy projection",
+    "trend_30d": "Optional market trend",
+    "evidence": "List of source notes or repository references",
+    "as_of": "Date the prospect record was verified"
+  },
+  "notes": [
+    "This repository did not contain a populated college prospect dataset when the elite draft upgrade was implemented.",
+    "The Draft tab will load verified records placed here and will display declaration certainty.",
+    "Players without a verified market value are excluded from automated recommendations instead of receiving synthetic values."
+  ]
+}
