@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: fantasy-front-office-yahoo
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements-yahoo.txt
+    startCommand: gunicorn server.render_app:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 60
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.4
+      - key: DASHBOARD_ORIGIN
+        value: https://myleschopra-ai.github.io
+      - key: YAHOO_CLIENT_ID
+        sync: false
+      - key: YAHOO_CLIENT_SECRET
+        sync: false
+      - key: YAHOO_SESSION_SECRET
+        generateValue: true
+      - key: YAHOO_REDIRECT_URI
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: fantasy-front-office-yahoo-redis
+          property: connectionString
+
+  - type: redis
+    name: fantasy-front-office-yahoo-redis
+    plan: free
+    ipAllowList: []
