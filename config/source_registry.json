@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "sources": {
+    "school_roster": {"name": "Official school roster", "tier": 1, "default_confidence": 0.95, "allowed_fields": ["name", "school", "position", "height", "weight", "class_year"]},
+    "conference_stats": {"name": "Official conference statistics", "tier": 1, "default_confidence": 0.95, "allowed_fields": ["production"]},
+    "cfbd": {"name": "CollegeFootballData", "tier": 2, "default_confidence": 0.9, "allowed_fields": ["recruiting", "production", "roster"]},
+    "nfl_combine": {"name": "Official NFL combine data", "tier": 1, "default_confidence": 0.99, "allowed_fields": ["athletic_testing", "measurements"]},
+    "consensus_mock": {"name": "Consensus draft projection", "tier": 3, "default_confidence": 0.65, "allowed_fields": ["draft_projection"]},
+    "manual_scouting": {"name": "Human-reviewed scouting note", "tier": 3, "default_confidence": 0.6, "allowed_fields": ["film_grade", "role", "risk"]}
+  }
+}

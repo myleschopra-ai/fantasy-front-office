@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/prospect.schema.json",
+  "title": "Fantasy Front Office Prospect",
+  "type": "object",
+  "required": ["prospect_id", "identity", "eligibility", "confidence", "evidence_ids", "snapshot_date"],
+  "properties": {
+    "prospect_id": {"type": "string", "minLength": 3},
+    "identity": {
+      "type": "object",
+      "required": ["name", "position", "school", "draft_year"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "aliases": {"type": "array", "items": {"type": "string"}},
+        "position": {"enum": ["QB", "RB", "WR", "TE"]},
+        "school": {"type": "string"},
+        "draft_year": {"type": "integer", "minimum": 2026}
+      },
+      "additionalProperties": false
+    },
+    "eligibility": {
+      "type": "object",
+      "required": ["status", "confidence", "evidence_ids"],
+      "properties": {
+        "status": {"enum": ["declared", "expected", "eligible", "returning_likely", "unknown"]},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "evidence_ids": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "derived": {"type": "object"},
+    "confidence": {
+      "type": "object",
+      "required": ["overall", "identity", "measurements", "production", "draft_projection"],
+      "properties": {
+        "overall": {"type": "number", "minimum": 0, "maximum": 1},
+        "identity": {"type": "number", "minimum": 0, "maximum": 1},
+        "measurements": {"type": "number", "minimum": 0, "maximum": 1},
+        "production": {"type": "number", "minimum": 0, "maximum": 1},
+        "draft_projection": {"type": "number", "minimum": 0, "maximum": 1}
+      },
+      "additionalProperties": true
+    },
+    "evidence_ids": {"type": "array", "items": {"type": "string"}},
+    "snapshot_date": {"type": "string", "format": "date"}
+  },
+  "additionalProperties": true
+}
