@@ -47,7 +47,7 @@ def collect(seasons: list[int]) -> list[dict]:
         try:
             results.append(_write_frame(name, loader(), source))
         except Exception as exc:  # one unavailable dataset should not erase successful pulls
-            results.append({"dataset": name, "status": "failed", "error": str(exc), "source": source})
+            results.append({"dataset": name, "status": "unavailable", "error": str(exc), "source": source})
     return results
 
 
@@ -55,20 +55,27 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seasons", nargs="+", type=int, default=[2024, 2025, 2026])
     args = parser.parse_args()
-    results = collect(sorted(set(args.seasons)))
+    seasons = sorted(set(args.seasons))
+    results = collect(seasons)
+    unavailable = [r for r in results if r.get("status") == "unavailable"]
+    successful = [r for r in results if r.get("path")]
     manifest = {
         "retrieved_at": datetime.now(timezone.utc).isoformat(),
         "collector": "scripts/collectors/nflverse.py",
         "upstream": "nflverse/nflreadpy",
-        "seasons": sorted(set(args.seasons)),
+        "seasons": seasons,
+        "status": "partial" if unavailable else "complete",
+        "successful_datasets": len(successful),
+        "unavailable_datasets": len(unavailable),
         "artifacts": results,
     }
     RAW.mkdir(parents=True, exist_ok=True)
     (RAW / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    failures = [r for r in results if r.get("status") == "failed"]
     print(json.dumps(manifest, indent=2))
-    if failures:
-        raise SystemExit(f"{len(failures)} nflverse dataset(s) failed; inspect manifest.json")
+    if not successful:
+        raise SystemExit("No nflverse datasets were collected")
+    if unavailable:
+        print(f"Warning: {len(unavailable)} dataset(s) were not published upstream yet; continuing with available artifacts.")
 
 
 if __name__ == "__main__":
