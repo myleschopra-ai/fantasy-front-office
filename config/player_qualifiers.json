@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "purpose": "Shared visual qualifiers for prospects, current NFL players, draft recommendations, trade targets, and breakout scans.",
+  "qualifiers": {
+    "prototype": {"icon": "◆", "label": "Prototype", "category": "archetype", "meaning": "Matches a historically successful position and career-stage archetype."},
+    "blue_chip": {"icon": "★", "label": "Blue Chip", "category": "archetype", "meaning": "High-confidence talent with strong pedigree and confirmed production."},
+    "hidden_gem": {"icon": "💎", "label": "Hidden Gem", "category": "action", "meaning": "Underpriced player with multiple independent positive signals."},
+    "breakout": {"icon": "↗", "label": "Breakout Signal", "category": "development", "meaning": "Development indicators are improving faster than market value."},
+    "opportunity_rising": {"icon": "▲", "label": "Opportunity Rising", "category": "opportunity", "meaning": "Routes, snaps, touches, role, or depth-chart access are improving."},
+    "market_lag": {"icon": "$", "label": "Market Lag", "category": "market", "meaning": "Model outlook exceeds the value implied by current market price."},
+    "false_breakout": {"icon": "⚠", "label": "False Breakout Risk", "category": "risk", "meaning": "Recent production is not supported by stable talent or usage signals."},
+    "small_sample": {"icon": "◷", "label": "Small Sample", "category": "confidence", "meaning": "Evidence is directionally useful but below the preferred sample threshold."},
+    "verified": {"icon": "✓", "label": "Verified Evidence", "category": "confidence", "meaning": "Key claims are supported by traceable, current evidence."},
+    "conflict": {"icon": "!", "label": "Conflicting Evidence", "category": "confidence", "meaning": "Material sources disagree or identity resolution is incomplete."},
+    "injury_risk": {"icon": "+", "label": "Medical Risk", "category": "risk", "meaning": "Injury status or recovery creates material uncertainty."},
+    "decline": {"icon": "▼", "label": "Decline Signal", "category": "development", "meaning": "Age, efficiency, role, or market trend is deteriorating."}
+  },
+  "display_rules": [
+    "Show no more than four primary qualifier icons in compact player rows.",
+    "Every icon must expose its label and meaning through a title or accessible label.",
+    "Icons summarize calculated qualifiers; they must not replace evidence or confidence.",
+    "Success and failure qualifiers must use the same thresholds across Draft, Scouting, Trade, Team, and League views."
+  ]
+}
