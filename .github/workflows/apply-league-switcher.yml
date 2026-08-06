@@ -1,0 +1,27 @@
+name: Apply Persistent League Switcher
+on:
+  push:
+    branches: [feature/persistent-league-switcher-yahoo]
+    paths:
+      - scripts/apply_league_switcher.py
+      - .github/workflows/apply-league-switcher.yml
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[league-switcher-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/persistent-league-switcher-yahoo
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/apply_league_switcher.py
+      - run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html draft.html league-config.html
+          git commit -m "Add persistent league selector across dashboard [league-switcher-applied]"
+          git push
