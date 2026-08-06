@@ -23,6 +23,8 @@ jobs:
   collect:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -43,9 +45,8 @@ jobs:
         run: python scripts/collectors/nflverse.py --seasons ${{ inputs.seasons }}
 
       - name: Collect CollegeFootballData datasets
-        if: ${{ secrets.CFBD_API_KEY != '' }}
+        if: ${{ env.CFBD_API_KEY != '' }}
         env:
-          CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
           CFBD_TEAMS: ${{ inputs.cfbd_teams }}
         shell: bash
         run: |
@@ -57,7 +58,7 @@ jobs:
           python scripts/collectors/cfbd.py "${args[@]}"
 
       - name: Explain skipped CFBD collection
-        if: ${{ secrets.CFBD_API_KEY == '' }}
+        if: ${{ env.CFBD_API_KEY == '' }}
         run: echo "CFBD_API_KEY is not configured; college collection was skipped."
 
       - name: Upload candidate raw-data bundle
