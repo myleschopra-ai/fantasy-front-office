@@ -1,0 +1,6 @@
+# Data-pipeline dependencies only. The static dashboard has no runtime Python requirement.
+nflreadpy>=0.1.1,<0.3
+pandas>=2.2,<3
+pyarrow>=17,<22
+requests>=2.32,<3
+jsonschema>=4.23,<5
