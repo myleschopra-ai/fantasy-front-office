@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "status": "backtest-gated",
+  "principles": {
+    "no_future_information": true,
+    "protect_rest_of_season_assets": true,
+    "close_start_sit_calls_use_prior_only": true,
+    "playoff_decisions_can_seek_controlled_ceiling": true,
+    "vegas_and_referee_require_timestamped_historical_inputs": true
+  },
+  "tuning_space": {
+    "asset_protection_weight": [0.0, 0.5, 1.0, 1.5],
+    "close_call_prior_weight": [0.0, 0.15],
+    "close_call_band_points": 2.0
+  },
+  "defaults": {
+    "asset_protection_weight": 1.0,
+    "close_call_prior_weight": 0.15,
+    "close_call_band_points": 2.0,
+    "waiver_min_edge": 2.5,
+    "rolling_projection_weight": 0.25,
+    "recent_actual_weight": 0.10,
+    "playoff_ceiling_weight": 0.08
+  },
+  "weight_promotion_rule": "Only promote a tuned parameter set when it improves development-season paired points without materially worsening playoff rate, then freeze it before the 2025 holdout.",
+  "signals_still_gated": [
+    "historical Vegas player props without timestamped pregame snapshots",
+    "referee/crew effects without dated assignment and pregame-market snapshots"
+  ]
+}
