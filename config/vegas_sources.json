@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "providers": [
+    {"id":"sportsdataio","use":"season_futures_primary","requires_api_key":true,"weight":1.0},
+    {"id":"opticodds","use":"season_futures_primary_or_secondary","requires_api_key":true,"weight":1.0},
+    {"id":"the_odds_api","use":"weekly_props_and_cross_check","requires_api_key":true,"weight":0.8}
+  ],
+  "policy": {
+    "min_books_for_full_weight": 5,
+    "max_player_grade_adjustment": 12,
+    "stale_after_hours": 168,
+    "prefer_consensus_over_single_book": true,
+    "display_model_vs_vegas_delta": true
+  }
+}
