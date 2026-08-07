@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "principles": {
+    "separate_descriptive_from_predictive": true,
+    "league_relative_by_default": true,
+    "require_out_of_sample_backtest_before_weight_increase": true,
+    "show_confidence_with_every_adjustment": true,
+    "no_single_signal_can_dominate": true
+  },
+  "confidence": {
+    "components": {
+      "sample_size": 0.25,
+      "recency": 0.20,
+      "source_quality": 0.20,
+      "cross_source_agreement": 0.20,
+      "historical_stability": 0.15
+    },
+    "bands": {
+      "low": [0.0, 0.44],
+      "medium": [0.45, 0.69],
+      "high": [0.70, 0.84],
+      "very_high": [0.85, 1.0]
+    }
+  },
+  "adjustment_caps_pct_of_player_projection": {
+    "vegas": 0.06,
+    "referee_game_environment": 0.05,
+    "matchup": 0.08,
+    "role_change": 0.10,
+    "injury": 0.20,
+    "weather": 0.08,
+    "championship_archetype": 0.04
+  },
+  "referee": {
+    "minimum_games": 24,
+    "strong_sample_games": 48,
+    "minimum_seasons": 2,
+    "preferred_seasons": 3,
+    "closing_total_primary": true,
+    "spread_secondary": true,
+    "crew_over_head_referee_when_available": true,
+    "controls_required": [
+      "closing_total",
+      "closing_spread",
+      "home_team",
+      "away_team",
+      "season",
+      "venue_type",
+      "weather",
+      "team_offensive_strength"
+    ],
+    "maximum_weekly_projection_adjustment_pct": 0.05,
+    "default_low_confidence_adjustment_pct": 0.0
+  }
+}
