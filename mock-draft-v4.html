@@ -1,1 +1,734 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Front Office — Championship Draft Engine</title><style>:root{--bg:#020617;--s:#0f172a;--s2:#1e293b;--b:#334155;--t:#f1f5f9;--m:#94a3b8;--g:#f59e0b;--ok:#34d399;--r:#f87171;--teal:#2dd4bf}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}header{position:sticky;top:0;z-index:20;background:rgba(2,6,23,.96);border-bottom:1px solid var(--b);padding:14px 18px;display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}.btn{border:0;border-radius:7px;padding:9px 12px;font-weight:800;background:var(--g);color:var(--bg);cursor:pointer}.btn.secondary{background:var(--s2);color:var(--t)}.btn.ghost{background:transparent;color:var(--m);border:1px solid var(--b)}main{max-width:1280px;margin:auto;padding:16px}.panel{background:var(--s);border:1px solid var(--b);border-radius:10px;padding:14px}.grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(330px,.95fr);gap:14px}.stack{display:grid;gap:14px}.fields{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}label{font-size:10px;color:var(--m);display:grid;gap:4px}input,select{width:100%;background:var(--bg);color:var(--t);border:1px solid var(--b);border-radius:7px;padding:9px}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.muted,.meta{color:var(--m);font-size:11px}.score{color:var(--g);font-weight:900}.clock{color:var(--ok);font-weight:900}.rec{border-left:4px solid var(--g)}.rec h2{margin:4px 0}.metrics{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;margin-top:10px}.metric{background:var(--bg);padding:8px;border-radius:7px}.metric span{display:block;font-size:9px;color:var(--m);text-transform:uppercase}.metric strong{display:block;margin-top:3px}.row{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--bg);padding:9px;border-radius:8px;margin:5px 0}.name{font-weight:750}.icons{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}.icon{border:1px solid var(--b);border-radius:6px;padding:3px 6px;font-size:10px}.board{max-height:680px;overflow:auto}.picks{max-height:320px;overflow:auto}.roster{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.slot{background:var(--bg);border-radius:7px;padding:8px;text-align:center}.slot span{display:block;font-size:9px;color:var(--m)}.slot strong{display:block}.equitybar{height:7px;background:var(--s2);border-radius:99px;overflow:hidden;margin-top:5px}.equitybar i{display:block;height:100%;background:var(--ok)}.action{font-size:10px;font-weight:900;padding:3px 6px;border-radius:5px;background:var(--s2)}.good{color:var(--ok)}.risk{color:var(--r)}.teal{color:var(--teal)}.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.notice{font-size:11px;color:#fde68a;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);padding:9px;border-radius:7px}@media(max-width:900px){.grid{grid-template-columns:1fr}.fields{grid-template-columns:repeat(3,1fr)}.metrics{grid-template-columns:repeat(3,1fr)}}@media(max-width:560px){.fields,.metrics,.roster,.two{grid-template-columns:repeat(2,1fr)}}.draft-grid-wrap{overflow:auto;max-height:520px;border:1px solid var(--b);border-radius:8px;margin-top:10px}.draft-grid{display:grid;min-width:max-content}.draft-cell{width:150px;min-height:70px;padding:7px;border-right:1px solid var(--b);border-bottom:1px solid var(--b);background:var(--bg);font-size:11px}.draft-cell.header{position:sticky;top:0;z-index:4;min-height:50px;background:var(--s2);font-weight:800;cursor:pointer}.draft-cell.round{position:sticky;left:0;z-index:3;width:54px;background:var(--s2);font-weight:900}.draft-cell.header.round{z-index:5}.draft-cell.active{outline:2px solid var(--g);outline-offset:-2px;background:rgba(245,158,11,.1)}.draft-cell.mine{border-left:3px solid var(--g)}.draft-cell .pickno{color:var(--m);font-size:9px}.draft-cell .pickname{font-weight:800;margin-top:5px}.draft-cell .pickmeta{color:var(--m);margin-top:2px}.tabs{display:flex;gap:5px;margin-top:10px}.tab{border:1px solid var(--b);background:var(--bg);color:var(--m);padding:7px 10px;border-radius:6px;cursor:pointer}.tab.active{background:var(--g);color:var(--bg);border-color:var(--g)}.team-roster-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;margin-top:8px}.sim-badge{color:var(--teal);font-size:9px;font-weight:900}.empty-pick{color:#475569}.board-caption{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}@media(max-width:700px){main{padding:10px}.draft-cell{width:128px}.draft-grid-wrap{max-height:430px}.draft-cell.header{top:0}}.player-link{cursor:pointer}.player-link:hover .name,.player-link:focus .name{color:var(--g)}.compact-rec{padding:7px 9px!important}.compact-rec .icons{margin-top:2px}.compact-rec .icon{padding:2px 5px;font-size:9px}.modal-backdrop{position:fixed;inset:0;z-index:60;background:rgba(2,6,23,.82);display:none;align-items:center;justify-content:center;padding:16px}.modal-backdrop.open{display:flex}.player-modal{width:min(760px,100%);max-height:88vh;overflow:auto;background:var(--s);border:1px solid var(--b);border-radius:12px;padding:16px}.compare-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.compare-card{background:var(--bg);border:1px solid var(--b);border-radius:8px;padding:10px}.compare-card.primary{border-color:var(--g)}.metricline{font-size:10px;color:var(--m);margin-top:5px}@media(max-width:600px){.compare-grid{grid-template-columns:1fr}} </style></head><body><header><div><strong>Championship Draft Engine</strong><div class="muted">CPU mock simulator · roster-equity optimization · market + scarcity + upside</div></div><div><button class="btn secondary" onclick="location.href='draft.html'">Draft Center</button> <button class="btn secondary" onclick="location.href='index.html'">Dashboard</button></div></header><main><section class="panel"><div class="fields"><label>Mode<select id="mode"><option value="sim">Simulator</option><option value="companion">Companion</option></select></label><label>Teams<input id="teams" type="number" value="12" min="4" max="20"></label><label>Your slot<input id="slot" type="number" value="7" min="1" max="20"></label><label>Rounds<input id="rounds" type="number" value="16" min="1" max="30"></label><label>Strategy<select id="strategy"><option value="balanced">Balanced BPA</option><option value="hero-rb">Hero RB</option><option value="zero-rb">Zero RB</option><option value="robust-rb">Robust RB</option><option value="early-qb">Early QB</option><option value="elite-te">Elite TE</option></select></label><label>CPU variance<select id="variance"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></label></div><div class="toolbar" style="margin-top:10px"><div id="league-note" class="muted">Uses active league scoring and roster settings.</div><div><button id="start" class="btn">Start / Reset</button> <button id="advance" class="btn secondary">Simulate to My Pick</button> <button id="undo" class="btn ghost">Undo</button></div></div></section><section class="panel" style="margin-top:14px"><div class="board-caption"><div><strong>Draft board</strong><div id="board-summary" class="muted">Selections update every roster immediately.</div></div><div class="tabs"><button id="tab-board" class="tab active">Board</button><button id="tab-team" class="tab">Team roster</button><button id="tab-selections" class="tab">Selections</button></div></div><div id="draft-grid-view"><div id="draft-grid" class="draft-grid-wrap"></div></div><div id="team-roster-view" style="display:none"></div><div id="selections-view" style="display:none"></div></section><div class="grid" style="margin-top:14px"><div class="stack"><section class="panel rec"><div class="toolbar"><div><div class="muted">Championship decision</div><h2 id="best">Loading market…</h2><div id="why" class="muted"></div></div><div><div id="pick-label" class="score">Pick —</div><div id="clock" class="clock"></div></div></div><div class="metrics"><div class="metric"><span>Championship equity</span><strong id="equity">—</strong></div><div class="metric"><span>Equity delta</span><strong id="delta">—</strong></div><div class="metric"><span>Ceiling</span><strong id="ceiling">—</strong></div><div class="metric"><span>Breakout</span><strong id="breakout">—</strong></div><div class="metric"><span>Bust risk</span><strong id="bust">—</strong></div><div class="metric"><span>Survives next turn</span><strong id="survive">—</strong></div></div><div id="alts" style="margin-top:10px"></div></section><section class="panel"><div class="toolbar"><div><strong>Available board</strong><div id="source" class="muted">Loading FantasyCalc redraft market…</div></div><div style="display:flex;gap:6px"><select id="pos" style="width:auto"><option>ALL</option><option>QB</option><option>RB</option><option>WR</option><option>TE</option></select><input id="search" placeholder="Search player" style="width:160px"></div></div><div class="notice" style="margin:10px 0">Championship equity is an interpretable roster-outcome proxy, not a calibrated title probability. It combines market value, replacement pressure, roster construction, ceiling, breakout/bust asymmetry and simulated availability.</div><div id="board" class="board"></div></section></div><aside class="stack"><section class="panel"><strong>Your roster</strong><div id="roster" class="roster" style="margin-top:8px"></div><div style="margin-top:10px"><div class="meta">Current roster equity</div><div class="equitybar"><i id="equity-bar" style="width:0%"></i></div><div id="roster-equity" class="score" style="margin-top:4px">0</div></div></section><section class="panel"><strong>Winning roster profile</strong><div id="profile" class="muted" style="margin-top:8px"></div></section><section class="panel"><div class="toolbar"><strong>Draft room</strong><span id="room-status" class="muted"></span></div><div id="picks" class="picks"></div></section><section class="panel"><strong>Signals</strong><div class="icons" style="margin-top:8px"><span class="icon">★ talent</span><span class="icon">▲ opportunity</span><span class="icon">$ market lag</span><span class="icon">🧱 scarcity</span><span class="icon">⚡ ceiling</span><span class="icon">🎯 roster fit</span><span class="icon">🔒 likely gone</span><span class="icon">⚠ bust risk</span></div></section></aside></div></main><div id="player-modal-backdrop" class="modal-backdrop" role="dialog" aria-modal="true"><div class="player-modal"><div class="toolbar"><div><div class="muted">PLAYER SNAPSHOT</div><h2 id="player-modal-title"></h2></div><button id="close-player-modal" class="btn ghost">Close</button></div><div id="player-blurb" class="muted"></div><div id="player-compare" class="compare-grid"></div></div></div><script src="js/league-switcher.js"></script><script>(()=>{'use strict';const $=id=>document.getElementById(id),LS='ffo_mock_draft_v4';const state={players:[],picks:[],teams:12,slot:7,rounds:16,strategy:'balanced',mode:'sim',variance:'medium',activeLeague:null,profiles:{},selectedTeam:null,activeDraftTab:'board'};const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));function save(){localStorage.setItem(LS,JSON.stringify({version:2,picks:state.picks,teams:state.teams,slot:state.slot,rounds:state.rounds,strategy:state.strategy,mode:state.mode,variance:state.variance,profiles:state.profiles,selectedTeam:state.selectedTeam}))}function restore(){try{Object.assign(state,JSON.parse(localStorage.getItem(LS)||'{}'));state.picks=(state.picks||[]).map((x,i)=>normalizePick(x,i+1));state.selectedTeam=state.selectedTeam||state.slot}catch{}}function normalizePick(x,pickNo){const pick=Number(x.pick||pickNo),team=Number(x.team||ownerForPick(pick));return{...x,pick,pickNo:pick,round:Math.floor((pick-1)/state.teams)+1,roundSlot:(pick-1)%state.teams+1,team,rosterId:String(x.rosterId||team),teamName:x.teamName||`Team ${team}`,playerId:String(x.playerId||x.key),key:String(x.key||x.playerId),name:x.name||'Unknown',position:x.position||'?',nflTeam:x.nflTeam||'',mine:team===state.slot}}function createSelection(player,pick,team,source){return normalizePick({...player,pick,team,source,playerId:player.key,rosterId:String(team),teamName:`Team ${team}`},pick)}function ownerForPick(p){const r=Math.floor((p-1)/state.teams)+1,x=(p-1)%state.teams+1;return r%2?x:state.teams-x+1}function roundPick(p){const r=Math.floor((p-1)/state.teams)+1,w=(p-1)%state.teams+1;return `${r}.${String(w).padStart(2,'0')}`}function nextUserPick(after){for(let p=after+1;p<=state.teams*state.rounds;p++)if(ownerForPick(p)===state.slot)return p;return null}function available(picks=state.picks){const gone=new Set(picks.map(x=>x.key));return state.players.filter(p=>!gone.has(p.key))}function teamPicks(team,picks=state.picks){return picks.filter(x=>x.team===team)}function counts(team=state.slot,picks=state.picks){const c={QB:0,RB:0,WR:0,TE:0};teamPicks(team,picks).forEach(x=>{if(c[x.position]!=null)c[x.position]++});return c}function target(pos){const b={QB:1,RB:2,WR:2,TE:1},r=state.activeLeague?.roster||{};if(r.SUPER_FLEX)b.QB=2;for(const p of ['QB','RB','WR','TE'])if(r[p])b[p]=Math.max(b[p],r[p]);return b[pos]}function tier(rank){return rank<=12?1:rank<=36?2:rank<=72?3:rank<=120?4:5}function positionQuality(team,pos,picks=state.picks){const a=teamPicks(team,picks).filter(x=>x.position===pos).sort((x,y)=>x.rank-y.rank);return{count:a.length,bestRank:a[0]?.rank||999,best:a[0]||null}}function fit(p,picks=state.picks,team=state.slot){const q=positionQuality(team,p.position,picks),need=Math.max(0,target(p.position)-q.count);if(need)return Math.min(100,64+need*18);if(p.position==='QB'&&target('QB')===1&&q.bestRank<=36)return 8;if(p.position==='TE'&&target('TE')===1&&q.bestRank<=30)return 18;return Math.max(20,42-(q.count-target(p.position))*10)}function duplicatePenalty(p,picks=state.picks,team=state.slot){const q=positionQuality(team,p.position,picks);if(p.position==='QB'&&target('QB')===1&&q.count>=1)return q.bestRank<=12?48:q.bestRank<=36?34:18;if(p.position==='TE'&&target('TE')===1&&q.count>=1&&q.bestRank<=30)return 22;return Math.max(0,q.count-target(p.position))*9}function scarcity(p,picks=state.picks){const same=available(picks).filter(x=>x.position===p.position&&tier(x.rank)===tier(p.rank)).length;return Math.max(15,Math.min(100,105-same*12))}function talent(p){return Math.max(20,Math.min(99,104-p.rank*.65))}function market(p,pick=state.picks.length+1){return Math.max(-35,Math.min(35,pick-p.rank))}function ceiling(p){const base=talent(p),pos={QB:7,RB:9,WR:10,TE:8}[p.position]||0;return Math.max(25,Math.min(99,Math.round(base*.72+pos+Math.max(0,market(p))*.6)))}function breakout(p){return Math.max(5,Math.min(60,Math.round((100-p.rank*.45)*.28+Math.max(0,market(p))*.5+(p.position==='WR'||p.position==='RB'?7:3))))}function bust(p){const c=counts(),dup=Math.max(0,(c[p.position]||0)-target(p.position))*8,reach=Math.max(0,p.rank-(state.picks.length+1))*1.1;return Math.max(5,Math.min(70,Math.round(18+dup+reach*.35))) }function rosterEquity(picks=state.picks){const mine=teamPicks(state.slot,picks),c=counts(state.slot,picks);let q=22;mine.forEach(x=>{q+=Math.max(0,105-x.rank*.55)/14;q+=Math.max(0,ceiling(x)-65)/30});for(const pos of ['QB','RB','WR','TE']){const gap=Math.max(0,target(pos)-(c[pos]||0));q-=gap*5;const extra=Math.max(0,(c[pos]||0)-target(pos)-2);q-=extra*1.8}return Math.max(0,Math.min(100,Math.round(q)))}function profileFor(team){if(team===state.slot)return state.strategy;return state.profiles[team]||'balanced'}function initProfiles(){const a=['balanced','rb-heavy','wr-heavy','early-qb','elite-te','balanced'];state.profiles={};for(let t=1;t<=state.teams;t++)if(t!==state.slot)state.profiles[t]=a[(t-1)%a.length]}function cpuScore(p,team,picks=state.picks){const c=counts(team,picks),prof=profileFor(team),round=Math.floor(picks.length/state.teams)+1;let s=120-p.rank*.78+Math.max(0,target(p.position)-(c[p.position]||0))*12+scarcity(p,picks)*.1-duplicatePenalty(p,picks,team);if(prof==='rb-heavy'&&p.position==='RB')s+=12;if(prof==='wr-heavy'&&p.position==='WR')s+=12;if(prof==='early-qb'&&p.position==='QB'&&c.QB===0&&round<=5)s+=15;if(prof==='elite-te'&&p.position==='TE'&&c.TE===0&&round<=5)s+=14;const amp=state.variance==='low'?2:state.variance==='high'?9:5;return s+(Math.random()-.5)*amp*2}function cpuChoice(team,picks=state.picks){return available(picks).slice(0,75).map(p=>({...p,s:cpuScore(p,team,picks)})).sort((a,b)=>b.s-a.s)[0]}function simulateToUser(){if(state.mode!=='sim')return;let n=0;while(state.picks.length<state.teams*state.rounds&&ownerForPick(state.picks.length+1)!==state.slot&&n++<400){const pick=state.picks.length+1,team=ownerForPick(pick),p=cpuChoice(team);if(!p)break;state.picks.push(createSelection(p,pick,team,'cpu'))}save();render()}function survival(p,runs=70){const next=nextUserPick(state.picks.length);if(!next)return 0;let yes=0;for(let r=0;r<runs;r++){const sim=state.picks.map(x=>({...x}));while(sim.length<next-1){const pick=sim.length+1,team=ownerForPick(pick),choice=cpuChoice(team,sim);if(!choice)break;sim.push(createSelection(choice,pick,team,'simulation'))}if(!sim.some(x=>x.key===p.key))yes++}return Math.round(yes/runs*100)}function equityFor(p){const pick=state.picks.length+1,temp=[...state.picks,createSelection(p,pick,state.slot,'projection')],eq=rosterEquity(temp),sv=survival(p,45);let score=eq*1.7+talent(p)*.18+fit(p)*.14+scarcity(p)*.1+ceiling(p)*.16+breakout(p)*.1-bust(p)*.12+(100-sv)*.08+Math.max(0,market(p))*.35-duplicatePenalty(p,picks,state.slot);if(state.strategy==='hero-rb'&&p.position==='RB'&&counts().RB===0)score+=10;if(state.strategy==='zero-rb'&&p.position==='RB'&&state.picks.length<48)score-=10;return{eq,sv,score:Math.round(score)}}function actionFor(p,e){if(e.score>150&&e.sv<45)return'DRAFT NOW';if(e.sv>68)return'WAIT';if(market(p)<-12)return'AVOID AT COST';return'TARGET LATER'}function recs(){return available().slice(0,65).map(p=>({...p,...equityFor(p)})).sort((a,b)=>b.score-a.score||a.rank-b.rank).slice(0,4)}function needLabel(p){const q=positionQuality(state.slot,p.position);if(q.count<target(p.position))return'STARTER NEED';if(duplicatePenalty(p)>25)return'DEPTH ONLY';return'VALUE/DEPTH'}function renderRec(){const r=recs(),b=r[0],cur=rosterEquity();$('pick-label').textContent=`${roundPick(state.picks.length+1)} · Team ${ownerForPick(state.picks.length+1)}`;$('clock').textContent=ownerForPick(state.picks.length+1)===state.slot?'YOU ARE ON THE CLOCK':'';if(!b)return;$('best').innerHTML=`<span class="player-link" data-player="${esc(b.key)}" tabindex="0">${esc(b.name)} · ${b.position}</span>`;$('equity').textContent=b.eq;$('delta').textContent=`+${Math.max(0,b.eq-cur)}`;$('ceiling').textContent=ceiling(b);$('breakout').textContent=breakout(b)+'%';$('bust').textContent=bust(b)+'%';$('survive').textContent=b.sv+'%';$('why').textContent=`${actionFor(b,b)} · ${needLabel(b)} · talent ${talent(b)} · scarcity ${scarcity(b)} · roster fit ${fit(b)} · market ${market(b)>=0?'+':''}${market(b)}. Filled premium positions are penalized so starter needs and meaningful value lead the board.`;$('alts').innerHTML=r.slice(1).map((x,i)=>`<div class="row compact-rec"><div class="player-link" data-player="${esc(x.key)}" tabindex="0"><div class="name">${i===0?'Upside':i===1?'Structural':'Value'}: ${esc(x.name)} · ${x.position}</div><div class="icons"><span class="icon">${needLabel(x)}</span><span class="icon">EQ ${x.eq}</span><span class="icon">⚡${ceiling(x)}</span><span class="icon">🎯${fit(x)}</span><span class="icon">⏳${x.sv}%</span></div></div><span class="score">${x.score}</span></div>`).join('')}function renderBoard(){const f=$('pos').value,q=$('search').value.toLowerCase();$('board').innerHTML=available().filter(p=>(f==='ALL'||p.position===f)&&(!q||p.name.toLowerCase().includes(q))).slice(0,100).map(p=>{const e=equityFor(p),a=actionFor(p,e);return`<div class="row compact-rec"><div class="player-link" data-player="${esc(p.key)}" tabindex="0"><div class="name">${esc(p.name)} <span class="meta">${p.position} · rank ${p.rank}</span></div><div class="icons"><span class="icon">${a}</span><span class="icon">EQ ${e.eq}</span><span class="icon">⚡ ${ceiling(p)}</span><span class="icon">🎯 ${fit(p)}</span><span class="icon">🧱 ${scarcity(p)}</span><span class="icon">${e.sv<=35?'🔒':'⏳'} ${e.sv}%</span></div></div><button class="btn secondary" data-k="${esc(p.key)}">Draft</button></div>`}).join('');document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>draft(b.dataset.k))}function openPlayer(key){const p=state.players.find(x=>x.key===key);if(!p)return;const same=available().filter(x=>x.position===p.position&&x.key!==p.key).sort((a,b)=>Math.abs(a.rank-p.rank)-Math.abs(b.rank-p.rank)).slice(0,2),group=[p,...same];$('player-modal-title').textContent=`${p.name} · ${p.position}`;$('player-blurb').textContent=`${needLabel(p)}. Overall rank ${p.rank}; talent ${talent(p)}, ceiling ${ceiling(p)}, breakout ${breakout(p)}%, bust risk ${bust(p)}%, roster fit ${fit(p)}. ${duplicatePenalty(p)>25?'Your roster already has a premium starter here, so this is priced as depth rather than a primary need.':'This selection addresses a starter need or presents enough value to justify the roster slot.'}`;$('player-compare').innerHTML=group.map((x,i)=>{const e=equityFor(x);return`<div class="compare-card ${i===0?'primary':''}"><div class="muted">${i===0?'SELECTED':'NEXT AVAILABLE'}</div><div class="name">${esc(x.name)}</div><div class="meta">${x.position} · overall rank ${x.rank}</div><div class="metricline">Recommendation score <strong>${e.score}</strong></div><div class="metricline">Equity ${e.eq} · Ceiling ${ceiling(x)}</div><div class="metricline">Breakout ${breakout(x)}% · Bust ${bust(x)}%</div><div class="metricline">Fit ${fit(x)} · Survives ${e.sv}%</div></div>`}).join('');$('player-modal-backdrop').classList.add('open')}function closePlayer(){$('player-modal-backdrop').classList.remove('open')}function bindPlayerLinks(){document.querySelectorAll('[data-player]').forEach(el=>{el.onclick=e=>{if(e.target.closest('[data-k]'))return;openPlayer(el.dataset.player)};el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openPlayer(el.dataset.player)}}})}function renderRoster(){const c=counts(),eq=rosterEquity();$('roster').innerHTML=['QB','RB','WR','TE'].map(p=>`<div class="slot"><span>${p}</span><strong>${c[p]||0}</strong><span>target ${target(p)}</span></div>`).join('');$('roster-equity').textContent=eq;$('equity-bar').style.width=eq+'%';const gaps=['QB','RB','WR','TE'].filter(p=>(c[p]||0)<target(p));$('profile').innerHTML=`Starter gaps: <strong>${gaps.length?gaps.join(', '):'none'}</strong><br>Upside assets: <strong>${teamPicks(state.slot).filter(p=>ceiling(p)>=82).length}</strong><br>High bust-risk assets: <strong>${teamPicks(state.slot).filter(p=>bust(p)>=40).length}</strong><br>Construction goal: maximize starter strength + ceiling while preserving replacement flexibility.`}function showDraftTab(tab){state.activeDraftTab=tab;['board','team','selections'].forEach(x=>{const b=$('tab-'+x),v=$(x==='board'?'draft-grid-view':x+'-view');if(b)b.classList.toggle('active',x===tab);if(v)v.style.display=x===tab?'block':'none'});if(tab==='team')renderTeamRoster();if(tab==='selections')renderSelections()}function renderDraftGrid(){const columns=state.teams+1,byPick=new Map(state.picks.map(x=>[x.pick,x]));let html=`<div class="draft-grid" style="grid-template-columns:54px repeat(${state.teams},150px)">`;html+=`<div class="draft-cell header round">RD</div>`;for(let t=1;t<=state.teams;t++)html+=`<div class="draft-cell header ${t===state.slot?'mine':''}" data-team="${t}">Team ${t}${t===state.slot?' · YOU':''}<div class="pickmeta">${teamPicks(t).length} selected</div></div>`;for(let r=1;r<=state.rounds;r++){html+=`<div class="draft-cell round">R${r}</div>`;for(let displayTeam=1;displayTeam<=state.teams;displayTeam++){const owner=r%2?displayTeam:state.teams-displayTeam+1,pick=(r-1)*state.teams+(r%2?displayTeam:state.teams-displayTeam+1),sel=byPick.get(pick),active=pick===state.picks.length+1;html+=`<div class="draft-cell ${active?'active':''} ${owner===state.slot?'mine':''}" data-team="${owner}"><div class="pickno">${roundPick(pick)} · Team ${owner}</div>${sel?`<div class="pickname">${esc(sel.name)}</div><div class="pickmeta">${esc(sel.position)}${sel.nflTeam?' · '+esc(sel.nflTeam):''}</div><div class="sim-badge">MOCK ADDITION</div>`:`<div class="empty-pick">${active?'ON THE CLOCK':'Available'}</div>`}</div>`}}html+='</div>';$('draft-grid').innerHTML=html;$('board-summary').textContent=`${state.picks.length} of ${state.teams*state.rounds} selections · Team ${ownerForPick(Math.min(state.picks.length+1,state.teams*state.rounds))} on the clock`;document.querySelectorAll('#draft-grid [data-team]').forEach(el=>el.onclick=()=>{state.selectedTeam=Number(el.dataset.team);save();showDraftTab('team')})}function renderTeamRoster(){const team=state.selectedTeam||state.slot,picks=teamPicks(team);$('team-roster-view').innerHTML=`<div class="toolbar" style="margin-top:10px"><strong>Team ${team}${team===state.slot?' · YOU':''}</strong><select id="team-select" style="width:auto">${Array.from({length:state.teams},(_,i)=>`<option value="${i+1}" ${team===i+1?'selected':''}>Team ${i+1}${state.slot===i+1?' · YOU':''}</option>`).join('')}</select></div><div class="team-roster-list">${picks.map(x=>`<div class="row"><div><div class="name">${esc(x.name)}</div><div class="meta">${x.position} · ${roundPick(x.pick)}</div></div><span class="sim-badge">MOCK</span></div>`).join('')||'<div class="muted">No simulated additions yet.</div>'}</div><div class="notice" style="margin-top:10px">This is the team’s simulated draft class. It does not modify the real league roster.</div>`;const sel=$('team-select');if(sel)sel.onchange=()=>{state.selectedTeam=Number(sel.value);save();renderTeamRoster()}}function renderSelections(){$('selections-view').innerHTML=`<div style="margin-top:10px">${state.picks.map(x=>`<div class="row"><div><strong>${roundPick(x.pick)}</strong> · Team ${x.team}</div><div>${esc(x.name)} · ${esc(x.position)} <span class="sim-badge">MOCK</span></div></div>`).join('')||'<div class="muted">No picks yet.</div>'}</div>`}function renderPicks(){$('room-status').textContent=`${state.teams}-team snake · slot ${state.slot}`;$('picks').innerHTML=state.picks.slice().reverse().map(x=>`<div class="row"><div>${roundPick(x.pick)} · Team ${x.team}</div><div>${esc(x.name)} · ${x.position}${x.mine?' · YOU':''}</div></div>`).join('')||'<div class="muted">No picks yet.</div>'}function render(){renderRec();renderBoard();renderRoster();renderPicks();renderDraftGrid();if(state.activeDraftTab==='team')renderTeamRoster();if(state.activeDraftTab==='selections')renderSelections();bindPlayerLinks()}function draft(key){const p=state.players.find(x=>x.key===key);if(!p)return;const pick=state.picks.length+1,team=ownerForPick(pick);if(state.picks.some(x=>x.key===p.key))return;state.picks.push(createSelection(p,pick,team,team===state.slot?'user':'manual'));state.selectedTeam=team;save();render();if(state.mode==='sim'&&team===state.slot)setTimeout(simulateToUser,120)}function start(){state.teams=+$('teams').value;state.slot=Math.min(state.teams,+$('slot').value);state.rounds=+$('rounds').value;state.strategy=$('strategy').value;state.mode=$('mode').value;state.variance=$('variance').value;state.picks=[];initProfiles();save();render();if(state.mode==='sim')simulateToUser()}async function load(){restore();['teams','slot','rounds'].forEach(k=>$(k).value=state[k]);$('strategy').value=state.strategy;$('mode').value=state.mode;$('variance').value=state.variance;try{const qbs=state.activeLeague?.roster?.SUPER_FLEX?2:1,ppr=state.activeLeague?.scoring?.reception??0.5;const data=await fetch(`https://api.fantasycalc.com/values/current?isDynasty=false&numQbs=${qbs}&numTeams=${state.teams}&ppr=${ppr}`).then(r=>r.json());state.players=data.map((v,i)=>({key:String(v.player?.sleeperId||v.player?.id||i),name:v.player?.name||'Unknown',position:v.player?.position||'?',rank:v.overallRank||v.rank||i+1,value:v.value||0})).filter(p=>['QB','RB','WR','TE'].includes(p.position)).sort((a,b)=>a.rank-b.rank);$('source').textContent=`FantasyCalc market loaded · ${state.players.length} players`;render()}catch(e){$('source').textContent='Market unavailable. Reload to retry.'}}document.addEventListener('ffo:league-changed',e=>{state.activeLeague=e.detail;$('league-note').textContent=`Active league: ${e.detail.name} · ${e.detail.scoring?.reception??0} PPR`;load()});$('close-player-modal').onclick=closePlayer;$('player-modal-backdrop').onclick=e=>{if(e.target===$('player-modal-backdrop'))closePlayer()};document.addEventListener('keydown',e=>{if(e.key==='Escape')closePlayer()});$('start').onclick=start;$('advance').onclick=simulateToUser;$('undo').onclick=()=>{state.picks.pop();save();render()};$('pos').onchange=renderBoard;$('search').oninput=renderBoard;$('tab-board').onclick=()=>showDraftTab('board');$('tab-team').onclick=()=>showDraftTab('team');$('tab-selections').onclick=()=>showDraftTab('selections');$('strategy').onchange=()=>{state.strategy=$('strategy').value;save();render()};setTimeout(()=>{if(!state.players.length)load()},500)})();</script></body></html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Front Office — Championship Draft Engine</title>
+    <style>
+      :root {
+        --bg: #020617;
+        --s: #0f172a;
+        --s2: #1e293b;
+        --b: #334155;
+        --t: #f1f5f9;
+        --m: #94a3b8;
+        --g: #f59e0b;
+        --ok: #34d399;
+        --r: #f87171;
+        --teal: #2dd4bf;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--t);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        background: rgba(2, 6, 23, 0.96);
+        border-bottom: 1px solid var(--b);
+        padding: 14px 18px;
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .btn {
+        border: 0;
+        border-radius: 7px;
+        padding: 9px 12px;
+        font-weight: 800;
+        background: var(--g);
+        color: var(--bg);
+        cursor: pointer;
+      }
+      .btn.secondary {
+        background: var(--s2);
+        color: var(--t);
+      }
+      .btn.ghost {
+        background: transparent;
+        color: var(--m);
+        border: 1px solid var(--b);
+      }
+      main {
+        max-width: 1280px;
+        margin: auto;
+        padding: 16px;
+      }
+      .panel {
+        background: var(--s);
+        border: 1px solid var(--b);
+        border-radius: 10px;
+        padding: 14px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.7fr) minmax(330px, 0.95fr);
+        gap: 14px;
+      }
+      .stack {
+        display: grid;
+        gap: 14px;
+      }
+      .fields {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 8px;
+      }
+      label {
+        font-size: 10px;
+        color: var(--m);
+        display: grid;
+        gap: 4px;
+      }
+      input,
+      select {
+        width: 100%;
+        background: var(--bg);
+        color: var(--t);
+        border: 1px solid var(--b);
+        border-radius: 7px;
+        padding: 9px;
+      }
+      .toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .muted,
+      .meta {
+        color: var(--m);
+        font-size: 11px;
+      }
+      .score {
+        color: var(--g);
+        font-weight: 900;
+      }
+      .clock {
+        color: var(--ok);
+        font-weight: 900;
+      }
+      .rec {
+        border-left: 4px solid var(--g);
+      }
+      .rec h2 {
+        margin: 4px 0;
+      }
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 7px;
+        margin-top: 10px;
+      }
+      .metric {
+        background: var(--bg);
+        padding: 8px;
+        border-radius: 7px;
+      }
+      .metric span {
+        display: block;
+        font-size: 9px;
+        color: var(--m);
+        text-transform: uppercase;
+      }
+      .metric strong {
+        display: block;
+        margin-top: 3px;
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        background: var(--bg);
+        padding: 9px;
+        border-radius: 8px;
+        margin: 5px 0;
+      }
+      .name {
+        font-weight: 750;
+      }
+      .icons {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+        margin-top: 4px;
+      }
+      .icon {
+        border: 1px solid var(--b);
+        border-radius: 6px;
+        padding: 3px 6px;
+        font-size: 10px;
+      }
+      .board {
+        max-height: 680px;
+        overflow: auto;
+      }
+      .picks {
+        max-height: 320px;
+        overflow: auto;
+      }
+      .roster {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 7px;
+      }
+      .slot {
+        background: var(--bg);
+        border-radius: 7px;
+        padding: 8px;
+        text-align: center;
+      }
+      .slot span {
+        display: block;
+        font-size: 9px;
+        color: var(--m);
+      }
+      .slot strong {
+        display: block;
+      }
+      .equitybar {
+        height: 7px;
+        background: var(--s2);
+        border-radius: 99px;
+        overflow: hidden;
+        margin-top: 5px;
+      }
+      .equitybar i {
+        display: block;
+        height: 100%;
+        background: var(--ok);
+      }
+      .action {
+        font-size: 10px;
+        font-weight: 900;
+        padding: 3px 6px;
+        border-radius: 5px;
+        background: var(--s2);
+      }
+      .good {
+        color: var(--ok);
+      }
+      .risk {
+        color: var(--r);
+      }
+      .teal {
+        color: var(--teal);
+      }
+      .two {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .notice {
+        font-size: 11px;
+        color: #fde68a;
+        background: rgba(245, 158, 11, 0.08);
+        border: 1px solid rgba(245, 158, 11, 0.3);
+        padding: 9px;
+        border-radius: 7px;
+      }
+      @media (max-width: 900px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .fields {
+          grid-template-columns: repeat(3, 1fr);
+        }
+        .metrics {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+      @media (max-width: 560px) {
+        .fields,
+        .metrics,
+        .roster,
+        .two {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      .draft-grid-wrap {
+        overflow: auto;
+        max-height: 520px;
+        border: 1px solid var(--b);
+        border-radius: 8px;
+        margin-top: 10px;
+      }
+      .draft-grid {
+        display: grid;
+        min-width: max-content;
+      }
+      .draft-cell {
+        width: 150px;
+        min-height: 70px;
+        padding: 7px;
+        border-right: 1px solid var(--b);
+        border-bottom: 1px solid var(--b);
+        background: var(--bg);
+        font-size: 11px;
+      }
+      .draft-cell.header {
+        position: sticky;
+        top: 0;
+        z-index: 4;
+        min-height: 50px;
+        background: var(--s2);
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .draft-cell.round {
+        position: sticky;
+        left: 0;
+        z-index: 3;
+        width: 54px;
+        background: var(--s2);
+        font-weight: 900;
+      }
+      .draft-cell.header.round {
+        z-index: 5;
+      }
+      .draft-cell.active {
+        outline: 2px solid var(--g);
+        outline-offset: -2px;
+        background: rgba(245, 158, 11, 0.1);
+      }
+      .draft-cell.mine {
+        border-left: 3px solid var(--g);
+      }
+      .draft-cell .pickno {
+        color: var(--m);
+        font-size: 9px;
+      }
+      .draft-cell .pickname {
+        font-weight: 800;
+        margin-top: 5px;
+      }
+      .draft-cell .pickmeta {
+        color: var(--m);
+        margin-top: 2px;
+      }
+      .tabs {
+        display: flex;
+        gap: 5px;
+        margin-top: 10px;
+      }
+      .tab {
+        border: 1px solid var(--b);
+        background: var(--bg);
+        color: var(--m);
+        padding: 7px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .tab.active {
+        background: var(--g);
+        color: var(--bg);
+        border-color: var(--g);
+      }
+      .team-roster-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+        gap: 6px;
+        margin-top: 8px;
+      }
+      .sim-badge {
+        color: var(--teal);
+        font-size: 9px;
+        font-weight: 900;
+      }
+      .empty-pick {
+        color: #475569;
+      }
+      .board-caption {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      @media (max-width: 700px) {
+        main {
+          padding: 10px;
+        }
+        .draft-cell {
+          width: 128px;
+        }
+        .draft-grid-wrap {
+          max-height: 430px;
+        }
+        .draft-cell.header {
+          top: 0;
+        }
+      }
+      .player-link {
+        cursor: pointer;
+      }
+      .player-link:hover .name,
+      .player-link:focus .name {
+        color: var(--g);
+      }
+      .compact-rec {
+        padding: 7px 9px !important;
+      }
+      .compact-rec .icons {
+        margin-top: 2px;
+      }
+      .compact-rec .icon {
+        padding: 2px 5px;
+        font-size: 9px;
+      }
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 60;
+        background: rgba(2, 6, 23, 0.82);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+      }
+      .modal-backdrop.open {
+        display: flex;
+      }
+      .player-modal {
+        width: min(760px, 100%);
+        max-height: 88vh;
+        overflow: auto;
+        background: var(--s);
+        border: 1px solid var(--b);
+        border-radius: 12px;
+        padding: 16px;
+      }
+      .compare-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .compare-card {
+        background: var(--bg);
+        border: 1px solid var(--b);
+        border-radius: 8px;
+        padding: 10px;
+      }
+      .compare-card.primary {
+        border-color: var(--g);
+      }
+      .metricline {
+        font-size: 10px;
+        color: var(--m);
+        margin-top: 5px;
+      }
+      .intel-strip {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+        margin-top: 9px;
+      }
+      .factor {
+        background: var(--bg);
+        border: 1px solid var(--b);
+        border-radius: 7px;
+        padding: 7px;
+        font-size: 10px;
+      }
+      .factor strong {
+        color: var(--g);
+        display: block;
+        margin-top: 2px;
+      }
+      .strategy-card,
+      .scheme-block {
+        background: rgba(45, 212, 191, 0.06);
+        border: 1px solid rgba(45, 212, 191, 0.3);
+        border-radius: 8px;
+        padding: 9px;
+        margin-top: 9px;
+        font-size: 11px;
+        line-height: 1.45;
+      }
+      .scheme-block {
+        background: var(--bg);
+        border-color: var(--b);
+      }
+      .tier-cliff {
+        color: #fde68a;
+        border-color: rgba(245, 158, 11, 0.55);
+      }
+      .confidence-low {
+        color: var(--r);
+      }
+      .source-dot {
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        margin-right: 5px;
+        border-radius: 50%;
+        background: var(--ok);
+      }
+      .source-dot.fallback {
+        background: var(--g);
+      }
+      .modal-section {
+        margin-top: 12px;
+      }
+      @media (max-width: 600px) {
+        .compare-grid {
+          grid-template-columns: 1fr;
+        }
+        .intel-strip {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <strong>Championship Draft Engine</strong>
+        <div class="muted">
+          Consensus rankings · position tiers · VBD · scheme-aware tiebreakers
+        </div>
+      </div>
+      <div>
+        <button class="btn secondary" onclick="location.href='draft.html'">
+          Draft Center
+        </button>
+        <button class="btn secondary" onclick="location.href='index.html'">
+          Dashboard
+        </button>
+      </div>
+    </header>
+    <main>
+      <section class="panel">
+        <div class="fields">
+          <label
+            >Mode<select id="mode">
+              <option value="sim">Simulator</option>
+              <option value="companion">Companion</option>
+            </select></label
+          ><label
+            >Teams<input
+              id="teams"
+              type="number"
+              value="12"
+              min="4"
+              max="20" /></label
+          ><label
+            >Your slot<input
+              id="slot"
+              type="number"
+              value="7"
+              min="1"
+              max="20" /></label
+          ><label
+            >Rounds<input
+              id="rounds"
+              type="number"
+              value="16"
+              min="1"
+              max="30" /></label
+          ><label
+            >Strategy<select id="strategy">
+              <option value="adaptive">Adaptive VBD</option>
+              <option value="balanced">Balanced BPA</option>
+              <option value="hero-rb">Hero RB</option>
+              <option value="zero-rb">Zero RB</option>
+              <option value="robust-rb">Robust RB</option>
+              <option value="late-qb">Late-Round QB</option>
+              <option value="early-qb">Early QB / Superflex</option>
+              <option value="elite-te">Elite TE</option>
+            </select></label
+          ><label
+            >CPU variance<select id="variance">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select></label
+          >
+        </div>
+        <div class="toolbar" style="margin-top: 10px">
+          <div id="league-note" class="muted">
+            Uses active league scoring and roster settings.
+          </div>
+          <div>
+            <button id="start" class="btn">Start / Reset</button>
+            <button id="advance" class="btn secondary">
+              Simulate to My Pick
+            </button>
+            <button id="undo" class="btn ghost">Undo</button>
+          </div>
+        </div>
+      </section>
+      <section class="panel" style="margin-top: 14px">
+        <div class="board-caption">
+          <div>
+            <strong>Draft board</strong>
+            <div id="board-summary" class="muted">
+              Selections update every roster immediately.
+            </div>
+          </div>
+          <div class="tabs">
+            <button id="tab-board" class="tab active">Board</button
+            ><button id="tab-team" class="tab">Team roster</button
+            ><button id="tab-selections" class="tab">Selections</button>
+          </div>
+        </div>
+        <div id="draft-grid-view">
+          <div id="draft-grid" class="draft-grid-wrap"></div>
+        </div>
+        <div id="team-roster-view" style="display: none"></div>
+        <div id="selections-view" style="display: none"></div>
+      </section>
+      <div class="grid" style="margin-top: 14px">
+        <div class="stack">
+          <section class="panel rec">
+            <div class="toolbar">
+              <div>
+                <div class="muted">Championship decision</div>
+                <h2 id="best">Loading market…</h2>
+                <div id="why" class="muted"></div>
+              </div>
+              <div>
+                <div id="pick-label" class="score">Pick —</div>
+                <div id="clock" class="clock"></div>
+              </div>
+            </div>
+            <div class="metrics">
+              <div class="metric">
+                <span>Recommendation</span><strong id="equity">—</strong>
+              </div>
+              <div class="metric">
+                <span>Value vs ADP</span><strong id="delta">—</strong>
+              </div>
+              <div class="metric">
+                <span>Position tier</span><strong id="ceiling">—</strong>
+              </div>
+              <div class="metric">
+                <span>Rank agreement</span><strong id="breakout">—</strong>
+              </div>
+              <div class="metric">
+                <span>Model confidence</span><strong id="bust">—</strong>
+              </div>
+              <div class="metric">
+                <span>Survives next turn</span><strong id="survive">—</strong>
+              </div>
+            </div>
+            <div id="alts" style="margin-top: 10px"></div>
+          </section>
+          <section class="panel">
+            <div class="toolbar">
+              <div>
+                <strong>Available board</strong>
+                <div id="source" class="muted">
+                  Loading FantasyCalc redraft market…
+                </div>
+              </div>
+              <div style="display: flex; gap: 6px">
+                <select id="pos" style="width: auto">
+                  <option>ALL</option>
+                  <option>QB</option>
+                  <option>RB</option>
+                  <option>WR</option>
+                  <option>TE</option></select
+                ><input
+                  id="search"
+                  placeholder="Search player"
+                  style="width: 160px"
+                />
+              </div>
+            </div>
+            <div class="notice" style="margin: 10px 0">
+              Recommendation scores combine source-weighted market consensus,
+              value over replacement, live tier cliffs, roster need, simulated
+              availability and strategy. Scheme fit is capped at 7% and is a
+              tiebreaker, not a projection or claim that a coach caused prior
+              results.
+            </div>
+            <div id="board" class="board"></div>
+          </section>
+        </div>
+        <aside class="stack">
+          <section class="panel">
+            <strong>Your roster</strong>
+            <div id="roster" class="roster" style="margin-top: 8px"></div>
+            <div style="margin-top: 10px">
+              <div class="meta">Current roster equity</div>
+              <div class="equitybar">
+                <i id="equity-bar" style="width: 0%"></i>
+              </div>
+              <div id="roster-equity" class="score" style="margin-top: 4px">
+                0
+              </div>
+            </div>
+          </section>
+          <section class="panel">
+            <strong>Winning roster profile</strong>
+            <div id="profile" class="muted" style="margin-top: 8px"></div>
+          </section>
+          <section class="panel">
+            <strong>Draft intelligence</strong>
+            <div
+              id="intelligence-status"
+              class="muted"
+              style="margin-top: 8px"
+            ></div>
+            <div id="strategy-playbook" class="strategy-card"></div>
+            <div id="weight-summary" class="intel-strip"></div>
+          </section>
+          <section class="panel">
+            <div class="toolbar">
+              <strong>Draft room</strong
+              ><span id="room-status" class="muted"></span>
+            </div>
+            <div id="picks" class="picks"></div>
+          </section>
+          <section class="panel">
+            <strong>Signals</strong>
+            <div class="icons" style="margin-top: 8px">
+              <span class="icon">O# overall</span
+              ><span class="icon">P# position</span
+              ><span class="icon">T# tier</span
+              ><span class="icon tier-cliff">CLIFF tier drop</span
+              ><span class="icon">VBD replacement edge</span
+              ><span class="icon">SCHEME capped fit</span
+              ><span class="icon">🔒 likely gone</span
+              ><span class="icon">CONF evidence quality</span>
+            </div>
+          </section>
+        </aside>
+      </div>
+    </main>
+    <div
+      id="player-modal-backdrop"
+      class="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="player-modal">
+        <div class="toolbar">
+          <div>
+            <div class="muted">PLAYER SNAPSHOT</div>
+            <h2 id="player-modal-title"></h2>
+          </div>
+          <button id="close-player-modal" class="btn ghost">Close</button>
+        </div>
+        <div id="player-blurb" class="muted"></div>
+        <div id="player-scheme" class="modal-section"></div>
+        <div id="player-compare" class="compare-grid"></div>
+      </div>
+    </div>
+    <script src="js/league-switcher.js"></script>
+    <script src="js/draft-intelligence.js"></script>
+    <script src="js/mock-draft-v4.js"></script>
+  </body>
+</html>
