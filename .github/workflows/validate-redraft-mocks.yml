@@ -1,0 +1,28 @@
+name: Validate redraft snake and auction mocks
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/validate_redraft_mock_formats.py'
+      - '.github/workflows/validate-redraft-mocks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate 2024-2025 redraft mock formats
+        run: python scripts/validate_redraft_mock_formats.py data/backtests/redraft-mock-validation
+      - name: Upload validation report
+        uses: actions/upload-artifact@v4
+        with:
+          name: redraft-mock-validation
+          path: data/backtests/redraft-mock-validation/
