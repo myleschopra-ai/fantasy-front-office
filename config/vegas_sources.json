@@ -1,6 +1,8 @@
 {
-  "version": 1,
+  "version": 2,
   "providers": [
+    {"id":"betmgm_public","use":"free_season_futures_primary_input","requires_api_key":false,"weight":0.7,"collector":"scripts/scrape_betmgm_season_props.py","status":"experimental_public_scrape"},
+    {"id":"sportsbook_odds_scraper_reference","use":"free_multi_book_reference_and_fallback","requires_api_key":false,"weight":0.6,"repository":"declanwalpole/sportsbook-odds-scraper","status":"external_undocumented_api_reference"},
     {"id":"sportsdataio","use":"season_futures_primary","requires_api_key":true,"weight":1.0},
     {"id":"opticodds","use":"season_futures_primary_or_secondary","requires_api_key":true,"weight":1.0},
     {"id":"the_odds_api","use":"weekly_props_and_cross_check","requires_api_key":true,"weight":0.8}
@@ -10,6 +12,9 @@
     "max_player_grade_adjustment": 12,
     "stale_after_hours": 168,
     "prefer_consensus_over_single_book": true,
-    "display_model_vs_vegas_delta": true
+    "display_model_vs_vegas_delta": true,
+    "public_scrape_weight_cap": 0.7,
+    "fail_closed_on_scraper_parse_error": true,
+    "no_bot_bypass_or_access_control_evasion": true
   }
 }
