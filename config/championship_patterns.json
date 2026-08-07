@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "status": "seed-model",
+  "notes": "Starter priors for championship-roster structure. Replace or recalibrate with verified league-season warehouse outputs.",
+  "formats": {
+    "default_12_team_half_ppr": {
+      "teams": 12,
+      "ppr": 0.5,
+      "targets": {
+        "elite_anchor_count": 2,
+        "top12_skill_count": 4,
+        "value_hit_count": 3,
+        "ceiling_asset_count": 4,
+        "starter_points_above_replacement": 100
+      },
+      "weights": {
+        "elite_anchors": 0.25,
+        "points_above_replacement": 0.25,
+        "value_hits": 0.20,
+        "ceiling_density": 0.15,
+        "positional_balance": 0.10,
+        "bench_optionality": 0.05
+      }
+    }
+  }
+}

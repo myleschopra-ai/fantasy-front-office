@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-08-07T00:00:00Z",
+  "provider": "example",
+  "markets": [
+    {
+      "player_key": "example-player",
+      "player_name": "Example Player",
+      "position": "WR",
+      "books": 5,
+      "season": 2026,
+      "lines": {
+        "receptions": 82.5,
+        "receiving_yards": 1125.5,
+        "receiving_touchdowns": 7.5
+      },
+      "implied_fantasy_points": {
+        "ppr_0": 157.55,
+        "ppr_0_5": 198.8,
+        "ppr_1": 240.05
+      },
+      "line_movement": {
+        "receiving_yards_open": 1075.5,
+        "receiving_yards_current": 1125.5
+      }
+    }
+  ]
+}
