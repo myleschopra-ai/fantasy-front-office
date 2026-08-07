@@ -1,0 +1,30 @@
+name: 2025 fantasy manager backtest
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/backtest_2025_manager.py'
+      - '.github/workflows/backtest-2025-manager.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Replay 2025 season
+        run: python scripts/backtest_2025_manager.py data/backtests/2025
+      - name: Show report
+        run: cat data/backtests/2025/report.md
+      - name: Upload backtest report
+        uses: actions/upload-artifact@v4
+        with:
+          name: 2025-manager-backtest
+          path: data/backtests/2025/
