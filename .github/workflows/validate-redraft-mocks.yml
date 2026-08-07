@@ -5,6 +5,7 @@ on:
     paths:
       - 'scripts/validate_redraft_mock_formats.py'
       - 'scripts/validate_redraft_strong_baselines.py'
+      - 'scripts/validate_auction_sensitivity.py'
       - '.github/workflows/validate-redraft-mocks.yml'
   workflow_dispatch:
 
@@ -22,8 +23,12 @@ jobs:
           python-version: '3.12'
       - name: Validate against competent market baselines
         run: python scripts/validate_redraft_strong_baselines.py data/backtests/redraft-mock-validation-strong
-      - name: Upload validation report
+      - name: Stress test auction bidder assumptions
+        run: python scripts/validate_auction_sensitivity.py data/backtests/auction-sensitivity
+      - name: Upload validation reports
         uses: actions/upload-artifact@v4
         with:
-          name: redraft-mock-validation-strong
-          path: data/backtests/redraft-mock-validation-strong/
+          name: redraft-mock-validation
+          path: |
+            data/backtests/redraft-mock-validation-strong/
+            data/backtests/auction-sensitivity/
