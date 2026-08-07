@@ -5,7 +5,7 @@ from pathlib import Path
 
 HERE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('base_validator',HERE/'validate_redraft_mock_formats.py')
-v=importlib.util.module_from_spec(spec); spec.loader.exec_module(v)
+v=importlib.util.module_from_spec(spec); sys.modules[spec.name]=v; spec.loader.exec_module(v)
 
 def mean(xs): return statistics.mean(xs) if xs else 0.0
 
@@ -31,7 +31,6 @@ def snake_draft(players,slot,seed,framework):
 def baseline_bid(p,team):
     slots_left=max(1,v.ROUNDS-len(team.roster)); spendable=max(v.MIN_BID,team.budget-(slots_left-1)*v.MIN_BID)
     c=v.counts(team.roster); gap=max(0,v.targets()[p.pos]-c[p.pos])
-    # Competent market manager: knows roster need and is willing to pay a modest premium for an unfilled starter.
     max_price=round(max(v.MIN_BID,p.price*(1+gap*.06)))
     return max(v.MIN_BID,min(spendable,max_price))
 
