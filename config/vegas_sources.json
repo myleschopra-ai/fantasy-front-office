@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "providers": [
     {"id":"betmgm_public","use":"free_season_futures_primary_input","requires_api_key":false,"weight":0.7,"collector":"scripts/scrape_betmgm_season_props.py","status":"experimental_public_scrape"},
     {"id":"draftkings_public","use":"free_season_futures_cross_check","requires_api_key":false,"weight":0.65,"collector":"scripts/scrape_draftkings_season_props.py","status":"experimental_undocumented_public_api"},
@@ -10,10 +10,16 @@
   ],
   "policy": {
     "min_books_for_full_weight": 5,
+    "min_books_for_consensus_signal": 2,
+    "strong_agreement_threshold": 0.72,
+    "meaningful_model_delta_points": 15,
+    "meaningful_line_movement_fantasy_points": 4,
     "max_player_grade_adjustment": 12,
     "stale_after_hours": 168,
     "prefer_consensus_over_single_book": true,
     "display_model_vs_vegas_delta": true,
+    "display_book_disagreement": true,
+    "display_line_movement": true,
     "public_scrape_weight_cap": 0.7,
     "fail_closed_on_scraper_parse_error": true,
     "no_bot_bypass_or_access_control_evasion": true,
