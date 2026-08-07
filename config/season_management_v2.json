@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "status": "promoted-after-2021-2024-development-and-frozen-2025-holdout",
+  "principles": {
+    "no_future_information": true,
+    "protect_rest_of_season_assets": true,
+    "close_start_sit_calls_use_prior_only": true,
+    "playoff_decisions_can_seek_controlled_ceiling": true,
+    "vegas_and_referee_require_timestamped_historical_inputs": true
+  },
+  "tuning_space": {
+    "asset_protection_weight": [0.0, 0.5, 1.0, 1.5],
+    "close_call_prior_weight": [0.0, 0.15],
+    "close_call_band_points": 2.0
+  },
+  "defaults": {
+    "asset_protection_weight": 0.5,
+    "close_call_prior_weight": 0.15,
+    "close_call_band_points": 2.0,
+    "waiver_min_edge": 2.5,
+    "rolling_projection_weight": 0.25,
+    "recent_actual_weight": 0.10,
+    "playoff_ceiling_weight": 0.08
+  },
+  "validation": {
+    "development_seasons": [2021, 2022, 2023, 2024],
+    "frozen_holdout_season": 2025,
+    "development_sample_replays": 96,
+    "holdout_replays": 120,
+    "selected_asset_protection_weight": 0.5,
+    "selected_close_call_prior_weight": 0.15,
+    "holdout_points_v2": 1326.1,
+    "holdout_points_v1": 1316.7,
+    "holdout_points_gain": 9.4,
+    "holdout_playoff_rate_v2": 0.667,
+    "holdout_playoff_rate_v1": 0.65,
+    "holdout_title_rate_v2": 0.092,
+    "holdout_title_rate_v1": 0.092
+  },
+  "weight_promotion_rule": "Only promote a tuned parameter set when it improves development-season points without materially worsening playoff rate, then freeze it before the holdout season.",
+  "signals_still_gated": [
+    "historical Vegas player props without timestamped pregame snapshots",
+    "referee/crew effects without dated assignment and pregame-market snapshots"
+  ]
+}
