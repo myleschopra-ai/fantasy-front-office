@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "sources": [
+    {"id":"sleeper_verified","type":"league_level","role":"training","access":"public_api","verified":true,"notes":"League settings, rosters, drafts, matchups and winners bracket can be normalized per league-season."},
+    {"id":"espn_championship_aggregate","type":"aggregate","role":"validation","access":"published_articles","verified":true,"notes":"Use published most-common championship roster rates as aggregate validation, not row-level training."},
+    {"id":"fantasypros_championship_aggregate","type":"aggregate","role":"validation","access":"published_articles","verified":true,"notes":"Use My Playbook championship population summaries as independent aggregate validation."},
+    {"id":"ffpc_high_stakes","type":"high_stakes","role":"expert_validation","access":"published_results","verified":true,"notes":"Use published FFPC Main Event winning rosters/draft boards as expert-competition validation."}
+  ],
+  "league_quality": {
+    "min_teams": 10,
+    "max_teams": 14,
+    "require_completed_playoffs": true,
+    "require_draft": true,
+    "prefer_multi_year_leagues": true,
+    "exclude_abandoned_rosters": true
+  }
+}
