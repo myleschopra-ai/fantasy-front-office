@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "league_id": "yahoo-auction-redraft",
+  "budget": 200,
+  "minimum_bid": 1,
+  "seasons": [
+    {
+      "season": 2025,
+      "purchases": [
+        {"player":"Example RB","position":"RB","price":48,"manager":"Team 4","nomination":7,"generic_aav":43,"keeper":false},
+        {"player":"Example WR","position":"WR","price":31,"manager":"Team 9","nomination":18,"generic_aav":36,"keeper":false}
+      ]
+    }
+  ]
+}
