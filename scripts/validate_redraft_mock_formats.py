@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import csv, html, io, json, random, re, statistics, sys, urllib.request
+import csv, io, json, random, re, statistics, sys, urllib.request
 from collections import defaultdict
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
@@ -57,14 +57,13 @@ def load_auction(year):
     parser=TableParser(); parser.feed(get(AUCT.format(yy=str(year)[-2:])).decode('utf-8',errors='replace'))
     out=[]
     for row in parser.rows:
-        # Expected FFToday columns: overall, pos, pos rank, player, team, max bid
         if len(row)<6 or not row[0].strip().isdigit(): continue
         pos=row[1].strip().upper(); name=row[3].replace('�','').strip(); price=num(re.sub(r'[^0-9.]','',row[-1]),-1)
-        if pos in POS and name and price>=0: out.append(Player(name,pos,int(row[0]),rank_to_adp=int(row[0]) if False else 999,price=price))
-    # dataclass compatibility: replace accidental placeholder via clean construction
-    clean=[Player(p.name,p.pos,i+1,float(i+1),p.price) for i,p in enumerate(out)]
-    if len(clean)<80: raise RuntimeError(f'Only parsed {len(clean)} auction players for {year}')
-    return clean
+        if pos in POS and name and price>=0: out.append(Player(name,pos,int(row[0]),float(row[0]),price))
+    out.sort(key=lambda p:p.rank)
+    for i,p in enumerate(out,1):p.rank=i;p.adp=float(i)
+    if len(out)<80: raise RuntimeError(f'Only parsed {len(out)} auction players for {year}')
+    return out
 
 def load_week(year,w):
     proj,act,meta={}, {},{}
@@ -138,7 +137,7 @@ def season_points(roster,weeks):
 
 def intrinsic(p):
     return max(1,p.price+max(0,40-p.rank)*.08+({'RB':2,'WR':2,'QB':0,'TE':1}.get(p.pos,0)))
-def auction_max_bid(p,team,avail,framework):
+def auction_max_bid(p,team,framework):
     slots_left=max(1,ROUNDS-len(team.roster)); reserve=(slots_left-1)*MIN_BID; spendable=max(MIN_BID,team.budget-reserve)
     if not framework:return min(spendable,max(MIN_BID,round(p.price)))
     need=max(0,20-p.rank/8); scarce=max(0,25-(p.rank%24)); ceil=max(0,35-p.rank*.15)
@@ -151,7 +150,6 @@ def cpu_bid(p,team,rng):
 
 def auction_draft(players,target_idx,seed,framework):
     rng=random.Random(seed); teams=[Team() for _ in range(TEAMS)]; avail=list(players)
-    # Nomination order approximates real rooms: expensive tiers generally surface earlier, but not perfectly.
     order=[]
     for i in range(0,len(avail),12):
         block=avail[i:i+12]; rng.shuffle(block); order.extend(block)
@@ -161,14 +159,13 @@ def auction_draft(players,target_idx,seed,framework):
         bids=[]
         for i,t in enumerate(teams):
             if len(t.roster)>=ROUNDS or not legal(t.roster,p):continue
-            b=auction_max_bid(p,t,avail,framework) if i==target_idx else cpu_bid(p,t,rng)
+            b=auction_max_bid(p,t,framework) if i==target_idx else cpu_bid(p,t,rng)
             if b>=MIN_BID:bids.append((b,rng.random(),i))
         if not bids:continue
         bids.sort(reverse=True); win=bids[0]; second=bids[1][0] if len(bids)>1 else MIN_BID-1; price=min(win[0],max(MIN_BID,second+1)); t=teams[win[2]]
         if price<=t.budget-(max(0,ROUNDS-len(t.roster)-1))*MIN_BID:
             t.roster.append(p);t.budget-=price;sold.add(p.key)
         if all(len(t.roster)>=ROUNDS for t in teams):break
-    # Fill incomplete rosters at $1 with remaining legal players.
     remain=[p for p in avail if p.key not in sold]
     for t in teams:
         for p in list(remain):
