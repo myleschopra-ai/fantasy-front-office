@@ -869,6 +869,25 @@
     const cliff = player.tierEnd
       ? ` · cliff +${numeric(player.tierGapAfter, 0).toFixed(1)}`
       : "";
+    // Consensus top picks (roughly top 5 rounds worth) don't need extra detail —
+    // they're well-known. Later-round players are where real current signal
+    // (news/sentiment, ADP-vs-value gaps) actually changes a decision, so that's
+    // where expanded detail gets shown.
+    const isLateRound = numeric(player.overallRank, 999) > 60;
+    let sleeperBlock = "";
+    if (isLateRound) {
+      const delta = marketDelta(player);
+      const news = state.newsByName ? state.newsByName[player.name] : null;
+      const valueNote = delta >= 8
+        ? `<div class="detail-line" style="color:#2dd4bf;">Falling relative to ADP by ${Math.round(delta)} picks — possible value.</div>`
+        : delta <= -8
+          ? `<div class="detail-line" style="color:#f87171;">Going well ahead of ADP by ${Math.round(-delta)} picks — reach territory.</div>`
+          : "";
+      const newsNote = news && news.headline
+        ? `<div class="detail-line" style="color:#94a3b8; margin-top:2px;">📰 ${esc(news.headline)}</div>`
+        : "";
+      sleeperBlock = valueNote + newsNote;
+    }
     return `<div class="row compact-rec">
       <button class="icon" data-queue-k="${esc(player.key)}" style="background:none;border:none;cursor:pointer;font-size:15px;color:${queued ? "#f5b942" : "#64748b"};" title="Toggle queue">★</button>
       <div class="player-link" data-player="${esc(player.key)}" tabindex="0">
@@ -879,6 +898,7 @@
         </div>
         <div class="identity-line">Overall #${numeric(player.overallRank, player.rank)} · Pos #${numeric(player.posRank, 999)} · Tier ${numeric(player.tier, 99)} · ${evaluation.sv <= 35 ? "🔒 locked" : "⏳"} ${evaluation.sv}% survives</div>
         <div class="detail-line">Score ${evaluation.score} · VBD ${Math.round(evaluation.components.vbd)} · Scheme ${Math.round(evaluation.components.scheme)} · Confidence ${evaluation.confidence}% · ${scarcity.sameTier} left in tier${cliff}</div>
+        ${sleeperBlock}
       </div>
       <button class="btn secondary" data-k="${esc(player.key)}">Draft</button>
     </div>`;
@@ -1057,12 +1077,13 @@
       String(league.league_type || league.type || "").toLowerCase() ===
       "dynasty";
     $("source").textContent = "Loading consensus rankings and live market…";
-    const [intelligenceResult, marketResult, scoutingResult] = await Promise.allSettled([
+    const [intelligenceResult, marketResult, scoutingResult, fpResult] = await Promise.allSettled([
       fetchJson(`data/draft_intelligence.json?ts=${Date.now()}`),
       fetchJson(
         `https://api.fantasycalc.com/values/current?isDynasty=${dynasty}&numQbs=${qbs}&numTeams=${state.teams}&ppr=${ppr}`,
       ),
       fetchJson(`data/scouting_signals.json?ts=${Date.now()}`),
+      fetchJson(`fantasypros.json?ts=${Date.now()}`),
     ]);
     if (token !== state.loadToken) return;
     state.intelligence =
@@ -1087,6 +1108,15 @@
           player.pedigreeScore = match.pedigreeScore;
           player.ageCurveScore = match.ageCurveScore;
         }
+      });
+    }
+    // Real current news/sentiment, matched by name. Consensus top picks don't
+    // need this — it's specifically for late-round evaluation, where public
+    // rankings alone miss recent buzz. Fails gracefully if unavailable.
+    state.newsByName = {};
+    if (fpResult.status === "fulfilled" && Array.isArray(fpResult.value?.news)) {
+      fpResult.value.news.forEach((item) => {
+        if (item.name && !state.newsByName[item.name]) state.newsByName[item.name] = item;
       });
     }
     rehydratePicks();
