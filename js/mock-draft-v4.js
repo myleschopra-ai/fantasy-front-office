@@ -294,9 +294,23 @@
 
   function cpuScore(player, team, picks = state.picks) {
     const model = D.scorePlayer(player, scoreContext(player, team, picks, 50));
-    const amplitude =
+    const baseAmplitude =
       state.variance === "low" ? 2 : state.variance === "high" ? 9 : 5;
+    // Scale randomness by real cross-source agreement (already computed from
+    // actual rank spread across FantasyPros/FantasyCalc/FFC/etc in
+    // build_draft_intelligence.py) rather than a flat constant. Strong public
+    // consensus (e.g. 95%+ agreement — the clear, undisputed elites) should
+    // rarely get randomized out of order; genuinely contested rankings
+    // (common for Superflex QB valuation specifically, which varies a lot
+    // site-to-site) keep more natural variance, reflecting real uncertainty
+    // rather than manufactured noise.
+    const agreementFactor = clampLocal(numeric(player.agreement, 50), 0, 100) / 100;
+    const amplitude = baseAmplitude * (1.4 - agreementFactor);
     return model.score + (Math.random() - 0.5) * amplitude * 2;
+  }
+
+  function clampLocal(value, min, max) {
+    return Math.max(min, Math.min(max, value));
   }
 
   function cpuChoice(team, picks = state.picks) {
