@@ -1236,6 +1236,15 @@
     return counts;
   }
 
+  // Wraps window.FFOPlayoffIntel defensively — works if the module or schedule data
+  // hasn't loaded (e.g. schedule collector hasn't been run yet), never throws.
+  function checkPlayoffBye(team) {
+    if (!window.FFOPlayoffIntel || !state.scheduleData || !state.league) return false;
+    const playoffStart = state.league.settings ? state.league.settings.playoff_week_start : null;
+    if (!playoffStart) return false;
+    return window.FFOPlayoffIntel.byeFallsInPlayoffs(team, state.scheduleData, playoffStart, 18);
+  }
+
   function getLowestValueAtPosition(roster, position) {
     const fcMap = fcBySleeperId();
     const candidates = (roster.players || [])
@@ -1364,6 +1373,22 @@
         if (i.position && injuredPositions.has(i.position)) {
           impactNotes.push(`<div style="color:var(--green); font-size:12px;">✓ ${escapeHTML(i.name)} could help cover your current ${i.position} injury gap.</div>`);
         }
+        if (i.team && state.scheduleData && state.scheduleData.teams && state.scheduleData.teams[i.team]) {
+          const incomingBye = state.scheduleData.teams[i.team].bye_week;
+          if (incomingBye !== null && incomingBye !== undefined) {
+            const collidingStarters = assigned.filter(a => {
+              if (!a.player || !a.player.team || a.player.team === i.team) return false;
+              const t = state.scheduleData.teams[a.player.team];
+              return t && t.bye_week === incomingBye;
+            });
+            if (collidingStarters.length) {
+              impactNotes.push(`<div style="color:var(--red); font-size:12px;">⚠ ${escapeHTML(i.name)}'s bye (Week ${incomingBye}) collides with ${collidingStarters.map(a => escapeHTML(a.player.name)).join(", ")}.</div>`);
+            }
+          }
+          if (checkPlayoffBye(i.team)) {
+            impactNotes.push(`<div style="color:var(--red); font-size:12px;">⚠ ${escapeHTML(i.name)} (${i.team}) is on bye during your league's actual playoff weeks.</div>`);
+          }
+        }
       });
     }
     // Remove any impact notes from a previous render before adding fresh ones
@@ -1389,6 +1414,7 @@
       name: entry.player.name,
       value: entry.value,
       position: entry.player.position,
+      team: entry.player.maybeTeam,
     };
     if (side === "A") state.sideA.push(item); else state.sideB.push(item);
     $("trade-search").value = "";
@@ -1652,13 +1678,22 @@
     const fpBadge = fp ? `<span class="pill gold">FP #${fp.rank} T${fp.tier}</span>` : "";
     const sp = state.allPlayers[sid];
     const rookieBadge = sp && sp.years_exp === 0 ? `<span class="pill teal">ROOKIE</span>` : "";
+    const team = e.player.maybeTeam;
+    let byeBadge = "";
+    if (team && state.scheduleData && state.scheduleData.teams && state.scheduleData.teams[team]) {
+      const bye = state.scheduleData.teams[team].bye_week;
+      if (bye !== null && bye !== undefined) {
+        const isPlayoffBye = checkPlayoffBye(team);
+        byeBadge = `<span class="pill ${isPlayoffBye ? 'bad' : ''}" title="${isPlayoffBye ? 'Bye falls during your league playoff weeks' : 'Bye week'}">BYE ${bye}${isPlayoffBye ? ' ⚠' : ''}</span>`;
+      }
+    }
     return `<div class="fa-row">
       <div class="fa-left">
         <button data-watch-sid="${sid}" style="background:none; border:none; cursor:pointer; font-size:16px; color:${isWatched ? 'var(--gold-light)' : 'var(--text-dim)'};" title="Toggle watchlist">★</button>
         <span class="pill teal">${e.player.position}</span>
         <span class="fa-name">${escapeHTML(e.player.name)}</span>
-        <span class="mono" style="color:var(--text-dim); font-size:12px;">${e.player.maybeTeam || "FA"}</span>
-        ${fpBadge}${rookieBadge}
+        <span class="mono" style="color:var(--text-dim); font-size:12px;">${team || "FA"}</span>
+        ${fpBadge}${rookieBadge}${byeBadge}
       </div>
       <span class="mono" style="color:var(--text-muted); font-size:12px;">val ${e.value}</span>
     </div>`;
@@ -1851,5 +1886,6 @@
 })();
 </script>
 
-<script src="js/league-switcher.js"></script></body>
+<script src="js/league-switcher.js"></script>
+<script src="js/playoff-schedule-intelligence.js"></script></body>
 </html>
