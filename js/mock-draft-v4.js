@@ -997,11 +997,12 @@
       String(league.league_type || league.type || "").toLowerCase() ===
       "dynasty";
     $("source").textContent = "Loading consensus rankings and live market…";
-    const [intelligenceResult, marketResult] = await Promise.allSettled([
+    const [intelligenceResult, marketResult, scoutingResult] = await Promise.allSettled([
       fetchJson(`data/draft_intelligence.json?ts=${Date.now()}`),
       fetchJson(
         `https://api.fantasycalc.com/values/current?isDynasty=${dynasty}&numQbs=${qbs}&numTeams=${state.teams}&ppr=${ppr}`,
       ),
+      fetchJson(`data/scouting_signals.json?ts=${Date.now()}`),
     ]);
     if (token !== state.loadToken) return;
     state.intelligence =
@@ -1015,6 +1016,19 @@
         : [];
     state.marketLoaded = live.length > 0;
     state.players = D.enrichPlayers(live, state.intelProfile);
+    // Merge in draft-capital and age-curve scouting signals, matched by name.
+    // Fails gracefully — if scouting_signals.json hasn't been generated yet,
+    // scorePlayer's neutral (50) defaults apply and nothing breaks.
+    if (scoutingResult.status === "fulfilled" && scoutingResult.value?.players) {
+      const scouting = scoutingResult.value.players;
+      state.players.forEach((player) => {
+        const match = scouting[player.name];
+        if (match) {
+          player.pedigreeScore = match.pedigreeScore;
+          player.ageCurveScore = match.ageCurveScore;
+        }
+      });
+    }
     rehydratePicks();
     state.survivalCache.clear();
     if (!state.players.length) {
