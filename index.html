@@ -232,6 +232,30 @@
   @media (max-width: 480px) {
     .trade-cols { grid-template-columns: 1fr; }
   }
+
+  /* Responsive table→card pattern: below 640px, the 9-column roster table
+     becomes stacked cards instead of forcing horizontal scroll on a phone. */
+  @media (max-width: 640px) {
+    table.responsive-table thead { display: none; }
+    table.responsive-table, table.responsive-table tbody,
+    table.responsive-table tr, table.responsive-table td { display: block; width: 100%; }
+    table.responsive-table tr {
+      margin-bottom: 10px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px;
+    }
+    table.responsive-table td {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 5px 0; border: none; text-align: right;
+    }
+    table.responsive-table td::before {
+      content: attr(data-label); color: var(--text-dim); font-size: 10px;
+      text-transform: uppercase; letter-spacing: 0.03em; text-align: left;
+    }
+    table.responsive-table td:first-child {
+      justify-content: flex-start; padding-bottom: 8px; border-bottom: 1px solid var(--surface2); margin-bottom: 4px;
+    }
+    table.responsive-table td:first-child::before { content: none; }
+  }
   .draft-embed-shell { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
   .draft-embed-toolbar { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
   .draft-embed-frame { width:100%; min-height:760px; border:0; display:block; background:var(--bg); }
@@ -313,7 +337,7 @@
     <h2 class="display" style="font-size:16px;" id="roster-title">Your Roster</h2>
     <p class="mono" id="roster-validation" style="font-size:11px; color:var(--text-dim); margin:-4px 0 14px;"></p>
     <div style="overflow-x:auto;">
-      <table>
+      <table class="responsive-table">
         <thead>
           <tr><th>Pos</th><th>Player</th><th>Team</th><th>Value</th><th>Proj</th><th>Rank</th><th>30d</th><th>FP Rank</th><th>News</th></tr>
         </thead>
@@ -1036,15 +1060,31 @@
       return;
     }
 
-    $("command-content").innerHTML = sections.map((s, i) => `
-      <details class="cc-section" ${i < 2 ? "open" : ""}>
+    const CRITICAL_TITLES = new Set([
+      "⚠ Starters With Injury Designations", "Positional Depth Risk", "Roster Alerts",
+      "NFL Team Exposure", "Starter Bye Week Collision", "Data Validation",
+    ]);
+    const criticalRowCount = sections.filter(s => CRITICAL_TITLES.has(s.title)).reduce((sum, s) => sum + s.rows.length, 0);
+
+    const heroHTML = `
+      <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid var(--border);">
+        <span class="display" style="font-size:32px; color:${criticalRowCount > 0 ? 'var(--red)' : 'var(--green)'};">${criticalRowCount}</span>
+        <span style="color:var(--text-muted); font-size:13px;">${criticalRowCount === 0 ? "items need your attention right now" : criticalRowCount === 1 ? "item needs your attention right now" : "items need your attention right now"}</span>
+      </div>`;
+
+    $("command-content").innerHTML = heroHTML + sections.map((s, i) => {
+      const isCritical = CRITICAL_TITLES.has(s.title);
+      const accentColor = isCritical ? "var(--red)" : "var(--gold)";
+      return `
+      <details class="cc-section" style="border-left: 3px solid ${accentColor}; padding-left: 10px;" ${i < 2 ? "open" : ""}>
         <summary>
-          <span class="cc-title">${s.title}</span>
+          <span class="cc-title" style="${isCritical ? 'color:var(--red);' : ''}">${s.title}</span>
           <span class="cc-chevron">▶</span>
         </summary>
         <div class="cc-body">${s.rows.join("")}</div>
       </details>
-    `).join("");
+    `;
+    }).join("");
   }
 
   // ---------- Render: Roster ----------
@@ -1090,15 +1130,15 @@
       if (p.isRookie) flag += ' <span class="pill teal" title="0 years NFL experience per Sleeper">ROOKIE</span>';
       return `
       <tr>
-        <td><span class="pill teal">${p.position || "—"}</span></td>
-        <td style="font-weight:500;">${escapeHTML(p.name)} ${flag}</td>
-        <td class="mono" style="color:var(--text-muted); font-size:12px;">${p.team || "FA"}</td>
-        <td class="mono">${p.value ?? "—"}</td>
-        <td>${projCell}</td>
-        <td class="mono" style="color:var(--text-muted); font-size:12px;">${p.rank ? "#" + p.rank : "unranked"}</td>
-        <td>${trendBadgeHTML(p.trend)}</td>
-        <td>${fpCell}</td>
-        <td>${newsCell}</td>
+        <td data-label="Pos"><span class="pill teal">${p.position || "—"}</span></td>
+        <td data-label="Player" style="font-weight:500;">${escapeHTML(p.name)} ${flag}</td>
+        <td data-label="Team" class="mono" style="color:var(--text-muted); font-size:12px;">${p.team || "FA"}</td>
+        <td data-label="Value" class="mono">${p.value ?? "—"}</td>
+        <td data-label="Proj">${projCell}</td>
+        <td data-label="Rank" class="mono" style="color:var(--text-muted); font-size:12px;">${p.rank ? "#" + p.rank : "unranked"}</td>
+        <td data-label="30d Trend">${trendBadgeHTML(p.trend)}</td>
+        <td data-label="FP Rank">${fpCell}</td>
+        <td data-label="News">${newsCell}</td>
       </tr>`;
     }).join("");
   }
