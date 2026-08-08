@@ -681,9 +681,10 @@
 
   function showDraftTab(tab) {
     state.activeDraftTab = tab;
+    const viewIds = { board: "draft-grid-view", team: "team-roster-view", selections: "selections-view" };
     ["board", "team", "selections"].forEach((name) => {
       const button = $(`tab-${name}`);
-      const view = $(name === "board" ? "draft-grid-view" : `${name}-view`);
+      const view = $(viewIds[name]);
       if (button) button.classList.toggle("active", name === tab);
       if (view) view.style.display = name === tab ? "block" : "none";
     });
@@ -725,8 +726,40 @@
   function renderTeamRoster() {
     const team = state.selectedTeam || state.slot;
     const roster = teamPicks(team);
-    $("team-roster-view").innerHTML =
-      `<div class="toolbar" style="margin-top:10px"><strong>Team ${team}${team === state.slot ? " · YOU" : ""}</strong><select id="team-select" style="width:auto">${Array.from({ length: state.teams }, (_value, index) => `<option value="${index + 1}" ${team === index + 1 ? "selected" : ""}>Team ${index + 1}${state.slot === index + 1 ? " · YOU" : ""}</option>`).join("")}</select></div><div class="team-roster-list">${roster.map((pick) => `<div class="row"><div><div class="name">${esc(pick.name)}</div><div class="meta">${pick.position} · ${roundPick(pick.pick)}</div></div><span class="sim-badge">MOCK</span></div>`).join("") || '<div class="muted">No simulated additions yet.</div>'}</div><div class="notice" style="margin-top:10px">This simulated class never modifies the real league roster.</div>`;
+    const league = state.activeLeague || DEFAULT_LEAGUE;
+    const rosterConfig = league.roster || {};
+
+    // Expand {QB:1, RB:2, ...} into individual named slots, matching real roster structure
+    // rather than an unordered flat pick list.
+    const eligibility = {
+      QB: ["QB"], RB: ["RB"], WR: ["WR"], TE: ["TE"],
+      FLEX: ["RB", "WR", "TE"], SUPER_FLEX: ["QB", "RB", "WR", "TE"],
+    };
+    const slots = [];
+    Object.entries(rosterConfig).forEach(([slotName, count]) => {
+      for (let i = 0; i < numeric(count, 0); i += 1) slots.push(slotName);
+    });
+
+    const pool = roster.map((pick) => ({ pick, used: false }));
+    const assigned = slots.map((slotName) => {
+      const eligiblePositions = eligibility[slotName] || [slotName];
+      const match = pool.find((p) => !p.used && eligiblePositions.includes(p.pick.position));
+      if (match) match.used = true;
+      return { slotName, pick: match ? match.pick : null };
+    });
+    const bench = pool.filter((p) => !p.used).map((p) => p.pick);
+
+    const slotRow = (slotName, pick) => pick
+      ? `<div class="row"><div><div class="name">${esc(pick.name)}</div><div class="meta">${slotName} · ${esc(pick.position)} · ${roundPick(pick.pick)}</div></div><span class="sim-badge">MOCK</span></div>`
+      : `<div class="row"><div class="muted">${slotName} — Empty</div></div>`;
+
+    let html = `<div class="toolbar" style="margin-top:10px"><strong>Team ${team}${team === state.slot ? " · YOU" : ""}</strong><select id="team-select" style="width:auto">${Array.from({ length: state.teams }, (_value, index) => `<option value="${index + 1}" ${team === index + 1 ? "selected" : ""}>Team ${index + 1}${state.slot === index + 1 ? " · YOU" : ""}</option>`).join("")}</select></div>`;
+    html += `<div class="team-roster-list">${assigned.map((a) => slotRow(a.slotName, a.pick)).join("") || '<div class="muted">No roster slots configured for this league.</div>'}</div>`;
+    if (bench.length) {
+      html += `<div class="muted" style="margin-top:10px">Bench</div><div class="team-roster-list">${bench.map((pick) => slotRow("BN", pick)).join("")}</div>`;
+    }
+    html += `<div class="notice" style="margin-top:10px">This simulated class never modifies the real league roster.</div>`;
+    $("team-roster-view").innerHTML = html;
     $("team-select").onchange = (event) => {
       state.selectedTeam = numeric(event.target.value, state.slot);
       save();
