@@ -492,10 +492,17 @@
       (sum, [key, weight]) => sum + components[key] * weight,
       0,
     );
+    // Confidence should reflect how clear-cut the evaluation is, not just how many
+    // sources exist. The source-count term previously saturated at just ~4 sources
+    // (100/28), contributing a flat 35 points to nearly every well-covered player
+    // regardless of any real distinguishing signal — this was the direct cause of
+    // confidence clustering near 100% for most players. Fixed: source count now
+    // needs ~7 sources to saturate and carries less weight; genuine cross-source
+    // agreement (the real "how clear-cut" signal) now carries more.
     const confidence = clamp(
-      numeric(player.agreement, 50) * 0.45 +
-        Math.min(100, numeric(player.sourceCount, 1) * 28) * 0.35 +
-        numeric(player.schemeFit?.confidence, 45) * 0.2,
+      numeric(player.agreement, 50) * 0.55 +
+        Math.min(100, numeric(player.sourceCount, 1) * 15) * 0.20 +
+        numeric(player.schemeFit?.confidence, 45) * 0.25,
     );
     return {
       score: Math.round(raw),
