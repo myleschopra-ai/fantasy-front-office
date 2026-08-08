@@ -816,10 +816,31 @@
     if (state.activeDraftTab === "recommended") renderRecommended();
   }
 
+  function actionClass(actionText) {
+    if (actionText === "DRAFT NOW") return "urgent";
+    if (actionText === "TIER CLOSING") return "closing";
+    if (actionText === "WAIT") return "wait";
+    if (actionText === "AVOID AT COST") return "avoid";
+    return "target";
+  }
+
   function playerRowHTML(player, evaluation, queued) {
+    const action = actionFor(player, evaluation);
+    const scarcity = tierScarcity(player);
+    const cliff = player.tierEnd
+      ? ` · cliff +${numeric(player.tierGapAfter, 0).toFixed(1)}`
+      : "";
     return `<div class="row compact-rec">
       <button class="icon" data-queue-k="${esc(player.key)}" style="background:none;border:none;cursor:pointer;font-size:15px;color:${queued ? "#f5b942" : "#64748b"};" title="Toggle queue">★</button>
-      <div class="player-link" data-player="${esc(player.key)}" tabindex="0"><div class="name">${esc(player.name)} <span class="meta">${player.position}${player.nflTeam ? ` · ${esc(player.nflTeam)}` : ""}</span></div><div class="icons"><span class="icon">${actionFor(player, evaluation)}</span>${rankIcons(player, evaluation)}<span class="icon">${evaluation.sv <= 35 ? "🔒" : "⏳"} ${evaluation.sv}%</span></div></div>
+      <div class="player-link" data-player="${esc(player.key)}" tabindex="0">
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+          <span class="action-badge ${actionClass(action)}">${action}</span>
+          <span class="name">${esc(player.name)}</span>
+          <span class="meta">${player.position}${player.nflTeam ? ` · ${esc(player.nflTeam)}` : ""}</span>
+        </div>
+        <div class="identity-line">Overall #${numeric(player.overallRank, player.rank)} · Pos #${numeric(player.posRank, 999)} · Tier ${numeric(player.tier, 99)} · ${evaluation.sv <= 35 ? "🔒 locked" : "⏳"} ${evaluation.sv}% survives</div>
+        <div class="detail-line">Score ${evaluation.score} · VBD ${Math.round(evaluation.components.vbd)} · Scheme ${Math.round(evaluation.components.scheme)} · Confidence ${evaluation.confidence}% · ${scarcity.sameTier} left in tier${cliff}</div>
+      </div>
       <button class="btn secondary" data-k="${esc(player.key)}">Draft</button>
     </div>`;
   }
