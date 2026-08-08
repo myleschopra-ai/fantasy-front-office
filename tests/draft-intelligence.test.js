@@ -7,6 +7,8 @@ for (const [name, strategy] of Object.entries(D.STRATEGIES)) {
   const total = Object.values(strategy.weights).reduce((sum, value) => sum + value, 0);
   assert.ok(Math.abs(total - 1) < 1e-9, `${name} weights must sum to 1`);
   assert.ok(strategy.weights.scheme <= .08, `${name} scheme weight must remain a tiebreaker`);
+  assert.ok(strategy.weights.pedigree <= .06, `${name} pedigree weight must remain a tiebreaker`);
+  assert.ok(strategy.weights.ageCurve <= .06, `${name} ageCurve weight must remain a tiebreaker`);
 }
 
 const tierPlayers = [
