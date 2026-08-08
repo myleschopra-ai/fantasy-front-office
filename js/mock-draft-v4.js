@@ -645,28 +645,52 @@
   function openPlayer(key) {
     const player = state.players.find((candidate) => candidate.key === key);
     if (!player) return;
-    const peers = available()
-      .filter(
-        (candidate) =>
-          candidate.position === player.position &&
-          candidate.key !== player.key,
-      )
-      .sort(
-        (a, b) =>
-          Math.abs(a.posRank - player.posRank) -
-          Math.abs(b.posRank - player.posRank),
-      )
-      .slice(0, 2);
+    const draftedPick = state.picks.find((pick) => pick.key === player.key);
+    // Peers only make sense for players still on the board — an already-drafted
+    // player is shown alone with a real score breakdown instead.
+    const peers = draftedPick
+      ? []
+      : available()
+          .filter(
+            (candidate) =>
+              candidate.position === player.position &&
+              candidate.key !== player.key,
+          )
+          .sort(
+            (a, b) =>
+              Math.abs(a.posRank - player.posRank) -
+              Math.abs(b.posRank - player.posRank),
+          )
+          .slice(0, 2);
     const group = [player, ...peers];
     $("player-modal-title").textContent =
-      `${player.name} · ${player.position}${player.nflTeam ? ` · ${player.nflTeam}` : ""}`;
-    $("player-blurb").textContent =
-      `${needLabel(player)}. Overall ${numeric(player.overallRank, player.rank)}, ${player.position}${numeric(player.posRank, 999)}, position tier ${numeric(player.tier, 99)}, ADP ${numeric(player.adp, player.overallRank).toFixed(1)}. ${numeric(player.sourceCount, 1)} ranking source${numeric(player.sourceCount, 1) === 1 ? "" : "s"} with ${Math.round(numeric(player.agreement, 50))}% agreement.`;
+      `${player.name} · ${player.position}${player.nflTeam ? ` · ${player.nflTeam}` : ""}${draftedPick ? ` · Drafted ${roundPick(draftedPick.pick)} (Team ${draftedPick.team})` : ""}`;
+    $("player-blurb").textContent = draftedPick
+      ? `Already drafted. Score shown below is recomputed now, using current context — not necessarily identical to the value at the moment this pick was made.`
+      : `${needLabel(player)}. Overall ${numeric(player.overallRank, player.rank)}, ${player.position}${numeric(player.posRank, 999)}, position tier ${numeric(player.tier, 99)}, ADP ${numeric(player.adp, player.overallRank).toFixed(1)}. ${numeric(player.sourceCount, 1)} ranking source${numeric(player.sourceCount, 1) === 1 ? "" : "s"} with ${Math.round(numeric(player.agreement, 50))}% agreement.`;
     $("player-scheme").innerHTML = schemeHtml(player);
     $("player-compare").innerHTML = group
       .map((candidate, index) => {
         const evaluation = equityFor(candidate);
-        return `<div class="compare-card ${index === 0 ? "primary" : ""}"><div class="muted">${index === 0 ? "SELECTED" : "POSITION PEER"}</div><div class="name">${esc(candidate.name)}</div><div class="meta">O${numeric(candidate.overallRank, candidate.rank)} · ${candidate.position}${numeric(candidate.posRank, 999)} · T${numeric(candidate.tier, 99)}</div><div class="metricline">Recommendation <strong>${evaluation.score}</strong> · confidence ${evaluation.confidence}</div><div class="metricline">Consensus ${Math.round(consensus(candidate))} · VBD ${Math.round(evaluation.components.vbd)}</div><div class="metricline">Scheme ${Math.round(evaluation.components.scheme)} · strategy ${Math.round(evaluation.components.strategy)}</div><div class="metricline">ADP value ${formatSigned(marketDelta(candidate))} · survives ${evaluation.sv}%</div></div>`;
+        const c = evaluation.components;
+        const metric = (label, value) => `<div class="metric-box"><span class="metric-label">${label}</span><span class="metric-value">${value}</span></div>`;
+        return `<div class="compare-card ${index === 0 ? "primary" : ""}">
+          <div class="muted">${index === 0 ? (draftedPick ? "DRAFTED" : "SELECTED") : "POSITION PEER"}</div>
+          <div class="name">${esc(candidate.name)}</div>
+          <div class="meta">O${numeric(candidate.overallRank, candidate.rank)} · ${candidate.position}${numeric(candidate.posRank, 999)} · T${numeric(candidate.tier, 99)}</div>
+          <div class="metricline">Recommendation <strong>${evaluation.score}</strong> · confidence ${evaluation.confidence}%</div>
+          <div class="metric-grid">
+            ${metric("Market", Math.round(c.market))}
+            ${metric("VBD", Math.round(c.vbd))}
+            ${metric("Tier", Math.round(c.tier))}
+            ${metric("Need", Math.round(c.need))}
+            ${metric("Scheme", Math.round(c.scheme))}
+            ${metric("Strategy", Math.round(c.strategy))}
+            ${metric("Pedigree", Math.round(c.pedigree))}
+            ${metric("Age Curve", Math.round(c.ageCurve))}
+            ${metric("Survives", `${evaluation.sv}%`)}
+          </div>
+        </div>`;
       })
       .join("");
     $("player-modal-backdrop").classList.add("open");
@@ -785,7 +809,7 @@
     const overflow = pool.filter((p) => !p.used).map((p) => p.pick);
 
     const slotRow = (slotName, pick) => pick
-      ? `<div class="row"><div><div class="name">${esc(pick.name)}</div><div class="meta">${slotName} · ${esc(pick.position)} · ${roundPick(pick.pick)}</div></div><span class="sim-badge">MOCK</span></div>`
+      ? `<div class="row"><div class="player-link" data-player="${esc(pick.key)}" tabindex="0" style="cursor:pointer;"><div class="name">${esc(pick.name)}</div><div class="meta">${slotName} · ${esc(pick.position)} · ${roundPick(pick.pick)}</div></div><span class="sim-badge">MOCK</span></div>`
       : `<div class="row"><div class="muted">${slotName} — Empty</div></div>`;
 
     let html = `<div class="toolbar" style="margin-top:10px"><strong>Team ${team}${team === state.slot ? " · YOU" : ""}</strong><select id="team-select" style="width:auto">${Array.from({ length: state.teams }, (_value, index) => `<option value="${index + 1}" ${team === index + 1 ? "selected" : ""}>Team ${index + 1}${state.slot === index + 1 ? " · YOU" : ""}</option>`).join("")}</select></div>`;
@@ -800,6 +824,7 @@
       save();
       renderTeamRoster();
     };
+    bindPlayerLinks();
   }
 
   function renderSelections() {
