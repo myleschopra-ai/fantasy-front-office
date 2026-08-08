@@ -410,7 +410,7 @@
   const state = {
     league: null, rosters: [], users: [], allPlayers: {}, fcData: [],
     tradedPicks: [], myRosterId: null, activeTab: "roster",
-    sideA: [], sideB: [], posFilter: "ALL", fpData: null, fetchedAt: null, watcherState: null,
+    sideA: [], sideB: [], posFilter: "ALL", fpData: null, fetchedAt: null, watcherState: null, scheduleData: null,
   };
 
   function fpRankFor(name, position) {
@@ -522,6 +522,13 @@
         if (wsRes.ok) state.watcherState = await wsRes.json();
       } catch (e) {
         console.warn("watcher_state.json not found or unreadable — continuing without it.");
+      }
+
+      try {
+        const schedRes = await fetch("data/schedule_signals.json?t=" + Date.now());
+        if (schedRes.ok) state.scheduleData = await schedRes.json();
+      } catch (e) {
+        console.warn("data/schedule_signals.json not found or unreadable — continuing without it (bye-week check unavailable until the schedule collector has run).");
       }
 
       localStorage.setItem(STORAGE_KEY, leagueId);
@@ -979,6 +986,34 @@
               <div class="fa-left">
                 <span class="pill teal">${team}</span>
                 <span style="color:var(--text-muted); font-size:13px;">${count} rostered players — bye week and team-performance risk correlated</span>
+              </div>
+            </div>`),
+        });
+      }
+    }
+
+    // Bye week collision — real data, checks starters specifically (more urgent than bench)
+    if (state.scheduleData && state.scheduleData.teams) {
+      const { assigned } = computeAssignedLineup();
+      const byeGroups = {};
+      assigned.forEach(a => {
+        if (!a.player || !a.player.team) return;
+        const teamData = state.scheduleData.teams[a.player.team];
+        const bye = teamData ? teamData.bye_week : null;
+        if (bye !== null && bye !== undefined) {
+          byeGroups[bye] = byeGroups[bye] || [];
+          byeGroups[bye].push(a.player.name);
+        }
+      });
+      const collisions = Object.entries(byeGroups).filter(([week, names]) => names.length >= 2);
+      if (collisions.length) {
+        sections.push({
+          title: "Starter Bye Week Collision",
+          rows: collisions.map(([week, names]) => `
+            <div class="fa-row">
+              <div class="fa-left">
+                <span class="pill bad">Week ${week}</span>
+                <span style="color:var(--text-muted); font-size:13px;">${names.map(escapeHTML).join(", ")} all on bye the same week</span>
               </div>
             </div>`),
         });
