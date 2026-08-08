@@ -1788,6 +1788,9 @@
       currentPickIdx: 0,
       picks: [],
       virtualCounts,
+      queue: [],
+      activeTab: "recommended",
+      posFilter: "ALL",
     };
 
     $("mock-setup").style.display = "none";
@@ -1954,11 +1957,98 @@
     return html;
   }
 
+  // Draft recommendation engine — the highest-stakes logic in this tool.
+  // Blends three real signals rather than a single value sort:
+  //   1. Best Player Available (BPA) — normalized FantasyCalc value
+  //   2. Team Need — is this position below your league's real roster minimum
+  //   3. Tier Cliff — is this the last strong player at a position before a steep value drop
+  // Weighting shifts by draft stage: early picks lean BPA (needs aren't well-defined yet),
+  // later picks lean need — standard, defensible real-draft strategy, not arbitrary.
+  function computeRecommendations(rosterId) {
+    const requiredMin = { QB: 2, RB: 3, WR: 3, TE: 1 };
+    const counts = mockState.virtualCounts[rosterId] || {};
+    const draftProgress = mockState.totalPicks > 0 ? mockState.currentPickIdx / mockState.totalPicks : 0;
+    const bpaWeight = Math.max(0.35, 1 - draftProgress);
+    const needWeight = 1 - bpaWeight;
+
+    const pool = mockState.pool.filter(e => e.player.position);
+    const maxValue = Math.max(...pool.map(e => e.value || 0), 1);
+
+    const byPosition = {};
+    pool.forEach(e => {
+      const pos = e.player.position;
+      byPosition[pos] = byPosition[pos] || [];
+      byPosition[pos].push(e);
+    });
+    Object.values(byPosition).forEach(list => list.sort((a, b) => (b.value || 0) - (a.value || 0)));
+
+    return pool.map(e => {
+      const pos = e.player.position;
+      const have = counts[pos] || 0;
+      const min = requiredMin[pos] || 0;
+      const isNeed = have < min;
+      const needBonus = isNeed ? 1 : (have === min ? 0.35 : 0);
+
+      const posList = byPosition[pos] || [];
+      const idx = posList.indexOf(e);
+      let scarcityBonus = 0;
+      let isTierCliff = false;
+      if (idx === 0 && posList.length > 1) {
+        const dropoff = (posList[0].value - posList[1].value) / Math.max(posList[0].value, 1);
+        scarcityBonus = Math.min(1, dropoff * 3);
+        isTierCliff = scarcityBonus > 0.5;
+      }
+
+      const bpaScore = (e.value || 0) / maxValue;
+      const score = bpaScore * bpaWeight + needBonus * needWeight * 0.7 + scarcityBonus * needWeight * 0.3;
+
+      return { entry: e, score, isNeed, isTierCliff, isBPA: false };
+    }).sort((a, b) => b.score - a.score)
+      .map((r, i) => ({ ...r, isBPA: i === 0 }));
+  }
+
+  function recommendationRowHTML(rec) {
+    const e = rec.entry;
+    const poolIdx = mockState.pool.indexOf(e);
+    const badges = [];
+    if (rec.isBPA) badges.push('<span class="pill gold" title="Highest overall value available">BPA</span>');
+    if (rec.isNeed) badges.push(`<span class="pill bad" title="Below your league's real roster minimum at this position">NEED</span>`);
+    if (rec.isTierCliff) badges.push('<span class="pill teal" title="Steep value drop-off after this player at this position">TIER CLIFF</span>');
+    return `<div class="fa-row" data-mock-pick-idx="${poolIdx}" style="cursor:pointer; touch-action:manipulation;">
+      <div class="fa-left">
+        <span class="pill teal">${e.player.position}</span>
+        <span class="fa-name">${escapeHTML(e.player.name)}</span>
+        <span class="mono" style="color:var(--text-dim); font-size:12px;">${e.player.maybeTeam || "FA"}</span>
+        ${badges.join("")}
+      </div>
+      <span class="mono" style="color:var(--text-muted); font-size:12px;">val ${e.value}</span>
+    </div>`;
+  }
+
+  function toggleMockQueue(sleeperId) {
+    const i = mockState.queue.indexOf(sleeperId);
+    if (i === -1) mockState.queue.push(sleeperId); else mockState.queue.splice(i, 1);
+    renderMockDraftUI();
+  }
+
+  function poolRowHTML(e, queued) {
+    const poolIdx = mockState.pool.indexOf(e);
+    const sid = String(e.player.sleeperId);
+    return `<div class="fa-row">
+      <div class="fa-left">
+        <button data-mock-queue-sid="${sid}" style="background:none; border:none; cursor:pointer; font-size:16px; color:${queued ? 'var(--gold-light)' : 'var(--text-dim)'};" title="Toggle queue">★</button>
+        <span class="pill teal">${e.player.position}</span>
+        <span class="fa-name" data-mock-pick-idx="${poolIdx}" style="cursor:pointer;">${escapeHTML(e.player.name)}</span>
+        <span class="mono" style="color:var(--text-dim); font-size:12px;">${e.player.maybeTeam || "FA"}</span>
+      </div>
+      <span class="mono" style="color:var(--text-muted); font-size:12px; cursor:pointer;" data-mock-pick-idx="${poolIdx}">val ${e.value}</span>
+    </div>`;
+  }
+
   function renderMockDraftUI() {
     const owners = ownerMap();
     const done = mockState.currentPickIdx >= mockState.totalPicks;
     const isMyTurn = !done && currentPickRosterId() === state.myRosterId;
-    if (mockState.viewMode === undefined) mockState.viewMode = "team";
 
     let html = `<div style="margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
       <span class="mono" style="color:var(--text-muted); font-size:12px;">Pick ${Math.min(mockState.currentPickIdx + 1, mockState.totalPicks)} of ${mockState.totalPicks}</span>
@@ -1968,48 +2058,80 @@
     if (done) {
       html += `<div style="color:var(--green); font-weight:600; margin-bottom:16px;">Mock draft complete.</div>`;
       html += renderMockDraftSummaryHTML();
-    } else if (isMyTurn) {
-      html += `<div style="color:var(--gold-light); font-weight:600; margin-bottom:12px;">Your pick — tap a player below</div>`;
-      html += `<div style="display:grid; gap:6px; margin-bottom:20px;">` +
-        mockState.pool.slice(0, 25).map((e, i) => `
-          <div class="fa-row" data-mock-pick-idx="${i}" style="cursor:pointer; touch-action:manipulation;">
-            <div class="fa-left">
-              <span class="pill teal">${e.player.position}</span>
-              <span class="fa-name">${escapeHTML(e.player.name)}</span>
-              <span class="mono" style="color:var(--text-dim); font-size:12px;">${e.player.maybeTeam || "FA"}</span>
-            </div>
-            <span class="mono" style="color:var(--text-muted); font-size:12px;">val ${e.value}</span>
-          </div>`).join("") + `</div>`;
-    } else {
-      html += `<div style="color:var(--text-muted); margin-bottom:16px;">Waiting on ${escapeHTML(owners[currentPickRosterId()] || "opponent")}...</div>`;
+      html += `<button id="mock-show-team" style="touch-action:manipulation; background:var(--surface2); color:var(--text-muted); border:none; padding:8px 14px; border-radius:6px; font-size:12px; margin-top:12px; cursor:pointer;">${mockState.showTeam ? "Hide" : "View"} Full Roster</button>`;
+      if (mockState.showTeam) html += `<div style="margin-top:12px;">${renderMyMockTeamHTML()}</div>`;
+      $("mock-draft-active").innerHTML = html;
+      const resetBtn = $("mock-reset-btn");
+      if (resetBtn) resetBtn.addEventListener("click", () => {
+        mockState = null;
+        $("mock-setup").style.display = "block";
+        $("mock-draft-active").style.display = "none";
+      });
+      const showTeamBtn = $("mock-show-team");
+      if (showTeamBtn) showTeamBtn.addEventListener("click", () => { mockState.showTeam = !mockState.showTeam; renderMockDraftUI(); });
+      return;
     }
 
-    html += `<div style="display:flex; gap:8px; margin-bottom:12px;">
-      <button id="mock-view-team" class="filter-btn ${mockState.viewMode === "team" ? "active" : ""}" style="text-transform:none;">My Team</button>
-      <button id="mock-view-log" class="filter-btn ${mockState.viewMode === "log" ? "active" : ""}" style="text-transform:none;">Draft Log</button>
-    </div>`;
+    html += isMyTurn
+      ? `<div style="color:var(--gold-light); font-weight:600; margin-bottom:12px;">Your pick</div>`
+      : `<div style="color:var(--text-muted); margin-bottom:16px;">Waiting on ${escapeHTML(owners[currentPickRosterId()] || "opponent")}...</div>`;
 
-    if (mockState.viewMode === "team") {
-      html += renderMyMockTeamHTML();
-    } else {
+    const tabs = [
+      { id: "players", label: "Players" },
+      { id: "queue", label: `Queue (${mockState.queue.length})` },
+      { id: "drafted", label: "Drafted" },
+      { id: "recommended", label: "Recommended" },
+    ];
+    html += `<div style="display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap;">` +
+      tabs.map(t => `<button data-mock-tab="${t.id}" class="filter-btn ${mockState.activeTab === t.id ? "active" : ""}" style="text-transform:none;">${t.label}</button>`).join("") +
+      `</div>`;
+
+    if (mockState.activeTab === "players") {
+      const positions = ["ALL", "QB", "RB", "WR", "TE"];
+      html += `<div class="filter-row" style="margin-bottom:12px;">` +
+        positions.map(p => `<button data-mock-pos="${p}" class="filter-btn ${mockState.posFilter === p ? "active" : ""}">${p}</button>`).join("") + `</div>`;
+      const filtered = mockState.posFilter === "ALL" ? mockState.pool : mockState.pool.filter(e => e.player.position === mockState.posFilter);
+      html += `<div style="display:grid; gap:6px;">` + filtered.slice(0, 40).map(e => poolRowHTML(e, mockState.queue.includes(String(e.player.sleeperId)))).join("") + `</div>`;
+    } else if (mockState.activeTab === "queue") {
+      const queuedEntries = mockState.pool.filter(e => mockState.queue.includes(String(e.player.sleeperId)));
+      html += queuedEntries.length
+        ? `<div style="display:grid; gap:6px;">` + queuedEntries.map(e => poolRowHTML(e, true)).join("") + `</div>`
+        : `<p style="color:var(--text-dim); font-size:13px;">No players queued yet — tap the ★ on any player to add them here.</p>`;
+    } else if (mockState.activeTab === "drafted") {
       html += `<div style="display:grid; gap:4px;">` +
-        [...mockState.picks].reverse().slice(0, 20).map(p => {
+        [...mockState.picks].reverse().map(p => {
           const isMe = p.rosterId === state.myRosterId;
           return `<div style="font-size:12px; color:${isMe ? 'var(--gold-light)' : 'var(--text-muted)'};">
             #${p.pickNo} ${escapeHTML(owners[p.rosterId] || "?")} — ${p.player.position} ${escapeHTML(p.player.name)}
           </div>`;
         }).join("") + `</div>`;
+      if (!mockState.picks.length) html += `<p style="color:var(--text-dim); font-size:13px;">No picks yet.</p>`;
+    } else if (mockState.activeTab === "recommended") {
+      html += `<p style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Ranked by value, your real team needs, and positional scarcity — not a flat value sort.</p>`;
+      const recs = computeRecommendations(state.myRosterId).slice(0, 15);
+      html += `<div style="display:grid; gap:6px;">` + recs.map(r => recommendationRowHTML(r)).join("") + `</div>`;
     }
 
     $("mock-draft-active").innerHTML = html;
 
-    $("mock-draft-active").querySelectorAll("[data-mock-pick-idx]").forEach(row => {
-      row.addEventListener("click", () => {
-        const idx = Number(row.dataset.mockPickIdx);
+    $("mock-draft-active").querySelectorAll("[data-mock-pick-idx]").forEach(el => {
+      el.addEventListener("click", () => {
+        if (!isMyTurn) return;
+        const idx = Number(el.dataset.mockPickIdx);
         const entry = mockState.pool[idx];
+        if (!entry) return;
         makeMockPick(state.myRosterId, entry);
         advanceMockDraft();
       });
+    });
+    $("mock-draft-active").querySelectorAll("[data-mock-queue-sid]").forEach(btn => {
+      btn.addEventListener("click", (ev) => { ev.stopPropagation(); toggleMockQueue(btn.dataset.mockQueueSid); });
+    });
+    $("mock-draft-active").querySelectorAll("[data-mock-tab]").forEach(btn => {
+      btn.addEventListener("click", () => { mockState.activeTab = btn.dataset.mockTab; renderMockDraftUI(); });
+    });
+    $("mock-draft-active").querySelectorAll("[data-mock-pos]").forEach(btn => {
+      btn.addEventListener("click", () => { mockState.posFilter = btn.dataset.mockPos; renderMockDraftUI(); });
     });
     const resetBtn = $("mock-reset-btn");
     if (resetBtn) resetBtn.addEventListener("click", () => {
@@ -2017,10 +2139,6 @@
       $("mock-setup").style.display = "block";
       $("mock-draft-active").style.display = "none";
     });
-    const teamBtn = $("mock-view-team");
-    if (teamBtn) teamBtn.addEventListener("click", () => { mockState.viewMode = "team"; renderMockDraftUI(); });
-    const logBtn = $("mock-view-log");
-    if (logBtn) logBtn.addEventListener("click", () => { mockState.viewMode = "log"; renderMockDraftUI(); });
   }
 
   function renderEmbeddedDraft() {
