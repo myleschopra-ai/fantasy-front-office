@@ -27,6 +27,7 @@
     profiles: {},
     selectedTeam: null,
     activeDraftTab: "board",
+    queue: [],
     restored: false,
     loadToken: 0,
     survivalCache: new Map(),
@@ -64,6 +65,7 @@
         variance: state.variance,
         profiles: state.profiles,
         selectedTeam: state.selectedTeam,
+        queue: state.queue,
       }),
     );
   }
@@ -79,6 +81,7 @@
         normalizePick(pick, index + 1),
       );
       state.selectedTeam = state.selectedTeam || state.slot;
+      state.queue = Array.isArray(state.queue) ? state.queue : [];
     } catch (_error) {
       state.picks = [];
     }
@@ -483,13 +486,13 @@
           (!query || player.name.toLowerCase().includes(query)),
       )
       .slice(0, 100)
-      .map((player) => {
-        const evaluation = equityFor(player);
-        return `<div class="row compact-rec"><div class="player-link" data-player="${esc(player.key)}" tabindex="0"><div class="name">${esc(player.name)} <span class="meta">${player.position}${player.nflTeam ? ` · ${esc(player.nflTeam)}` : ""}</span></div><div class="icons"><span class="icon">${actionFor(player, evaluation)}</span>${rankIcons(player, evaluation)}<span class="icon">${evaluation.sv <= 35 ? "🔒" : "⏳"} ${evaluation.sv}%</span></div></div><button class="btn secondary" data-k="${esc(player.key)}">Draft</button></div>`;
-      })
+      .map((player) => playerRowHTML(player, equityFor(player), state.queue.includes(player.key)))
       .join("");
-    document.querySelectorAll("[data-k]").forEach((button) => {
+    document.querySelectorAll("#board [data-k]").forEach((button) => {
       button.onclick = () => draft(button.dataset.k);
+    });
+    document.querySelectorAll("#board [data-queue-k]").forEach((button) => {
+      button.onclick = () => toggleQueue(button.dataset.queueK);
     });
   }
 
@@ -681,8 +684,11 @@
 
   function showDraftTab(tab) {
     state.activeDraftTab = tab;
-    const viewIds = { board: "draft-grid-view", team: "team-roster-view", selections: "selections-view" };
-    ["board", "team", "selections"].forEach((name) => {
+    const viewIds = {
+      board: "draft-grid-view", team: "team-roster-view", selections: "selections-view",
+      queue: "queue-view", recommended: "recommended-view",
+    };
+    ["board", "team", "selections", "queue", "recommended"].forEach((name) => {
       const button = $(`tab-${name}`);
       const view = $(viewIds[name]);
       if (button) button.classList.toggle("active", name === tab);
@@ -690,6 +696,8 @@
     });
     if (tab === "team") renderTeamRoster();
     if (tab === "selections") renderSelections();
+    if (tab === "queue") renderQueue();
+    if (tab === "recommended") renderRecommended();
   }
 
   function renderDraftGrid() {
@@ -772,6 +780,53 @@
       `<div style="margin-top:10px">${state.picks.map((pick) => `<div class="row"><div><strong>${roundPick(pick.pick)}</strong> · Team ${pick.team}</div><div>${esc(pick.name)} · ${esc(pick.position)} <span class="sim-badge">MOCK</span></div></div>`).join("") || '<div class="muted">No picks yet.</div>'}</div>`;
   }
 
+  function toggleQueue(key) {
+    const i = state.queue.indexOf(key);
+    if (i === -1) state.queue.push(key); else state.queue.splice(i, 1);
+    save();
+    if (state.activeDraftTab === "board") renderBoard();
+    if (state.activeDraftTab === "queue") renderQueue();
+    if (state.activeDraftTab === "recommended") renderRecommended();
+  }
+
+  function playerRowHTML(player, evaluation, queued) {
+    return `<div class="row compact-rec">
+      <button class="icon" data-queue-k="${esc(player.key)}" style="background:none;border:none;cursor:pointer;font-size:15px;color:${queued ? "#f5b942" : "#64748b"};" title="Toggle queue">★</button>
+      <div class="player-link" data-player="${esc(player.key)}" tabindex="0"><div class="name">${esc(player.name)} <span class="meta">${player.position}${player.nflTeam ? ` · ${esc(player.nflTeam)}` : ""}</span></div><div class="icons"><span class="icon">${actionFor(player, evaluation)}</span>${rankIcons(player, evaluation)}<span class="icon">${evaluation.sv <= 35 ? "🔒" : "⏳"} ${evaluation.sv}%</span></div></div>
+      <button class="btn secondary" data-k="${esc(player.key)}">Draft</button>
+    </div>`;
+  }
+
+  function renderQueue() {
+    const entries = state.queue
+      .map((key) => state.players.find((player) => player.key === key))
+      .filter(Boolean)
+      .filter((player) => !state.picks.some((pick) => pick.key === player.key));
+    $("queue-view").innerHTML = entries.length
+      ? entries.map((player) => playerRowHTML(player, equityFor(player), true)).join("")
+      : '<div class="muted" style="margin-top:10px">No players queued yet — tap the ★ on any player in Board or Recommended to add them here.</div>';
+    document.querySelectorAll("#queue-view [data-k]").forEach((button) => { button.onclick = () => draft(button.dataset.k); });
+    document.querySelectorAll("#queue-view [data-queue-k]").forEach((button) => { button.onclick = () => toggleQueue(button.dataset.queueK); });
+  }
+
+  // Recommended tab — reuses the exact same scoring engine (equityFor -> scoreContext ->
+  // D.scorePlayer) that already powers the "Championship decision" panel. Not a new or
+  // separate model; this tab just surfaces it sorted and ranked instead of one pick at a time.
+  function renderRecommended() {
+    const ranked = available()
+      .slice(0, 60)
+      .map((player) => ({ player, evaluation: equityFor(player) }))
+      .sort((a, b) => b.evaluation.score - a.evaluation.score)
+      .slice(0, 15);
+    $("recommended-view").innerHTML =
+      `<div class="notice" style="margin:10px 0">Ranked by the same engine as the Championship decision panel: market consensus, value over replacement, live tier cliffs, roster need, and simulated availability.</div>` +
+      (ranked.length
+        ? ranked.map(({ player, evaluation }) => playerRowHTML(player, evaluation, state.queue.includes(player.key))).join("")
+        : '<div class="muted">No recommendations available.</div>');
+    document.querySelectorAll("#recommended-view [data-k]").forEach((button) => { button.onclick = () => draft(button.dataset.k); });
+    document.querySelectorAll("#recommended-view [data-queue-k]").forEach((button) => { button.onclick = () => toggleQueue(button.dataset.queueK); });
+  }
+
   function renderPicks() {
     $("room-status").textContent =
       `${state.teams}-team snake · slot ${state.slot}`;
@@ -799,6 +854,8 @@
     renderDraftGrid();
     if (state.activeDraftTab === "team") renderTeamRoster();
     if (state.activeDraftTab === "selections") renderSelections();
+    if (state.activeDraftTab === "queue") renderQueue();
+    if (state.activeDraftTab === "recommended") renderRecommended();
     bindPlayerLinks();
   }
 
@@ -980,6 +1037,8 @@
   $("tab-board").onclick = () => showDraftTab("board");
   $("tab-team").onclick = () => showDraftTab("team");
   $("tab-selections").onclick = () => showDraftTab("selections");
+  $("tab-queue").onclick = () => showDraftTab("queue");
+  $("tab-recommended").onclick = () => showDraftTab("recommended");
   $("strategy").onchange = () => {
     state.strategy = $("strategy").value;
     state.survivalCache.clear();
