@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
 """Scrape public BetMGM NFL regular-season player stat markets into the Vegas quote contract.
 
+⚠️ TOS WARNING (confirmed 2026-08-05): BetMGM's own Terms of Use explicitly
+prohibit "using any robot, scraper, spider, or any other automatic device or
+manual process to monitor or copy any content" — this applies regardless of
+whether the page requires login. This script violates that clause even though
+it only hits a public page with no CAPTCHA/login bypass. It is NOT wired into
+any automated workflow (confirmed clean as of this date) and should stay that
+way — manual-invocation-only, at real ToS risk if run. Do not schedule this.
+Prefer a licensed odds API (e.g. The Odds API, SharpAPI) once one is verified.
+
 This collector deliberately uses only a normal public page request. It does not authenticate,
 solve CAPTCHAs, rotate proxies, or bypass sportsbook controls. If BetMGM blocks the request or
 changes its markup, the collector fails closed and the paid/provider adapters remain available.
