@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Front Office — Hub</title>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Front Office" />
+<meta name="theme-color" content="#020617" />
+<style>
+  :root {
+    --bg: #020617; --surface: #0f172a; --surface2: #1e293b; --border: #334155;
+    --text: #f1f5f9; --text-muted: #94a3b8; --text-dim: #64748b;
+    --gold: #f59e0b; --gold-light: #fbbf24; --teal: #2dd4bf;
+    --green: #34d399; --red: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'SF Mono', ui-monospace, monospace; }
+  header {
+    border-bottom: 1px solid var(--border); padding: 20px;
+    display: flex; align-items: center; gap: 12px;
+    position: sticky; top: 0; background: rgba(2,6,23,0.95); backdrop-filter: blur(8px); z-index: 10;
+  }
+  .brand-icon {
+    width: 38px; height: 38px; border-radius: 8px; background: var(--gold);
+    display: flex; align-items: center; justify-content: center; color: var(--bg); font-weight: 900; font-size: 16px;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; }
+  header p { font-size: 11px; color: var(--text-dim); margin: 2px 0 0; }
+
+  main { padding: 20px; max-width: 900px; margin: 0 auto; }
+  .status-banner {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px; margin-bottom: 24px; font-size: 12px; color: var(--text-muted);
+  }
+  .status-banner .row { display: flex; justify-content: space-between; padding: 4px 0; }
+  .status-banner .ok { color: var(--green); }
+  .status-banner .warn { color: var(--red); }
+  .status-banner .unk { color: var(--text-dim); }
+
+  .section-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-dim);
+    margin: 24px 0 10px; font-weight: 700;
+  }
+  .grid { display: grid; gap: 10px; grid-template-columns: 1fr; }
+  @media (min-width: 640px) { .grid { grid-template-columns: 1fr 1fr; } }
+
+  a.card {
+    display: block; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px; text-decoration: none; color: var(--text); transition: border-color 0.15s;
+  }
+  a.card:active { border-color: var(--gold); }
+  .card-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; }
+  .card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+  .badge {
+    font-size: 9px; text-transform: uppercase; padding: 2px 6px; border-radius: 4px;
+    background: var(--surface2); color: var(--text-dim); font-weight: 700; letter-spacing: 0.03em;
+  }
+  .badge.new { background: rgba(52,211,153,0.15); color: var(--green); }
+  .badge.wip { background: rgba(245,158,11,0.15); color: var(--gold-light); }
+
+  footer { text-align: center; padding: 24px; font-size: 11px; color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand-icon">FO</div>
+  <div>
+    <h1>Front Office</h1>
+    <p class="mono" id="header-sub">Loading status…</p>
+  </div>
+</header>
+
+<main>
+  <div class="status-banner" id="status-banner">Checking live data sources…</div>
+
+  <div class="section-title">Daily Operations</div>
+  <div class="grid">
+    <a class="card" href="index.html">
+      <div class="card-title">Dashboard <span class="badge">Core</span></div>
+      <div class="card-desc">Command Center, Lineup, Roster, Targets, Trade Analyzer, Draft Center, Validation.</div>
+    </a>
+    <a class="card" href="decision-intelligence.html">
+      <div class="card-title">Decision Intelligence <span class="badge">Unified</span></div>
+      <div class="card-desc">Cross-tool consolidated view of what needs attention right now.</div>
+    </a>
+  </div>
+
+  <div class="section-title">Draft Day</div>
+  <div class="grid">
+    <a class="card" href="draft.html">
+      <div class="card-title">Live Draft Assistant <span class="badge">Real Draft</span></div>
+      <div class="card-desc">Read-only, live Sleeper draft tracking. Best-available recommendations, never submits picks.</div>
+    </a>
+    <a class="card" href="mock-draft-v4.html">
+      <div class="card-title">Mock Draft Room <span class="badge new">v4</span></div>
+      <div class="card-desc">Consensus rankings, ADP, tier-gap detection, VBD, scheme fit, room simulation.</div>
+    </a>
+    <a class="card" href="auction.html">
+      <div class="card-title">Auction Engine</div>
+      <div class="card-desc">Separate architecture for auction-format drafts — budget, nomination, bid intelligence.</div>
+    </a>
+    <a class="card" href="draft-slot-blueprints.html">
+      <div class="card-title">Draft Slot Blueprints</div>
+      <div class="card-desc">Pre-draft strategy by pick position.</div>
+    </a>
+  </div>
+
+  <div class="section-title">Trades & Market</div>
+  <div class="grid">
+    <a class="card" href="trade-intelligence.html">
+      <div class="card-title">Trade Intelligence</div>
+      <div class="card-desc">Vegas-aware acquisition signals, trade evaluation.</div>
+    </a>
+    <a class="card" href="vegas-intelligence.html">
+      <div class="card-title">Vegas Intelligence <span class="badge wip">Data source pending</span></div>
+      <div class="card-desc">Market-line vs. projection divergence. Scraped sources currently disabled pending a licensed odds API.</div>
+    </a>
+  </div>
+
+  <div class="section-title">Setup</div>
+  <div class="grid">
+    <a class="card" href="league-config.html">
+      <div class="card-title">League Config</div>
+      <div class="card-desc">Manage connected leagues across platforms.</div>
+    </a>
+    <a class="card" href="yahoo-connect.html">
+      <div class="card-title">Yahoo Connect <span class="badge wip">Pending API approval</span></div>
+      <div class="card-desc">OAuth connection for Yahoo leagues. Backend infrastructure in progress.</div>
+    </a>
+  </div>
+</main>
+
+<footer>Front Office — local-first fantasy operations</footer>
+
+<script>
+(async function () {
+  const parts = [];
+  let overallOk = true;
+
+  // Real status, not placeholders — pulled from actual shared data files.
+  try {
+    const fpRes = await fetch("fantasypros.json?t=" + Date.now());
+    if (fpRes.ok) {
+      const fp = await fpRes.json();
+      const genDate = new Date(fp.generated_at);
+      const daysOld = Math.floor((Date.now() - genDate) / 86400000);
+      const cls = daysOld > 3 ? "warn" : "ok";
+      if (daysOld > 3) overallOk = false;
+      parts.push(`<div class="row"><span>FantasyPros snapshot</span><span class="${cls}">${daysOld === 0 ? "Today" : daysOld + "d old"}</span></div>`);
+    } else {
+      parts.push(`<div class="row"><span>FantasyPros snapshot</span><span class="unk">Not found</span></div>`);
+    }
+  } catch (e) {
+    parts.push(`<div class="row"><span>FantasyPros snapshot</span><span class="unk">Unreachable</span></div>`);
+  }
+
+  try {
+    const wsRes = await fetch("watcher_state.json?t=" + Date.now());
+    if (wsRes.ok) {
+      const ws = await wsRes.json();
+      if (ws.last_run) {
+        const lastRun = new Date(ws.last_run);
+        const minsAgo = Math.floor((Date.now() - lastRun) / 60000);
+        const stale = minsAgo > 180;
+        if (stale) overallOk = false;
+        const cls = stale ? "warn" : "ok";
+        const timeStr = minsAgo < 60 ? minsAgo + "m ago" : Math.floor(minsAgo / 60) + "h ago";
+        parts.push(`<div class="row"><span>League watcher</span><span class="${cls}">Last ran ${timeStr}</span></div>`);
+      }
+      const recentAlerts = (ws.history || []).length;
+      parts.push(`<div class="row"><span>Alert history</span><span class="unk">${recentAlerts} logged</span></div>`);
+    } else {
+      parts.push(`<div class="row"><span>League watcher</span><span class="unk">No run data yet</span></div>`);
+    }
+  } catch (e) {
+    parts.push(`<div class="row"><span>League watcher</span><span class="unk">Unreachable</span></div>`);
+  }
+
+  try {
+    const leaguesRes = await fetch("config/leagues.json?t=" + Date.now());
+    if (leaguesRes.ok) {
+      const cfg = await leaguesRes.json();
+      const count = (cfg.leagues || []).length;
+      const connected = (cfg.leagues || []).filter(l => l.provider_league_id).length;
+      parts.push(`<div class="row"><span>Configured leagues</span><span class="unk">${count} total, ${connected} connected</span></div>`);
+    }
+  } catch (e) {}
+
+  document.getElementById("status-banner").innerHTML = parts.join("") || "No status data available.";
+  document.getElementById("header-sub").textContent = overallOk ? "All systems nominal" : "Some sources need attention";
+})();
+</script>
+
+</body>
+</html>
