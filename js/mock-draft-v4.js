@@ -441,12 +441,19 @@
     const ranked = recommendations();
     const best = ranked[0];
     const nextPick = state.picks.length + 1;
+    const draftComplete = state.picks.length >= state.teams * state.rounds;
+    if (draftComplete) {
+      $("pick-label").textContent = "Draft complete";
+      $("clock").textContent = "";
+      $("best").textContent = `${state.picks.length} of ${state.teams * state.rounds} selections made.`;
+      return;
+    }
     $("pick-label").textContent =
       `${roundPick(nextPick)} · Team ${ownerForPick(nextPick)}`;
     $("clock").textContent =
       ownerForPick(nextPick) === state.slot ? "YOU ARE ON THE CLOCK" : "";
     if (!best) {
-      $("best").textContent = "Draft complete";
+      $("best").textContent = "Draft complete — player pool exhausted.";
       return;
     }
     const directive = D.strategyDirective({
@@ -479,12 +486,14 @@
   function renderBoard() {
     const position = $("pos").value;
     const query = $("search").value.trim().toLowerCase();
+    const flexEligible = { FLEX: ["RB", "WR", "TE"], SUPER_FLEX: ["QB", "RB", "WR", "TE"] };
+    const positionMatch = (player) => {
+      if (position === "ALL") return true;
+      if (flexEligible[position]) return flexEligible[position].includes(player.position);
+      return player.position === position;
+    };
     $("board").innerHTML = available()
-      .filter(
-        (player) =>
-          (position === "ALL" || player.position === position) &&
-          (!query || player.name.toLowerCase().includes(query)),
-      )
+      .filter((player) => positionMatch(player) && (!query || player.name.toLowerCase().includes(query)))
       .slice(0, 100)
       .map((player) => playerRowHTML(player, equityFor(player), state.queue.includes(player.key)))
       .join("");
@@ -860,6 +869,7 @@
   }
 
   function draft(key) {
+    if (state.picks.length >= state.teams * state.rounds) return;
     const player = state.players.find((candidate) => candidate.key === key);
     if (!player || state.picks.some((pick) => pick.key === player.key)) return;
     const pick = state.picks.length + 1;
