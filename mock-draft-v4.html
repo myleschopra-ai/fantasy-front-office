@@ -169,6 +169,33 @@
         padding: 3px 6px;
         font-size: 10px;
       }
+      /* Visual hierarchy for recommendation rows: the action call is the thing
+         that actually needs to be read fast; rank/identity is secondary context;
+         raw component numbers (VBD/scheme/confidence) are supporting detail, not
+         the headline. Previously every badge used identical styling with no way
+         to tell "what to do" from "how the number was computed" at a glance. */
+      .action-badge {
+        font-size: 12px;
+        font-weight: 800;
+        padding: 3px 9px;
+        border-radius: 6px;
+        letter-spacing: 0.02em;
+      }
+      .action-badge.urgent { background: rgba(248,113,113,0.18); color: #f87171; }
+      .action-badge.closing { background: rgba(245,158,11,0.18); color: #f5b942; }
+      .action-badge.target { background: rgba(45,212,191,0.18); color: #2dd4bf; }
+      .action-badge.wait { background: rgba(148,163,184,0.15); color: #94a3b8; }
+      .action-badge.avoid { background: rgba(248,113,113,0.1); color: #ef8080; }
+      .identity-line {
+        font-size: 11px;
+        color: #cbd5e1;
+        margin-top: 3px;
+      }
+      .detail-line {
+        font-size: 9px;
+        color: #64748b;
+        margin-top: 2px;
+      }
       .board {
         max-height: 680px;
         overflow: auto;
