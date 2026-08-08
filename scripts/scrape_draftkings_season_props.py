@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Collect DraftKings NFL season-long player futures into the Vegas quote contract.
 
+⚠️ TOS WARNING (confirmed 2026-08-05): the same class of "no automated access"
+clause found in BetMGM's Terms of Use is standard across major sportsbooks;
+treat DraftKings as carrying equivalent ToS risk until their specific terms
+are checked directly. Not wired into any automated workflow (confirmed clean
+as of this date) — manual-invocation-only, real ToS risk if run. Do not
+schedule this. Prefer a licensed odds API once one is verified.
+
 Uses DraftKings' public sportsbook JSON endpoints only. No authentication, CAPTCHA solving,
 proxy rotation, geolocation evasion, or access-control circumvention is implemented.
 The endpoint family is undocumented and therefore experimental; failures are expected to fail closed.
