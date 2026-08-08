@@ -752,19 +752,37 @@
       QB: ["QB"], RB: ["RB"], WR: ["WR"], TE: ["TE"],
       FLEX: ["RB", "WR", "TE"], SUPER_FLEX: ["QB", "RB", "WR", "TE"],
     };
+    // Non-positional slots (bench, taxi, IR) take ANY remaining player — they are not
+    // filtered by position at all. Previously these fell back to matching a literal
+    // position string like "BENCH", which no real player ever has, so every bench slot
+    // showed Empty even when real drafted players were sitting unassigned.
+    const catchAllSlots = new Set(["BENCH", "BN", "TAXI", "IR"]);
+
+    // Fill true positional slots first (QB/RB/WR/TE/FLEX/SUPER_FLEX), then bench-type
+    // slots, so starters are assigned before bench — order the config keys accordingly.
+    const positionalEntries = Object.entries(rosterConfig).filter(([name]) => !catchAllSlots.has(name));
+    const catchAllEntries = Object.entries(rosterConfig).filter(([name]) => catchAllSlots.has(name));
+
     const slots = [];
-    Object.entries(rosterConfig).forEach(([slotName, count]) => {
+    positionalEntries.forEach(([slotName, count]) => {
+      for (let i = 0; i < numeric(count, 0); i += 1) slots.push(slotName);
+    });
+    catchAllEntries.forEach(([slotName, count]) => {
       for (let i = 0; i < numeric(count, 0); i += 1) slots.push(slotName);
     });
 
     const pool = roster.map((pick) => ({ pick, used: false }));
     const assigned = slots.map((slotName) => {
-      const eligiblePositions = eligibility[slotName] || [slotName];
-      const match = pool.find((p) => !p.used && eligiblePositions.includes(p.pick.position));
+      const isCatchAll = catchAllSlots.has(slotName);
+      const eligiblePositions = eligibility[slotName] || null;
+      const match = pool.find((p) => !p.used && (isCatchAll || (eligiblePositions && eligiblePositions.includes(p.pick.position))));
       if (match) match.used = true;
       return { slotName, pick: match ? match.pick : null };
     });
-    const bench = pool.filter((p) => !p.used).map((p) => p.pick);
+    // Any picks beyond every configured slot (positional + bench/taxi/IR combined) —
+    // should be rare if the league's bench count is realistic, but never silently drop a
+    // drafted player rather than show it.
+    const overflow = pool.filter((p) => !p.used).map((p) => p.pick);
 
     const slotRow = (slotName, pick) => pick
       ? `<div class="row"><div><div class="name">${esc(pick.name)}</div><div class="meta">${slotName} · ${esc(pick.position)} · ${roundPick(pick.pick)}</div></div><span class="sim-badge">MOCK</span></div>`
@@ -772,8 +790,8 @@
 
     let html = `<div class="toolbar" style="margin-top:10px"><strong>Team ${team}${team === state.slot ? " · YOU" : ""}</strong><select id="team-select" style="width:auto">${Array.from({ length: state.teams }, (_value, index) => `<option value="${index + 1}" ${team === index + 1 ? "selected" : ""}>Team ${index + 1}${state.slot === index + 1 ? " · YOU" : ""}</option>`).join("")}</select></div>`;
     html += `<div class="team-roster-list">${assigned.map((a) => slotRow(a.slotName, a.pick)).join("") || '<div class="muted">No roster slots configured for this league.</div>'}</div>`;
-    if (bench.length) {
-      html += `<div class="muted" style="margin-top:10px">Bench</div><div class="team-roster-list">${bench.map((pick) => slotRow("BN", pick)).join("")}</div>`;
+    if (overflow.length) {
+      html += `<div class="muted" style="margin-top:10px">Additional picks (beyond configured roster slots)</div><div class="team-roster-list">${overflow.map((pick) => slotRow("EXTRA", pick)).join("")}</div>`;
     }
     html += `<div class="notice" style="margin-top:10px">This simulated class never modifies the real league roster.</div>`;
     $("team-roster-view").innerHTML = html;
