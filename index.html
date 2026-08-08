@@ -1843,6 +1843,7 @@
       rosterId,
       player: entry.player,
       value: entry.value,
+      overallRank: entry.overallRank !== undefined ? entry.overallRank : null,
     });
     const pos = entry.player.position;
     if (!mockState.virtualCounts[rosterId]) mockState.virtualCounts[rosterId] = {};
@@ -1897,6 +1898,62 @@
     return html;
   }
 
+  function mockDraftGrade(avgDiff) {
+    if (avgDiff >= 8) return "A";
+    if (avgDiff >= 0) return "B";
+    if (avgDiff >= -8) return "C";
+    return "D";
+  }
+
+  function renderMockDraftSummaryHTML() {
+    const owners = ownerMap();
+    const picks = mockState.picks;
+
+    const byTeam = {};
+    picks.forEach(p => {
+      byTeam[p.rosterId] = byTeam[p.rosterId] || [];
+      byTeam[p.rosterId].push(p);
+    });
+
+    const withRank = picks.filter(p => p.overallRank !== null).map(p => ({ ...p, diff: p.overallRank - p.pickNo }));
+    const bestValue = [...withRank].sort((a, b) => b.diff - a.diff).slice(0, 5);
+    const biggestReach = [...withRank].sort((a, b) => a.diff - b.diff).slice(0, 5);
+
+    let html = `<p style="font-size:11px; color:var(--text-dim); margin-bottom:16px;">Grades: FantasyCalc dynasty rank vs. actual pick slot — a value proxy, not a validated model.</p>`;
+
+    if (bestValue.length) {
+      html += `<h3 class="display" style="font-size:11px; color:var(--green); margin-bottom:8px;">Steals</h3>`;
+      html += `<div style="display:grid; gap:4px; margin-bottom:16px;">` + bestValue.map(p => `
+        <div class="fa-row"><div class="fa-left"><span class="fa-name">${escapeHTML(p.player.name)}</span><span class="mono" style="color:var(--text-dim); font-size:12px;">(${p.player.position}, pick ${p.pickNo})</span></div><span class="pill gold">+${p.diff} value</span></div>`).join("") + `</div>`;
+    }
+    if (biggestReach.length) {
+      html += `<h3 class="display" style="font-size:11px; color:var(--red); margin-bottom:8px;">Reaches</h3>`;
+      html += `<div style="display:grid; gap:4px; margin-bottom:20px;">` + biggestReach.map(p => `
+        <div class="fa-row"><div class="fa-left"><span class="fa-name">${escapeHTML(p.player.name)}</span><span class="mono" style="color:var(--text-dim); font-size:12px;">(${p.player.position}, pick ${p.pickNo})</span></div><span class="pill bad">${p.diff} value</span></div>`).join("") + `</div>`;
+    }
+
+    html += `<h3 class="display" style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">Team-by-Team</h3>`;
+    Object.entries(byTeam).forEach(([rosterId, teamPicks]) => {
+      const isMe = Number(rosterId) === state.myRosterId;
+      const rankedPicks = teamPicks.filter(p => p.overallRank !== null);
+      const avgDiff = rankedPicks.length ? rankedPicks.reduce((sum, p) => sum + (p.overallRank - p.pickNo), 0) / rankedPicks.length : 0;
+      const g = rankedPicks.length ? mockDraftGrade(avgDiff) : "?";
+      const posCounts = {};
+      teamPicks.forEach(p => { if (p.player.position) posCounts[p.player.position] = (posCounts[p.player.position] || 0) + 1; });
+      const posHTML = Object.entries(posCounts).map(([pos, n]) => `<span class="pill" style="background:var(--surface2); color:var(--text-muted);">${pos}: ${n}</span>`).join(" ");
+
+      html += `<div style="background:var(--surface); border-radius:8px; padding:12px; margin-bottom:8px; ${isMe ? 'border:1px solid var(--gold);' : ''}">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <span style="font-weight:700; font-size:13px; ${isMe ? 'color:var(--gold-light);' : ''}">${escapeHTML(owners[rosterId] || "Unknown")}${isMe ? " (you)" : ""}</span>
+          <span class="mono" style="font-weight:900; font-size:16px;">${g}</span>
+        </div>
+        <div style="display:flex; gap:4px; flex-wrap:wrap;">${posHTML}</div>
+      </div>`;
+    });
+
+    return html;
+  }
+
   function renderMockDraftUI() {
     const owners = ownerMap();
     const done = mockState.currentPickIdx >= mockState.totalPicks;
@@ -1910,6 +1967,7 @@
 
     if (done) {
       html += `<div style="color:var(--green); font-weight:600; margin-bottom:16px;">Mock draft complete.</div>`;
+      html += renderMockDraftSummaryHTML();
     } else if (isMyTurn) {
       html += `<div style="color:var(--gold-light); font-weight:600; margin-bottom:12px;">Your pick — tap a player below</div>`;
       html += `<div style="display:grid; gap:6px; margin-bottom:20px;">` +
