@@ -12,13 +12,15 @@
       description:
         "Follow value over replacement and live tier cliffs, then adapt to league settings and the room.",
       weights: {
-        market: 0.25,
-        vbd: 0.19,
-        tier: 0.17,
-        need: 0.17,
-        availability: 0.08,
-        scheme: 0.07,
-        strategy: 0.07,
+        market: 0.225,
+        vbd: 0.171,
+        tier: 0.153,
+        need: 0.153,
+        availability: 0.072,
+        scheme: 0.063,
+        strategy: 0.063,
+        pedigree: 0.05,
+        ageCurve: 0.05,
       },
     },
     balanced: {
@@ -26,13 +28,15 @@
       description:
         "Use league-adjusted best player available without creating avoidable starter gaps.",
       weights: {
-        market: 0.27,
-        vbd: 0.18,
-        tier: 0.16,
-        need: 0.17,
-        availability: 0.08,
-        scheme: 0.07,
-        strategy: 0.07,
+        market: 0.243,
+        vbd: 0.162,
+        tier: 0.144,
+        need: 0.153,
+        availability: 0.072,
+        scheme: 0.063,
+        strategy: 0.063,
+        pedigree: 0.05,
+        ageCurve: 0.05,
       },
     },
     "hero-rb": {
@@ -40,13 +44,15 @@
       description:
         "Secure one premium back early, build WR/FLEX strength, then return to RB depth.",
       weights: {
-        market: 0.23,
-        vbd: 0.17,
-        tier: 0.15,
-        need: 0.16,
-        availability: 0.08,
-        scheme: 0.07,
-        strategy: 0.14,
+        market: 0.207,
+        vbd: 0.153,
+        tier: 0.135,
+        need: 0.144,
+        availability: 0.072,
+        scheme: 0.063,
+        strategy: 0.126,
+        pedigree: 0.05,
+        ageCurve: 0.05,
       },
     },
     "zero-rb": {
@@ -54,13 +60,15 @@
       description:
         "Build WR/FLEX leverage early and attack high-upside RB volume after the early rounds.",
       weights: {
-        market: 0.22,
-        vbd: 0.16,
-        tier: 0.15,
-        need: 0.14,
-        availability: 0.08,
-        scheme: 0.07,
-        strategy: 0.18,
+        market: 0.198,
+        vbd: 0.144,
+        tier: 0.135,
+        need: 0.126,
+        availability: 0.072,
+        scheme: 0.063,
+        strategy: 0.162,
+        pedigree: 0.05,
+        ageCurve: 0.05,
       },
     },
     "robust-rb": {
@@ -68,13 +76,15 @@
       description:
         "Build early RB volume only when backs remain within the same value tier as alternatives.",
       weights: {
-        market: 0.22,
-        vbd: 0.17,
-        tier: 0.17,
-        need: 0.14,
-        availability: 0.08,
-        scheme: 0.07,
-        strategy: 0.15,
+        market: 0.198,
+        vbd: 0.153,
+        tier: 0.153,
+        need: 0.126,
+        availability: 0.072,
+        scheme: 0.063,
+        strategy: 0.135,
+        pedigree: 0.05,
+        ageCurve: 0.05,
       },
     },
     "late-qb": {
@@ -82,13 +92,15 @@
       description:
         "In one-QB leagues, wait through flat QB tiers unless an elite value falls.",
       weights: {
-        market: 0.24,
-        vbd: 0.19,
-        tier: 0.16,
-        need: 0.14,
-        availability: 0.08,
-        scheme: 0.07,
-        strategy: 0.12,
+        market: 0.216,
+        vbd: 0.171,
+        tier: 0.144,
+        need: 0.126,
+        availability: 0.072,
+        scheme: 0.063,
+        strategy: 0.108,
+        pedigree: 0.05,
+        ageCurve: 0.05,
       },
     },
     "early-qb": {
@@ -96,13 +108,15 @@
       description:
         "Prioritize scarce starting quarterbacks in Superflex; in one-QB, require an elite tier value.",
       weights: {
-        market: 0.22,
-        vbd: 0.19,
-        tier: 0.16,
-        need: 0.15,
-        availability: 0.08,
-        scheme: 0.07,
-        strategy: 0.13,
+        market: 0.198,
+        vbd: 0.171,
+        tier: 0.144,
+        need: 0.135,
+        availability: 0.072,
+        scheme: 0.063,
+        strategy: 0.117,
+        pedigree: 0.05,
+        ageCurve: 0.05,
       },
     },
     "elite-te": {
@@ -110,13 +124,15 @@
       description:
         "Pay for a true difference-maker at tight end, not a name from a flat middle tier.",
       weights: {
-        market: 0.22,
-        vbd: 0.19,
-        tier: 0.18,
-        need: 0.14,
-        availability: 0.08,
-        scheme: 0.07,
-        strategy: 0.12,
+        market: 0.198,
+        vbd: 0.171,
+        tier: 0.162,
+        need: 0.126,
+        availability: 0.072,
+        scheme: 0.063,
+        strategy: 0.108,
+        pedigree: 0.05,
+        ageCurve: 0.05,
       },
     },
   };
@@ -487,6 +503,12 @@
       availability: 100 - survival,
       scheme: clamp(numeric(player.schemeFit?.score, 50)),
       strategy: strategyBias(player, { ...context, strategy, need }),
+      // Non-statistical scouting signals — draft capital and position-adjusted age
+      // curve. Default to neutral (50) rather than 0 when scouting_signals.json
+      // hasn't loaded yet, so missing data never penalizes a player, only informs
+      // when actually present.
+      pedigree: clamp(numeric(player.pedigreeScore, 50)),
+      ageCurve: clamp(numeric(player.ageCurveScore, 50)),
     };
     const raw = Object.entries(model.weights).reduce(
       (sum, [key, weight]) => sum + components[key] * weight,
