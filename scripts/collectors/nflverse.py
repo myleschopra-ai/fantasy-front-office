@@ -41,6 +41,7 @@ def collect(seasons: list[int]) -> list[dict]:
         ("seasonal_stats", lambda: nfl.load_player_stats(seasons, summary_level="reg"), "nflverse/nflverse-data seasonal stats"),
         ("draft_picks", lambda: nfl.load_draft_picks(), "nflverse/nflverse-data draft picks"),
         ("combine", lambda: nfl.load_combine(), "nflverse/nflverse-data combine"),
+        ("schedules", lambda: nfl.load_schedules(seasons), "nflverse/nflverse-data schedules — source for bye weeks and playoff-week opponents"),
     ]
     results = []
     for name, loader, source in tasks:
