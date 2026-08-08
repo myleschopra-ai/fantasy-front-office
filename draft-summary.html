@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Draft Summary — Front Office</title>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#020617" />
+<style>
+  :root {
+    --bg: #020617; --surface: #0f172a; --surface2: #1e293b; --border: #334155;
+    --text: #f1f5f9; --text-muted: #94a3b8; --text-dim: #64748b;
+    --gold: #f59e0b; --gold-light: #fbbf24; --teal: #2dd4bf;
+    --green: #34d399; --red: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; }
+  .mono { font-family: ui-monospace, monospace; }
+  header { border-bottom: 1px solid var(--border); padding: 16px 20px; position: sticky; top: 0; background: rgba(2,6,23,0.95); backdrop-filter: blur(8px); z-index: 10; }
+  header h1 { font-size: 15px; margin: 0; font-weight: 800; text-transform: uppercase; }
+  header p { font-size: 11px; color: var(--text-dim); margin: 2px 0 0; }
+  main { padding: 16px; max-width: 900px; margin: 0 auto; }
+  .input-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  input[type=text] { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; color: var(--text); font-size: 14px; }
+  button.btn { background: var(--gold); color: var(--bg); border: none; border-radius: 6px; padding: 10px 16px; font-weight: 700; font-size: 14px; cursor: pointer; touch-action: manipulation; }
+  .note { font-size: 11px; color: var(--text-dim); margin: 8px 0 20px; line-height: 1.5; }
+  .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-dim); margin: 24px 0 10px; font-weight: 700; }
+  .team-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 10px; }
+  .team-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .team-name { font-weight: 700; font-size: 14px; }
+  .grade { font-family: ui-monospace, monospace; font-weight: 900; font-size: 22px; padding: 2px 10px; border-radius: 6px; }
+  .grade.A { background: rgba(52,211,153,0.15); color: var(--green); }
+  .grade.B { background: rgba(45,212,191,0.15); color: var(--teal); }
+  .grade.C { background: rgba(245,158,11,0.15); color: var(--gold-light); }
+  .grade.D { background: rgba(248,113,113,0.15); color: var(--red); }
+  .pos-breakdown { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; font-size: 11px; }
+  .pos-pill { background: var(--surface2); color: var(--text-muted); padding: 2px 8px; border-radius: 4px; }
+  .pick-row { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--surface2); }
+  .pick-row:last-child { border-bottom: none; }
+  .value-tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; text-transform: uppercase; }
+  .value-tag.steal { background: rgba(52,211,153,0.15); color: var(--green); }
+  .value-tag.reach { background: rgba(248,113,113,0.15); color: var(--red); }
+  .highlight-row { display: flex; justify-content: space-between; align-items: center; background: var(--surface); border-radius: 6px; padding: 10px 14px; margin-bottom: 6px; font-size: 13px; }
+  #status { color: var(--text-muted); font-size: 13px; margin: 20px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Draft Summary</h1>
+  <p class="mono" id="header-sub">Team grades, value picks, and reaches from a real Sleeper draft</p>
+</header>
+
+<main>
+  <div class="input-row">
+    <input type="text" id="draft-id-input" placeholder="Sleeper Draft ID" inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+    <button class="btn" id="load-btn">Load</button>
+  </div>
+  <p class="note">
+    Grades are a value proxy — FantasyCalc dynasty rank/value compared against actual draft position, not a validated grading model.
+    Positive differential (player's rank better than their pick slot) reads as value; negative reads as a reach.
+    Real signal, bounded interpretation — verify against your own read of the draft.
+  </p>
+
+  <div id="status"></div>
+  <div id="summary-content"></div>
+</main>
+
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const escapeHTML = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+  const saved = localStorage.getItem("ffo_draft_id");
+  if (saved) $("draft-id-input").value = saved;
+
+  $("load-btn").addEventListener("click", () => {
+    const id = $("draft-id-input").value.trim();
+    if (id) loadDraftSummary(id);
+  });
+  $("draft-id-input").addEventListener("keydown", e => { if (e.key === "Enter") $("load-btn").click(); });
+
+  async function loadDraftSummary(draftId) {
+    $("status").textContent = "Loading real draft data...";
+    $("summary-content").innerHTML = "";
+    try {
+      const [draftRes, picksRes, fcRes, playersRes] = await Promise.all([
+        fetch(`https://api.sleeper.app/v1/draft/${draftId}`),
+        fetch(`https://api.sleeper.app/v1/draft/${draftId}/picks`),
+        fetch("https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=2&numTeams=12&ppr=0.5"),
+        fetch("https://api.sleeper.app/v1/players/nfl"),
+      ]);
+      if (!draftRes.ok) throw new Error("Draft not found — check the ID");
+
+      const draft = await draftRes.json();
+      const picks = await picksRes.json();
+      const fcData = await fcRes.json();
+      const allPlayers = await playersRes.json();
+
+      if (!picks.length) throw new Error("No picks recorded yet for this draft");
+
+      const fcBySleeperId = {};
+      fcData.forEach(e => { if (e.player.sleeperId) fcBySleeperId[String(e.player.sleeperId)] = e; });
+
+      const teamsCount = draft.settings && draft.settings.teams ? draft.settings.teams : new Set(picks.map(p => p.roster_id || p.draft_slot)).size;
+
+      const enriched = picks.map(p => {
+        const player = allPlayers[p.player_id] || {};
+        const fc = fcBySleeperId[String(p.player_id)];
+        const name = `${player.first_name || ""} ${player.last_name || ""}`.trim() || p.player_id;
+        return {
+          pickNo: p.pick_no,
+          round: p.round,
+          rosterId: p.roster_id || p.draft_slot,
+          teamName: (p.metadata && p.metadata.team_name) || (p.picked_by ? `Roster ${p.roster_id}` : `Slot ${p.draft_slot}`),
+          name, position: player.position, team: player.team,
+          fcRank: fc ? fc.overallRank : null, fcValue: fc ? fc.value : null,
+        };
+      });
+
+      renderSummary(enriched, teamsCount);
+      $("status").textContent = `${picks.length} picks loaded, real data.`;
+    } catch (e) {
+      $("status").textContent = "Error: " + e.message;
+    }
+  }
+
+  function grade(avgDiff) {
+    if (avgDiff >= 8) return "A";
+    if (avgDiff >= 0) return "B";
+    if (avgDiff >= -8) return "C";
+    return "D";
+  }
+
+  function renderSummary(picks, teamsCount) {
+    const byTeam = {};
+    picks.forEach(p => {
+      byTeam[p.rosterId] = byTeam[p.rosterId] || { teamName: p.teamName, picks: [] };
+      byTeam[p.rosterId].picks.push(p);
+    });
+
+    // League-wide best value / biggest reach — only picks with a real FC rank to compare against.
+    const withRank = picks.filter(p => p.fcRank !== null).map(p => ({ ...p, diff: p.fcRank - p.pickNo }));
+    const bestValue = [...withRank].sort((a, b) => b.diff - a.diff).slice(0, 5);
+    const biggestReach = [...withRank].sort((a, b) => a.diff - b.diff).slice(0, 5);
+
+    let html = `<div class="section-title">League-Wide Steals</div>`;
+    html += bestValue.map(p => `
+      <div class="highlight-row">
+        <span>${escapeHTML(p.name)} <span class="mono" style="color:var(--text-dim);">(${p.position || "?"}, pick ${p.pickNo})</span></span>
+        <span class="value-tag steal">+${p.diff} value</span>
+      </div>`).join("");
+
+    html += `<div class="section-title">League-Wide Reaches</div>`;
+    html += biggestReach.map(p => `
+      <div class="highlight-row">
+        <span>${escapeHTML(p.name)} <span class="mono" style="color:var(--text-dim);">(${p.position || "?"}, pick ${p.pickNo})</span></span>
+        <span class="value-tag reach">${p.diff} value</span>
+      </div>`).join("");
+
+    html += `<div class="section-title">Team-by-Team</div>`;
+    Object.values(byTeam).forEach(team => {
+      const rankedPicks = team.picks.filter(p => p.fcRank !== null);
+      const avgDiff = rankedPicks.length
+        ? rankedPicks.reduce((sum, p) => sum + (p.fcRank - p.pickNo), 0) / rankedPicks.length
+        : 0;
+      const g = rankedPicks.length ? grade(avgDiff) : "?";
+
+      const posCounts = {};
+      team.picks.forEach(p => { if (p.position) posCounts[p.position] = (posCounts[p.position] || 0) + 1; });
+      const posHTML = Object.entries(posCounts).map(([pos, n]) => `<span class="pos-pill">${pos}: ${n}</span>`).join("");
+
+      const pickRows = [...team.picks].sort((a, b) => a.pickNo - b.pickNo).map(p => {
+        let tag = "";
+        if (p.fcRank !== null) {
+          const diff = p.fcRank - p.pickNo;
+          if (diff >= 8) tag = `<span class="value-tag steal">+${diff}</span>`;
+          else if (diff <= -8) tag = `<span class="value-tag reach">${diff}</span>`;
+        }
+        return `<div class="pick-row"><span>Pick ${p.pickNo} (Rd ${p.round}) — ${p.position || "?"} ${escapeHTML(p.name)}</span>${tag}</div>`;
+      }).join("");
+
+      html += `
+        <div class="team-card">
+          <div class="team-header">
+            <span class="team-name">${escapeHTML(team.teamName)}</span>
+            <span class="grade ${g}">${g}</span>
+          </div>
+          <div class="pos-breakdown">${posHTML}</div>
+          ${pickRows}
+        </div>`;
+    });
+
+    $("summary-content").innerHTML = html;
+  }
+
+  if (saved) loadDraftSummary(saved);
+})();
+</script>
+
+</body>
+</html>
