@@ -194,6 +194,29 @@
     }
   } catch (e) {}
 
+  // Draft activity — localStorage is shared across same-origin pages, so this is a real
+  // check of draft.html's actual state, not a guess. Keys confirmed directly from draft.html's source.
+  try {
+    const draftId = localStorage.getItem("ffo_draft_id");
+    if (draftId) {
+      parts.push(`<div class="row"><span>Draft assistant</span><span class="ok">Active session tracked</span></div>`);
+    } else {
+      parts.push(`<div class="row"><span>Draft assistant</span><span class="unk">No active session</span></div>`);
+    }
+  } catch (e) {}
+
+  // Vegas data — real file-existence check, not a fabricated status.
+  try {
+    const vegasRes = await fetch("data/vegas/consensus.json?t=" + Date.now());
+    parts.push(`<div class="row"><span>Vegas consensus data</span><span class="${vegasRes.ok ? 'ok' : 'unk'}">${vegasRes.ok ? 'Present' : 'Not generated yet'}</span></div>`);
+  } catch (e) {
+    parts.push(`<div class="row"><span>Vegas consensus data</span><span class="unk">Not generated yet</span></div>`);
+  }
+
+  // Yahoo — honestly not checkable from here yet. The backend session lives on Render,
+  // not in any file this static page can read. Showing a real limitation, not a fake status.
+  parts.push(`<div class="row"><span>Yahoo connection</span><span class="unk">Not checkable from this page yet — backend pending</span></div>`);
+
   document.getElementById("status-banner").innerHTML = parts.join("") || "No status data available.";
   document.getElementById("header-sub").textContent = overallOk ? "All systems nominal" : "Some sources need attention";
 })();
