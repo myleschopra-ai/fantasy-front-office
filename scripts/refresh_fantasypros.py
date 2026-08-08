@@ -144,6 +144,31 @@ def fetch_injuries() -> list[dict[str, Any]]:
     ]
 
 
+def fetch_general_news() -> list[dict[str, Any]]:
+    """Broader news feed, no category filter — same proven endpoint pattern as
+    fetch_injuries(), just without narrowing to injury-only items. Intended to
+    surface real current sentiment/analysis text for late-round evaluation,
+    where public rankings alone don't capture recent buzz. Fails gracefully:
+    if this shape doesn't hold on a live call, callers see an empty list, not
+    a crash — the injury feed above is unaffected either way.
+    """
+    try:
+        payload = get_json("nfl/news", {"limit": 100})
+    except Exception as exc:
+        print(f"WARNING: general news fetch failed: {exc}", file=sys.stderr)
+        return []
+    return [
+        {
+            "name": item.get("player_name") or item.get("title"),
+            "team": item.get("team_id") or "",
+            "headline": item.get("title") or "",
+            "summary": item.get("content") or item.get("summary") or "",
+        }
+        for item in payload.get("items", [])
+        if item.get("player_name") or item.get("title")
+    ]
+
+
 def validate_snapshot(snapshot: dict[str, Any]) -> None:
     if snapshot.get("season") != SEASON or snapshot.get("scoring") != SCORING:
         raise ValueError("Snapshot season or scoring does not match the request")
@@ -178,6 +203,7 @@ def main() -> None:
     rankings, ranking_metadata = fetch_rankings()
     projections = fetch_projections()
     injuries = fetch_injuries()
+    general_news = fetch_general_news()
     snapshot = {
         "schema_version": 2,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -191,6 +217,7 @@ def main() -> None:
         },
         "rankings": rankings,
         "injuries": injuries,
+        "news": general_news,
         "projections": projections,
     }
     validate_snapshot(snapshot)
