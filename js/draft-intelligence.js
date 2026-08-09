@@ -518,6 +518,63 @@
     return Math.max(0, Math.min(1, value));
   }
 
+  // ---------------------------------------------------------------------
+  // Phase 1 of the four-value architecture split (Player Grade / Market
+  // Value / League Value / Pick Utility). Root cause being fixed: every
+  // component — including roster-need and round-stage bias — was
+  // previously blended into a single "score", meaning a player's
+  // evaluation moved based on MY OWN roster construction. Concretely:
+  // Joe Burrow's score would change depending on whether I'd already
+  // drafted Lamar Jackson. That's architecturally wrong. Player Grade
+  // below never does that — it has no dependency on context.picks,
+  // context.counts, or context.round at all.
+  // ---------------------------------------------------------------------
+
+  // PLAYER GRADE — stable intrinsic quality. Fixed weights, not
+  // round-adjusted, not roster-need-adjusted. Only inputs are the
+  // player's own consensus standing, tier, scheme fit, and the two
+  // non-statistical scouting signals (pedigree, age curve) — nothing
+  // here can change because of a pick I made.
+  function playerGrade(player) {
+    const market = clamp(
+      numeric(
+        player.consensusScore,
+        percentileRank(numeric(player.overallRank || player.rank, 250), 250),
+      ),
+    );
+    const tier = tierScore(player);
+    const scheme = clamp(numeric(player.schemeFit?.score, 50));
+    const pedigree = clamp(numeric(player.pedigreeScore, 50));
+    const ageCurve = clamp(numeric(player.ageCurveScore, 50));
+    return clamp(
+      market * 0.45 + tier * 0.2 + scheme * 0.15 + pedigree * 0.1 + ageCurve * 0.1,
+    );
+  }
+
+  // MARKET VALUE — when the market expects this player gone, not whether
+  // that's good or bad. Pure ADP-based signal, intentionally separate
+  // from Player Grade so the two can be compared (a real value-vs-market
+  // gap is a genuine signal; conflating them hides it).
+  function marketValueScore(player, context = {}) {
+    const poolSize = numeric(context.poolSize, 250);
+    const adp = numeric(
+      player.adp,
+      numeric(player.overallRank || player.rank, poolSize),
+    );
+    return clamp(percentileRank(adp, poolSize));
+  }
+
+  // LEAGUE VALUE — Player Grade run through this specific league's
+  // replacement level / positional scarcity (vbdScore already reflects
+  // league config: team count, starter targets, Superflex, FLEX demand).
+  // Same player scores differently across leagues; Player Grade itself
+  // does not change.
+  function leagueValueScore(player, context = {}) {
+    const grade = playerGrade(player);
+    const vbd = vbdScore(player, context);
+    return clamp(grade * 0.55 + vbd * 0.45);
+  }
+
   function scorePlayer(player, context = {}) {
     const strategy = STRATEGIES[context.strategy]
       ? context.strategy
@@ -565,8 +622,24 @@
         Math.min(100, numeric(player.sourceCount, 1) * 15) * 0.20 +
         numeric(player.schemeFit?.confidence, 45) * 0.25,
     );
+    // The four separated values. pickUtility is exactly what "raw" already
+    // was — the existing roster/round-aware weighted blend — kept as-is so
+    // no existing caller (CPU picks, recommendations, UI) silently changes
+    // behavior in this pass. What's new: playerGrade, marketValue, and
+    // leagueValue are now independently inspectable and provably stable
+    // with respect to my own roster state, closing the architectural gap
+    // where a single opaque score conflated intrinsic quality with
+    // roster-dependent recommendation.
+    const grade = playerGrade(player);
+    const market_value = marketValueScore(player, context);
+    const league_value = leagueValueScore(player, context);
+    const pickUtility = Math.round(raw);
     return {
-      score: Math.round(raw),
+      score: pickUtility,
+      pickUtility,
+      playerGrade: Math.round(grade),
+      marketValue: Math.round(market_value),
+      leagueValue: Math.round(league_value),
       confidence: Math.round(confidence),
       components,
       weights: effectiveWeights,
@@ -661,7 +734,10 @@
     STRATEGIES,
     assignTiers,
     enrichPlayers,
+    leagueValueScore,
+    marketValueScore,
     normalizeName,
+    playerGrade,
     playerKey,
     roundAdjustedWeights,
     rosterCounts,
