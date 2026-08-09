@@ -37,7 +37,7 @@ const commonContext = {
   round: 2,
   poolSize: 250,
   survival: 25,
-  picks: [{ name: 'Josh Allen', position: 'QB', posRank: 1 }],
+  picks: [{ name: 'Josh Allen', position: 'QB', posRank: 1, overallRank: 3, tier: 1, consensusScore: 98, schemeFit: { score: 88, confidence: 80 } }],
   counts: { QB: 1, RB: 0, WR: 0, TE: 0 },
   targets: D.starterTargets(league),
   superflex: false
@@ -133,6 +133,126 @@ assert.equal(
   D.playerGrade(earlyADP),
   D.playerGrade(lateADP),
   'Player Grade must not be affected by ADP alone (ADP is Market Value, not quality)',
+);
+
+// PHASE 1 (continued): Dynamic Roster Need via the real optimal-lineup
+// engine, not a flat count-vs-target heuristic. These are the exact
+// regression scenarios required: 1QB QB redundancy, and the Superflex
+// counter-test proving demand suppression is NOT incorrectly applied
+// when a second QB-eligible slot exists. Generic mechanism — no player
+// is special-cased by name.
+const oneQBRosterLeague = { roster: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 2, BENCH: 6 } };
+const superflexRosterLeague = { roster: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 2, SUPER_FLEX: 1, BENCH: 6 } };
+
+const firstQB = { name: 'Elite QB One', position: 'QB', overallRank: 5, posRank: 1, tier: 1, consensusScore: 97, adp: 5 };
+const secondEliteQB = { name: 'Elite QB Two', position: 'QB', overallRank: 9, posRank: 2, tier: 1, consensusScore: 95, adp: 9 };
+const openStarterRB = { name: 'Open RB', position: 'RB', overallRank: 20, posRank: 10, tier: 2, consensusScore: 88, adp: 20 };
+
+const rosterWithOneQB = [firstQB];
+
+// 1QB: after drafting an elite QB, a second elite QB must retain a high
+// Player Grade (intrinsic quality, generic mechanism proves this) but
+// receive a sharply lower need score than an open RB starter slot.
+const secondQBNeed1QB = D.scorePlayer(secondEliteQB, {
+  league: oneQBRosterLeague, teams: 12, round: 3, totalRounds: 16,
+  picks: rosterWithOneQB, counts: D.rosterCounts(rosterWithOneQB),
+  targets: D.starterTargets(oneQBRosterLeague), superflex: false, poolSize: 250, survival: 50,
+});
+const openRBNeed1QB = D.scorePlayer(openStarterRB, {
+  league: oneQBRosterLeague, teams: 12, round: 3, totalRounds: 16,
+  picks: rosterWithOneQB, counts: D.rosterCounts(rosterWithOneQB),
+  targets: D.starterTargets(oneQBRosterLeague), superflex: false, poolSize: 250, survival: 50,
+});
+assert.ok(
+  secondQBNeed1QB.playerGrade > 70,
+  '1QB: second elite QB must retain a high Player Grade even though he cannot start',
+);
+assert.ok(
+  secondQBNeed1QB.components.need < openRBNeed1QB.components.need,
+  '1QB: second elite QB need score must be well below an open RB starter slot',
+);
+assert.ok(
+  secondQBNeed1QB.pickUtility < openRBNeed1QB.pickUtility,
+  '1QB: second elite QB Pick Utility must be lower than filling an open starter slot',
+);
+
+// Superflex counter-test: the same second elite QB, same roster, but a
+// SUPER_FLEX slot exists — demand suppression must NOT apply the same way.
+const secondQBNeedSuperflex = D.scorePlayer(secondEliteQB, {
+  league: superflexRosterLeague, teams: 12, round: 3, totalRounds: 16,
+  picks: rosterWithOneQB, counts: D.rosterCounts(rosterWithOneQB),
+  targets: D.starterTargets(superflexRosterLeague), superflex: true, poolSize: 250, survival: 50,
+});
+assert.ok(
+  secondQBNeedSuperflex.components.need > secondQBNeed1QB.components.need,
+  'Superflex: second elite QB need score must be materially higher than in 1QB',
+);
+assert.equal(
+  secondQBNeedSuperflex.playerGrade,
+  secondQBNeed1QB.playerGrade,
+  'Player Grade must be identical for the same player regardless of league format',
+);
+
+// FLEX eligibility: optimalLineup must correctly seat an RB/WR/TE in FLEX
+// but never seat a QB/K/DST in FLEX unless the slot explicitly allows it.
+const flexTestLeague = { roster: { QB: 1, RB: 1, WR: 1, TE: 1, FLEX: 1, BENCH: 4 } };
+const flexTestRoster = [
+  { name: 'Starting QB', position: 'QB', overallRank: 10, consensusScore: 90 },
+  { name: 'Starting RB', position: 'RB', overallRank: 15, consensusScore: 85 },
+  { name: 'Starting WR', position: 'WR', overallRank: 12, consensusScore: 88 },
+  { name: 'Starting TE', position: 'TE', overallRank: 40, consensusScore: 70 },
+  { name: 'Second RB', position: 'RB', overallRank: 25, consensusScore: 80 },
+];
+const flexLineup = D.optimalLineup(flexTestRoster, flexTestLeague);
+const flexSlot = flexLineup.starters.find((s) => s.slot === 'FLEX');
+assert.ok(
+  flexSlot.player && ['RB', 'WR', 'TE'].includes(flexSlot.player.position),
+  'FLEX slot must be filled by an RB/WR/TE-eligible player',
+);
+assert.equal(flexSlot.player.name, 'Second RB', 'FLEX must seat the best remaining eligible player (Second RB), not a bench-only leftover');
+
+// K/DST: must be represented as real starter slots with real replacement demand.
+const kdstLeague = { roster: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1, BENCH: 6 } };
+const kdstTargets = D.starterTargets(kdstLeague);
+assert.equal(kdstTargets.K, 1, 'starterTargets must represent a real K starter demand');
+assert.equal(kdstTargets.DST, 1, 'starterTargets must represent a real DST starter demand');
+const kdstRoster = [];
+const kicker = { name: 'Test Kicker', position: 'K', overallRank: 180, consensusScore: 30 };
+const kickerLineup = D.optimalLineup([...kdstRoster, kicker], kdstLeague);
+assert.ok(
+  kickerLineup.starters.some((s) => s.slot === 'K' && s.player === kicker),
+  'K must be assignable to a real K starter slot',
+);
+
+// VORP: replacement level must be derived from real projected points and
+// respond to league size/format, not a universal hardcoded rank.
+const vorpPool = [
+  ...Array.from({ length: 35 }, (_v, i) => ({
+    key: `qb${i + 1}`,
+    position: 'QB',
+    projectedPoints: 400 - i * 5,
+  })),
+  { key: 'rb1', position: 'RB', projectedPoints: 290 },
+  { key: 'rb2', position: 'RB', projectedPoints: 240 },
+  { key: 'rb3', position: 'RB', projectedPoints: 190 },
+];
+const smallLeague = { teams: 8, league: { roster: { QB: 1, RB: 2, WR: 2, TE: 1 } }, targets: D.starterTargets({ roster: { QB: 1, RB: 2, WR: 2, TE: 1 } }) };
+const bigSuperflexLeague = { teams: 14, league: { roster: { QB: 1, RB: 2, WR: 2, TE: 1, SUPER_FLEX: 1 } }, targets: D.starterTargets({ roster: { QB: 1, RB: 2, WR: 2, TE: 1, SUPER_FLEX: 1 } }) };
+const replacementSmall = D.computeReplacementPoints(vorpPool, smallLeague);
+const replacementBig = D.computeReplacementPoints(vorpPool, bigSuperflexLeague);
+assert.ok(
+  replacementBig.QB < replacementSmall.QB,
+  'a bigger Superflex league must push QB replacement level deeper into the pool (lower points) than a small 1QB league',
+);
+
+const vbdPercentiles = D.computeVBDPercentiles(vorpPool, smallLeague);
+assert.ok(
+  vbdPercentiles.qb1 > vbdPercentiles.qb35,
+  'the highest-projected QB must have a higher VBD percentile than the lowest',
+);
+assert.ok(
+  vbdPercentiles.qb1 >= 0 && vbdPercentiles.qb1 <= 100,
+  'VBD percentile must be normalized to 0-100',
 );
 
 console.log('draft-intelligence.js tests passed');
