@@ -255,4 +255,54 @@ assert.ok(
   'VBD percentile must be normalized to 0-100',
 );
 
+// K/DST pool integration: must actually enter the draftable pool from a
+// supplemental source when the primary (FantasyCalc) pool lacks them,
+// with no duplicates, nullable ADP/points (never fabricated), real
+// fallback valuation, retained provenance, and absence when disabled.
+const livePoolNoKDST = [
+  { key: 'wr1', position: 'WR', name: 'Test WR', overallRank: 10, consensusScore: 90 },
+];
+const intelKDST = [
+  { name: 'Test Kicker', position: 'K', overall_rank: 190, sleeper_id: 'k-1' },
+  { name: '49ers', position: 'DST', overall_rank: 195, sleeper_id: 'dst-1' },
+  { name: 'Another WR', position: 'WR', overall_rank: 50, sleeper_id: 'wr-99' }, // must NOT duplicate — WR already in live pool
+];
+const kdstEnabledLeague = { roster: { QB: 1, RB: 2, WR: 2, TE: 1, K: 1, DST: 1 } };
+const kdstDisabledLeague = { roster: { QB: 1, RB: 2, WR: 2, TE: 1 } };
+
+const mergedEnabled = D.mergeSupplementalPositions(livePoolNoKDST, intelKDST, kdstEnabledLeague);
+const mergedDisabled = D.mergeSupplementalPositions(livePoolNoKDST, intelKDST, kdstDisabledLeague);
+
+assert.ok(
+  mergedEnabled.some((p) => p.position === 'K' && p.name === 'Test Kicker'),
+  'K must actually enter the pool when the league starts a kicker',
+);
+assert.ok(
+  mergedEnabled.some((p) => p.position === 'DST' && p.name === '49ers'),
+  'DST must actually enter the pool when the league starts a defense',
+);
+assert.equal(
+  mergedEnabled.filter((p) => p.position === 'WR').length,
+  1,
+  'must not duplicate WR — the live pool already has it, supplemental WR must be skipped',
+);
+assert.equal(
+  mergedDisabled.filter((p) => p.position === 'K' || p.position === 'DST').length,
+  0,
+  'K/DST must be entirely absent when the league configuration does not start them',
+);
+const mergedKicker = mergedEnabled.find((p) => p.position === 'K');
+assert.equal(mergedKicker.adp, null, 'ADP must be null when unavailable, never fabricated');
+assert.equal(mergedKicker.projectedPoints, null, 'projected points must be null when unavailable, never fabricated');
+assert.equal(mergedKicker.source, 'supplemental', 'provenance must be retained');
+assert.ok(mergedKicker.value < 50, 'K fallback valuation must reflect real late-round draft value, not an arbitrary high number');
+assert.equal(mergedKicker.key, 'k-1', 'canonical ID must use the real sleeper_id when available');
+
+// K/DST must be selectable in the actual optimal lineup once merged in.
+const kdstLineupTest = D.optimalLineup([...livePoolNoKDST, mergedKicker], kdstEnabledLeague);
+assert.ok(
+  kdstLineupTest.starters.some((s) => s.slot === 'K' && s.player === mergedKicker),
+  'merged K must be selectable into a real starting lineup slot',
+);
+
 console.log('draft-intelligence.js tests passed');
