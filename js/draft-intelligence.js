@@ -324,9 +324,11 @@
   }
 
   function rosterCounts(picks) {
-    const counts = { QB: 0, RB: 0, WR: 0, TE: 0 };
+    const counts = {};
     (picks || []).forEach((pick) => {
-      if (counts[pick.position] != null) counts[pick.position] += 1;
+      const position = pick.position;
+      if (!position) return;
+      counts[position] = numeric(counts[position], 0) + 1;
     });
     return counts;
   }
@@ -341,6 +343,8 @@
       RB: Math.max(2, numeric(roster.RB, 2)),
       WR: Math.max(2, numeric(roster.WR, 2)),
       TE: Math.max(1, numeric(roster.TE, 1)),
+      K: Math.max(0, numeric(roster.K, 0)),
+      DST: Math.max(0, numeric(roster.DST, 0)),
     };
     const flex = numeric(roster.FLEX, 0);
     if (flex > 0) {
@@ -448,28 +452,173 @@
     return Math.max(1, teams * numeric(targets[position], 1) + flexBuffer);
   }
 
+  // ---------------------------------------------------------------------
+  // Value Over Replacement (spec Section 5) — real projected fantasy
+  // points, not a rank-based proxy, once projection data is available.
+  // Replacement level is derived dynamically from THIS league's actual
+  // config (team count, starter targets including FLEX/Superflex demand)
+  // rather than a universal QB12/RB24/WR24/TE12 assumption — a 12-team
+  // Superflex league and a 10-team 1QB league produce different QB
+  // replacement levels because starterTargets() already accounts for
+  // SUPER_FLEX/FLEX demand.
+  // ---------------------------------------------------------------------
+
+  // Computes replacement-level projected points per position from the full
+  // player pool. Call once per pool load, not per player — this needs
+  // every player's projected points to find the Nth-ranked player's score.
+  function computeReplacementPoints(players, context) {
+    const byPosition = {};
+    (players || []).forEach((player) => {
+      if (player.projectedPoints == null || !player.position) return;
+      byPosition[player.position] = byPosition[player.position] || [];
+      byPosition[player.position].push(player.projectedPoints);
+    });
+    const replacementPoints = {};
+    Object.entries(byPosition).forEach(([position, points]) => {
+      points.sort((a, b) => b - a);
+      const rank = replacementRank(position, context);
+      const index = Math.min(points.length - 1, Math.max(0, rank - 1));
+      replacementPoints[position] = points.length ? points[index] : null;
+    });
+    return replacementPoints;
+  }
+
+  // Computes a 0-100 VORP percentile per player, relative to other players
+  // at the SAME position (so a QB's raw point total, which runs much
+  // higher than a TE's, is never compared on the same absolute scale).
+  // Returns a Map from player key to percentile — attach the result to
+  // each player as `.vbdPercentileScore` before scoring.
+  function computeVBDPercentiles(players, context) {
+    const replacementPoints = computeReplacementPoints(players, context);
+    const byPosition = {};
+    (players || []).forEach((player) => {
+      if (player.projectedPoints == null || !player.position) return;
+      const replacement = replacementPoints[player.position];
+      if (replacement == null) return;
+      const vorp = player.projectedPoints - replacement;
+      byPosition[player.position] = byPosition[player.position] || [];
+      byPosition[player.position].push({ key: player.key, vorp });
+    });
+    const result = {};
+    Object.values(byPosition).forEach((list) => {
+      const vorps = list.map((entry) => entry.vorp);
+      const min = Math.min(...vorps);
+      const max = Math.max(...vorps);
+      const range = Math.max(1, max - min);
+      list.forEach((entry) => {
+        result[entry.key] = clamp(((entry.vorp - min) / range) * 100);
+      });
+    });
+    return result;
+  }
+
   function vbdScore(player, context) {
+    // Prefer real points-based VORP (precomputed pool-wide and attached to
+    // the player) when available. Falls back to the previous rank-based
+    // proxy when projection data hasn't loaded yet — same defensive
+    // pattern used for pedigree/ageCurve, missing data never crashes.
+    if (player.vbdPercentileScore != null) {
+      return clamp(numeric(player.vbdPercentileScore, 50));
+    }
     const replacement = replacementRank(player.position, context);
     const advantage = replacement - numeric(player.posRank, replacement);
     return clamp(45 + (advantage / Math.max(6, replacement)) * 55);
   }
 
+  // ---------------------------------------------------------------------
+  // FLEX / Starting-Lineup Optimizer (spec Section 6). FLEX is treated as
+  // slot eligibility, not a position. Given any set of drafted players and
+  // a league's roster config, determine the actual optimal legal starting
+  // lineup by greedily assigning the highest-Player-Grade player to each
+  // slot in eligibility order. This replaces the previous flat
+  // "count vs target" heuristic, which could not tell "this slot already
+  // has a strong starter" apart from "this slot has a weak starter this
+  // new player would actually upgrade."
+  // ---------------------------------------------------------------------
+  const SLOT_ELIGIBILITY = {
+    QB: ["QB"],
+    RB: ["RB"],
+    WR: ["WR"],
+    TE: ["TE"],
+    K: ["K"],
+    DST: ["DST"],
+    FLEX: ["RB", "WR", "TE"],
+    SUPER_FLEX: ["QB", "RB", "WR", "TE"],
+    WRRB_FLEX: ["RB", "WR"],
+    REC_FLEX: ["WR", "TE"],
+  };
+  const NON_STARTER_SLOTS = new Set(["BENCH", "BN", "TAXI", "IR"]);
+
+  function optimalLineup(picks, league = {}) {
+    const roster = league.roster || {};
+    const slots = [];
+    Object.entries(roster).forEach(([slotName, count]) => {
+      if (NON_STARTER_SLOTS.has(slotName)) return;
+      for (let i = 0; i < numeric(count, 0); i += 1) slots.push(slotName);
+    });
+    const pool = (picks || [])
+      .filter((player) => player && player.position)
+      .map((player) => ({ player, grade: playerGrade(player), used: false }))
+      .sort((a, b) => b.grade - a.grade);
+    const starters = slots.map((slotName) => {
+      const eligible = SLOT_ELIGIBILITY[slotName] || [slotName];
+      const match = pool.find(
+        (entry) => !entry.used && eligible.includes(entry.player.position),
+      );
+      if (match) match.used = true;
+      return { slot: slotName, player: match ? match.player : null };
+    });
+    const bench = pool.filter((entry) => !entry.used).map((entry) => entry.player);
+    return { starters, bench, slots };
+  }
+
+  // Would this specific candidate actually enter the optimal starting
+  // lineup if added to the current roster right now? This is the real
+  // signal Dynamic Roster Need (spec Section 7) needs — not "have I met
+  // a raw count," but "does this exact player improve my starters."
+  function wouldStart(candidate, picks, league) {
+    const lineup = optimalLineup([...(picks || []), candidate], league);
+    return lineup.starters.some((s) => s.player === candidate);
+  }
+
   function needScore(player, context) {
-    const counts = context.counts || rosterCounts(context.picks);
-    const targets = context.targets || starterTargets(context.league);
+    const league = context.league || {};
+    const picks = context.picks || [];
+    const startsIfAdded = wouldStart(player, picks, league);
+
+    if (startsIfAdded) {
+      // Distinguish filling a genuinely unfilled starter slot (highest
+      // urgency) from upgrading a slot a weaker player currently occupies
+      // (still valuable, but not as urgent).
+      const currentLineup = optimalLineup(picks, league);
+      const eligibleSlots = Object.keys(SLOT_ELIGIBILITY).filter((slot) =>
+        (SLOT_ELIGIBILITY[slot] || [slot]).includes(player.position),
+      );
+      const hasUnfilledEligibleSlot = currentLineup.starters.some(
+        (s) => eligibleSlots.includes(s.slot) && !s.player,
+      );
+      return hasUnfilledEligibleSlot ? 90 : 74;
+    }
+
+    // Bench-only. Spec Section 13 explicitly calls for suppressing
+    // unnecessary QB depth in 1QB and excessive TE depth, while not
+    // penalizing genuine RB/WR bench value — this is bench-VALUE shaping,
+    // not the core starter-determination mechanism (which is fully
+    // generic above), so light position-awareness here is intentional
+    // and spec-sanctioned, not a special case for any named player.
+    const counts = context.counts || rosterCounts(picks);
     const have = numeric(counts[player.position], 0);
-    const target = numeric(targets[player.position], 1);
-    if (have < target) return clamp(72 + (target - have) * 12);
-    if (player.position === "QB" && target === 1 && have >= 1)
+    if (player.position === "QB" && !context.superflex && have >= 1) {
       return numeric(player.posRank, 99) <= 3 ? 22 : 4;
+    }
     if (
       player.position === "TE" &&
-      target === 1 &&
       have >= 1 &&
       numeric(player.posRank, 99) <= 5
-    )
+    ) {
       return 14;
-    return clamp(48 - Math.max(0, have - target) * 13);
+    }
+    return clamp(40 - have * 4);
   }
 
   function tierScore(player) {
@@ -733,10 +882,13 @@
     POSITIONS,
     STRATEGIES,
     assignTiers,
+    computeReplacementPoints,
+    computeVBDPercentiles,
     enrichPlayers,
     leagueValueScore,
     marketValueScore,
     normalizeName,
+    optimalLineup,
     playerGrade,
     playerKey,
     roundAdjustedWeights,
@@ -748,5 +900,6 @@
     strategyCompatibility,
     strategyDirective,
     teamScheme,
+    wouldStart,
   };
 });
