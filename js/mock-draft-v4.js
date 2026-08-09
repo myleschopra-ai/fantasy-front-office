@@ -1127,6 +1127,35 @@
         if (item.name && !state.newsByName[item.name]) state.newsByName[item.name] = item;
       });
     }
+    // Merge real projected points (fantasypros.json's projections, already
+    // fetched above) into player objects, then compute pool-wide VORP once.
+    // Falls back gracefully to the rank-based proxy in vbdScore() for any
+    // player without a matched projection — never crashes, never blocks.
+    if (fpResult.status === "fulfilled" && fpResult.value?.projections) {
+      const projByName = {};
+      Object.values(fpResult.value.projections).forEach((list) => {
+        if (Array.isArray(list)) {
+          list.forEach((row) => {
+            if (row.name) projByName[row.name] = row.projected_points ?? row.points_half;
+          });
+        }
+      });
+      state.players.forEach((player) => {
+        const points = projByName[player.name];
+        if (points != null) player.projectedPoints = points;
+      });
+      const vbdContext = {
+        teams: state.teams,
+        league: state.activeLeague || DEFAULT_LEAGUE,
+        targets: targets(),
+      };
+      const vbdPercentiles = D.computeVBDPercentiles(state.players, vbdContext);
+      state.players.forEach((player) => {
+        if (vbdPercentiles[player.key] != null) {
+          player.vbdPercentileScore = vbdPercentiles[player.key];
+        }
+      });
+    }
     rehydratePicks();
     state.survivalCache.clear();
     if (!state.players.length) {
