@@ -24,8 +24,8 @@ OUTPUT = Path("fantasypros.json")
 API_KEY = os.environ.get("FANTASYPROS_API_KEY")
 SEASON = int(os.environ.get("NFL_SEASON", date.today().year))
 SCORING = os.environ.get("FANTASY_SCORING", "HALF").upper()
-POSITIONS = ["ALL", "QB", "RB", "WR", "TE"]
-MINIMUM_RANKINGS = {"OVERALL": 100, "QB": 20, "RB": 30, "WR": 40, "TE": 20}
+POSITIONS = ["ALL", "QB", "RB", "WR", "TE", "K", "DST"]
+MINIMUM_RANKINGS = {"OVERALL": 100, "QB": 20, "RB": 30, "WR": 40, "TE": 20, "K": 20, "DST": 20}
 
 
 def get_json(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
