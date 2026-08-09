@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
-POSITIONS = {"QB", "RB", "WR", "TE"}
+POSITIONS = {"QB", "RB", "WR", "TE", "K", "DST"}
 USER_AGENT = "FantasyFrontOffice/2.0 (+https://github.com/myleschopra-ai/fantasy-front-office)"
 PROFILE_SPECS = {
     "redraft_1qb_standard": {"dynasty": False, "qbs": 1, "ppr": 0.0, "ffc": "standard"},
