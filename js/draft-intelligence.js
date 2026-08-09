@@ -480,6 +480,44 @@
     return clamp(score);
   }
 
+  // Real draft methodology differs by round: early picks should lean almost
+  // entirely on value (roster construction isn't defined yet), later picks
+  // should weigh roster need, opportunity, and situational context (pedigree,
+  // age curve) more heavily since static consensus rank matters less once
+  // you're differentiating between bench-caliber options. This blends each
+  // strategy's base weights toward a shared late-round shift as the draft
+  // progresses, rather than using one fixed weight set for all 16+ rounds.
+  const LATE_ROUND_SHIFT = {
+    market: -0.1,
+    vbd: -0.06,
+    tier: -0.02,
+    need: 0.1,
+    availability: 0.03,
+    pedigree: 0.03,
+    ageCurve: 0.02,
+  };
+
+  function roundAdjustedWeights(baseWeights, round, totalRounds) {
+    const safeTotalRounds = Math.max(1, numeric(totalRounds, 16));
+    const t = clamp01((numeric(round, 1) - 1) / Math.max(1, safeTotalRounds - 1));
+    const adjusted = {};
+    let total = 0;
+    Object.entries(baseWeights).forEach(([key, weight]) => {
+      const delta = (LATE_ROUND_SHIFT[key] || 0) * t;
+      const value = Math.max(0.01, weight + delta);
+      adjusted[key] = value;
+      total += value;
+    });
+    Object.keys(adjusted).forEach((key) => {
+      adjusted[key] = adjusted[key] / total;
+    });
+    return adjusted;
+  }
+
+  function clamp01(value) {
+    return Math.max(0, Math.min(1, value));
+  }
+
   function scorePlayer(player, context = {}) {
     const strategy = STRATEGIES[context.strategy]
       ? context.strategy
@@ -510,7 +548,8 @@
       pedigree: clamp(numeric(player.pedigreeScore, 50)),
       ageCurve: clamp(numeric(player.ageCurveScore, 50)),
     };
-    const raw = Object.entries(model.weights).reduce(
+    const effectiveWeights = roundAdjustedWeights(model.weights, context.round, context.totalRounds);
+    const raw = Object.entries(effectiveWeights).reduce(
       (sum, [key, weight]) => sum + components[key] * weight,
       0,
     );
@@ -530,7 +569,7 @@
       score: Math.round(raw),
       confidence: Math.round(confidence),
       components,
-      weights: model.weights,
+      weights: effectiveWeights,
     };
   }
 
@@ -624,6 +663,7 @@
     enrichPlayers,
     normalizeName,
     playerKey,
+    roundAdjustedWeights,
     rosterCounts,
     scorePlayer,
     selectProfile,
