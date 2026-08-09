@@ -724,6 +724,76 @@
     return clamp(grade * 0.55 + vbd * 0.45);
   }
 
+  // ---------------------------------------------------------------------
+  // K/DST pool integration (spec: "Close K/DST end-to-end"). The primary
+  // player pool (FantasyCalc, a dynasty trade-value market) does not carry
+  // K/DST at all — this merges them in from a supplemental intelligence
+  // source when the live pool is missing them, so they can actually be
+  // searched, filtered, and drafted. Requirements enforced here:
+  //   - canonical IDs (sleeper_id when available, else a stable derived
+  //     key that cannot collide with an existing live-pool key)
+  //   - no duplicates (skips any position already represented in the pool)
+  //   - ADP left null when unavailable, never fabricated
+  //   - projected points left null when unavailable, never fabricated
+  //   - fallback valuation reflects real-world K/DST draft value (low,
+  //     late-round) rather than an arbitrary or missing number
+  //   - provenance retained (source: 'supplemental')
+  //   - only added when the league's roster config actually starts that
+  //     position — absent entirely when disabled
+  // ---------------------------------------------------------------------
+  function mergeSupplementalPositions(livePlayers, intelPlayers, league = {}) {
+    const roster = league.roster || {};
+    const enabledPositions = new Set();
+    if (numeric(roster.K, 0) > 0) enabledPositions.add("K");
+    if (numeric(roster.DST, 0) > 0) enabledPositions.add("DST");
+    if (!enabledPositions.size) return livePlayers;
+
+    const livePositions = new Set();
+    (livePlayers || []).forEach((player) => {
+      if (player.position) livePositions.add(player.position);
+    });
+
+    const supplemental = [];
+    const seenKeys = new Set((livePlayers || []).map((player) => player.key));
+    (intelPlayers || []).forEach((candidate, index) => {
+      const position = String(candidate.position || "").toUpperCase();
+      if (!enabledPositions.has(position)) return;
+      // Only merge in a position the live pool is genuinely missing — if
+      // FantasyCalc ever does start carrying K/DST, don't create duplicates.
+      if (livePositions.has(position)) return;
+      const key = String(
+        candidate.sleeper_id || `supplemental-${position}-${normalizeName(candidate.name)}-${index}`,
+      );
+      if (seenKeys.has(key)) return;
+      seenKeys.add(key);
+      // Fallback valuation: K/DST have no dynasty trade-value market, so a
+      // low, clearly-marked late-round percentile is the honest default —
+      // this matches real K/DST draft behavior (spec: "substantial
+      // early-round opportunity-cost penalty"), not an arbitrary number.
+      const fallbackValue = candidate.overall_rank != null
+        ? percentileRank(numeric(candidate.overall_rank, 200), 200) * 0.3
+        : 8;
+      supplemental.push({
+        key,
+        name: candidate.name || "Unknown",
+        position,
+        nflTeam: candidate.team || "",
+        rank: numeric(candidate.overall_rank, null),
+        overallRank: numeric(candidate.overall_rank, null),
+        posRank: numeric(candidate.position_rank, null),
+        tier: numeric(candidate.position_tier, 99),
+        consensusScore: fallbackValue,
+        value: Math.round(fallbackValue),
+        adp: candidate.adp != null ? numeric(candidate.adp, null) : null,
+        projectedPoints: null,
+        source: "supplemental",
+        sourceCount: numeric(candidate.source_count, 1),
+        agreement: numeric(candidate.agreement, 50),
+      });
+    });
+    return [...(livePlayers || []), ...supplemental];
+  }
+
   function scorePlayer(player, context = {}) {
     const strategy = STRATEGIES[context.strategy]
       ? context.strategy
@@ -887,6 +957,7 @@
     enrichPlayers,
     leagueValueScore,
     marketValueScore,
+    mergeSupplementalPositions,
     normalizeName,
     optimalLineup,
     playerGrade,
