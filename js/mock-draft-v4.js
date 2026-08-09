@@ -283,6 +283,7 @@
       league: state.activeLeague || DEFAULT_LEAGUE,
       teams: state.teams,
       round: Math.floor(picks.length / state.teams) + 1,
+      totalRounds: state.rounds,
       picks: roster,
       counts: D.rosterCounts(roster),
       targets: targets(),
