@@ -1105,6 +1105,14 @@
         : [];
     state.marketLoaded = live.length > 0;
     state.players = D.enrichPlayers(live, state.intelProfile);
+    // K/DST pool integration — FantasyCalc (the primary market source)
+    // does not carry K/DST at all. Merge them in from the intelligence
+    // profile when the league's roster config actually starts them.
+    state.players = D.mergeSupplementalPositions(
+      state.players,
+      state.intelProfile?.players || [],
+      state.activeLeague || DEFAULT_LEAGUE,
+    );
     // Merge in draft-capital and age-curve scouting signals, matched by name.
     // Fails gracefully — if scouting_signals.json hasn't been generated yet,
     // scorePlayer's neutral (50) defaults apply and nothing breaks.
