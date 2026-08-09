@@ -693,7 +693,14 @@
           <div class="muted">${index === 0 ? (draftedPick ? "DRAFTED" : "SELECTED") : "POSITION PEER"}</div>
           <div class="name">${esc(candidate.name)}</div>
           <div class="meta">O${numeric(candidate.overallRank, candidate.rank)} · ${candidate.position}${numeric(candidate.posRank, 999)} · T${numeric(candidate.tier, 99)}</div>
-          <div class="metricline">Recommendation <strong>${evaluation.score}</strong> · confidence ${evaluation.confidence}%</div>
+          <div class="metric-grid" style="grid-template-columns: repeat(4, 1fr); margin-top:6px;">
+            ${metric("Player Grade", evaluation.playerGrade)}
+            ${metric("Market Value", evaluation.marketValue)}
+            ${metric("League Value", evaluation.leagueValue)}
+            ${metric("Pick Utility", evaluation.pickUtility)}
+          </div>
+          <div class="detail-line" style="margin-top:6px;">Player Grade = stable quality, never changes from your own roster. Pick Utility = should you draft him <em>right now</em>, given your roster and this moment.</div>
+          <div class="metricline" style="margin-top:8px;">confidence ${evaluation.confidence}%</div>
           <div class="metric-grid">
             ${metric("Market", Math.round(c.market))}
             ${metric("VBD", Math.round(c.vbd))}
