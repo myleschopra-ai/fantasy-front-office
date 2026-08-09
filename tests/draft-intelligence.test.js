@@ -56,4 +56,22 @@ assert.ok(zeroCatchup.score > zeroEarly.score, 'Zero RB must turn back toward RB
 const sfLeague = { ...league, roster: { ...league.roster, SUPER_FLEX: 1 } };
 assert.equal(D.strategyCompatibility('late-qb', sfLeague).viable, false, 'Late QB must warn in Superflex');
 
+// Round-dependent weight blending: real draft methodology should shift from
+// pure value (early) toward need/situational factors (late), not stay static.
+const baseWeights = D.STRATEGIES.adaptive.weights;
+const earlyRoundWeights = D.roundAdjustedWeights(baseWeights, 1, 16);
+const lateRoundWeights = D.roundAdjustedWeights(baseWeights, 16, 16);
+const earlySum = Object.values(earlyRoundWeights).reduce((sum, value) => sum + value, 0);
+const lateSum = Object.values(lateRoundWeights).reduce((sum, value) => sum + value, 0);
+assert.ok(Math.abs(earlySum - 1) < 1e-9, 'round-adjusted weights must sum to 1 at round 1');
+assert.ok(Math.abs(lateSum - 1) < 1e-9, 'round-adjusted weights must sum to 1 at the final round');
+assert.ok(
+  lateRoundWeights.need > earlyRoundWeights.need,
+  'need weight must increase in later rounds',
+);
+assert.ok(
+  lateRoundWeights.market < earlyRoundWeights.market,
+  'market weight must decrease in later rounds',
+);
+
 console.log('draft-intelligence.js tests passed');
