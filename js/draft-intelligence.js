@@ -646,6 +646,50 @@
   // avoiding false precision (a bucketed category plus a bounded
   // wait-cost number, not a claim of exact percentage confidence).
   // ---------------------------------------------------------------------
+  // ---------------------------------------------------------------------
+  // Opponent Simulation — the actual pick-selection decision, extracted
+  // as a pure function so it's testable with deterministic (seeded)
+  // randomness rather than only ever exercised via true Math.random() in
+  // the live UI. Production code passes Math.random; tests pass a fixed
+  // sequence to prove bounded-rational behavior reproducibly. Scarcity is
+  // now a real input — a team facing a positional run should weight that
+  // urgency, not just base need.
+  // ---------------------------------------------------------------------
+  function chooseBestCandidate(scoredCandidates, options = {}) {
+    const amplitude = numeric(options.amplitude, 5);
+    const scarcityWeight = numeric(options.scarcityWeight, 0.15);
+    const randomFn = typeof options.randomFn === "function" ? options.randomFn : Math.random;
+    if (!scoredCandidates || !scoredCandidates.length) return null;
+    const jittered = scoredCandidates.map((entry) => {
+      const scarcityBoost = numeric(entry.scarcity, 0) * scarcityWeight;
+      const baseScore = numeric(entry.score, 0) + scarcityBoost;
+      return {
+        ...entry,
+        jitteredScore: baseScore + (randomFn() - 0.5) * amplitude * 2,
+      };
+    });
+    jittered.sort(
+      (a, b) =>
+        b.jitteredScore - a.jitteredScore ||
+        numeric(a.player.overallRank, 999) - numeric(b.player.overallRank, 999),
+    );
+    return jittered[0].player;
+  }
+
+  // Simple seedable PRNG (mulberry32) for deterministic tests — not
+  // cryptographic, just reproducible. Given the same seed, produces the
+  // same sequence every time, so opponent behavior can be tested exactly.
+  function seededRandom(seed) {
+    let state = seed >>> 0;
+    return function next() {
+      state = (state + 0x6d2b79f5) >>> 0;
+      let t = state;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
   function waitRiskCategory(inputs = {}) {
     const survivalProbability = clamp(numeric(inputs.survivalProbability, 50), 0, 100);
     const playerValue = clamp(numeric(inputs.playerValue, 50), 0, 100);
@@ -1048,6 +1092,7 @@
     POSITIONS,
     STRATEGIES,
     assignTiers,
+    chooseBestCandidate,
     computeReplacementPoints,
     computeVBDPercentiles,
     enrichPlayers,
@@ -1061,6 +1106,7 @@
     roundAdjustedWeights,
     rosterCounts,
     scarcityScore,
+    seededRandom,
     waitRiskCategory,
     scorePlayer,
     selectProfile,
