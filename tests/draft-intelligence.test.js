@@ -404,4 +404,56 @@ assert.ok(
   'TURN DISTANCE: a closer turn must carry higher wait cost than a distant one, same player',
 );
 
+// OPPONENT SIMULATION — deterministic seeded tests, since randomness is
+// involved. Same seed must reproduce the same pick every time; bounded
+// amplitude must not make an opponent choose an obviously worse player
+// over a clearly superior one; scarcity must be able to tip a close
+// decision.
+const candidatesForChoice = [
+  { player: { name: 'Best Player', overallRank: 1 }, score: 90, scarcity: 20 },
+  { player: { name: 'Second Player', overallRank: 2 }, score: 70, scarcity: 20 },
+  { player: { name: 'Third Player', overallRank: 3 }, score: 50, scarcity: 20 },
+];
+
+// REPRODUCIBILITY: same seed, same result, every time.
+const seededPick1 = D.chooseBestCandidate(candidatesForChoice, {
+  amplitude: 5, randomFn: D.seededRandom(42),
+});
+const seededPick2 = D.chooseBestCandidate(candidatesForChoice, {
+  amplitude: 5, randomFn: D.seededRandom(42),
+});
+assert.equal(
+  seededPick1.name, seededPick2.name,
+  'OPPONENT SIMULATION: the same seed must produce the identical pick every time',
+);
+
+// BOUNDED RATIONALITY: with a low amplitude relative to a large score gap,
+// the clearly-best player must win regardless of jitter — randomness must
+// not make opponents behave irrationally.
+let bestPlayerWinCount = 0;
+for (let seed = 0; seed < 50; seed += 1) {
+  const pick = D.chooseBestCandidate(candidatesForChoice, {
+    amplitude: 5, randomFn: D.seededRandom(seed * 7919),
+  });
+  if (pick.name === 'Best Player') bestPlayerWinCount += 1;
+}
+assert.ok(
+  bestPlayerWinCount >= 45,
+  `OPPONENT SIMULATION: bounded randomness (amplitude 5 vs a 20-point score gap) must not make opponents choose an obviously worse player routinely — best player won only ${bestPlayerWinCount}/50`,
+);
+
+// SCARCITY INFLUENCE: a close score race, but one candidate is far more
+// scarce — scarcity must be able to tip the decision toward it.
+const closeRaceCandidates = [
+  { player: { name: 'Close A', overallRank: 1 }, score: 70, scarcity: 10 },
+  { player: { name: 'Close B (scarce)', overallRank: 2 }, score: 68, scarcity: 95 },
+];
+const scarcityTippedPick = D.chooseBestCandidate(closeRaceCandidates, {
+  amplitude: 0, scarcityWeight: 0.3, randomFn: D.seededRandom(1),
+});
+assert.equal(
+  scarcityTippedPick.name, 'Close B (scarce)',
+  'OPPONENT SIMULATION: real scarcity must be able to tip a close decision, not just base score',
+);
+
 console.log('draft-intelligence.js tests passed');
