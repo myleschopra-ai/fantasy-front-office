@@ -5,7 +5,7 @@ if(typeof module==='object'&&module.exports)module.exports=api;
 if(root)root.FFOBacktest=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
 'use strict';
-const numeric=(v,f=null)=>Number.isFinite(Number(v))?Number(v):f;
+const numeric=(v,f=null)=>v===null||v===undefined||v===''?f:(Number.isFinite(Number(v))?Number(v):f);
 function averageRanks(values){
  const indexed=values.map((value,index)=>({value:numeric(value),index})).filter(x=>x.value!=null).sort((a,b)=>a.value-b.value);
  const ranks=new Array(values.length).fill(null);
