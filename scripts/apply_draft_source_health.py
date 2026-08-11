@@ -69,46 +69,45 @@ new_return = '''    const sourcePenalty = SourceHealth ? SourceHealth.confidence
 if old_return in snake:
     snake = snake.replace(old_return, new_return, 1)
 
-render_marker = '''    // Data restoration is complete. Persist refreshed player/source metadata and
-    // leave the state machine in the truthful draft lifecycle state.
-    save();'''
-render_insert = '''    if (SourceHealth && state.sourceHealth) {
-      const healthLabel = SourceHealth.label(state.sourceHealth);
-      const profileLabel = state.intelProfile?.id || "no compatible profile";
-      $("source").textContent = `${healthLabel} · ${profileLabel} · ${state.players.length} players${state.marketLoaded ? " · live market" : " · cached consensus"}`;
-      $("source").title = state.sourceHealth.issues.join(" · ");
-    }
-    // Data restoration is complete. Persist refreshed player/source metadata and
-    // leave the state machine in the truthful draft lifecycle state.
-    save();'''
-if 'const healthLabel = SourceHealth.label(state.sourceHealth);' not in snake:
-    if render_marker not in snake: raise SystemExit('snake render source-health marker missing')
-    snake = snake.replace(render_marker, render_insert, 1)
+# Health rendering belongs to the normal render lifecycle, not only loadData().
+if 'function renderSourceHealth()' not in snake:
+    marker = '''  function render() {
+'''
+    helper = '''  function renderSourceHealth() {
+    if (!SourceHealth || !state.sourceHealth || !$("source")) return;
+    const healthLabel = SourceHealth.label(state.sourceHealth);
+    const profileLabel = state.intelProfile?.id || "no compatible profile";
+    $("source").textContent = `${healthLabel} · ${profileLabel} · ${state.players.length} players${state.marketLoaded ? " · live market" : " · cached consensus"}`;
+    $("source").title = state.sourceHealth.issues.join(" · ");
+  }
 
-# renderIntelligence() can update the source line. Make source health the final
-# presentation after the full render cycle so the visible status is authoritative.
-old_order = '''    if (SourceHealth && state.sourceHealth) {
-      const healthLabel = SourceHealth.label(state.sourceHealth);
-      const profileLabel = state.intelProfile?.id || "no compatible profile";
-      $("source").textContent = `${healthLabel} · ${profileLabel} · ${state.players.length} players${state.marketLoaded ? " · live market" : " · cached consensus"}`;
-      $("source").title = state.sourceHealth.issues.join(" · ");
-    }
-    // Data restoration is complete. Persist refreshed player/source metadata and
-    // leave the state machine in the truthful draft lifecycle state.
-    save();
-    render();'''
-new_order = '''    // Data restoration is complete. Persist refreshed player/source metadata and
-    // leave the state machine in the truthful draft lifecycle state.
-    save();
-    render();
+'''
+    if marker not in snake: raise SystemExit('snake render function marker missing')
+    snake = snake.replace(marker, helper + marker, 1)
+
+render_tail = '''    if (state.activeDraftTab === "recommended") renderRecommended();
+    bindPlayerLinks();
+  }
+'''
+render_tail_new = '''    if (state.activeDraftTab === "recommended") renderRecommended();
+    bindPlayerLinks();
+    renderSourceHealth();
+  }
+'''
+if '    renderSourceHealth();\n  }\n\n  function draft' not in snake:
+    if render_tail not in snake: raise SystemExit('snake render tail marker missing')
+    snake = snake.replace(render_tail, render_tail_new, 1)
+
+# Remove the redundant one-shot presentation block after loadData render if present.
+post_load = '''    render();
     if (SourceHealth && state.sourceHealth) {
       const healthLabel = SourceHealth.label(state.sourceHealth);
       const profileLabel = state.intelProfile?.id || "no compatible profile";
       $("source").textContent = `${healthLabel} · ${profileLabel} · ${state.players.length} players${state.marketLoaded ? " · live market" : " · cached consensus"}`;
       $("source").title = state.sourceHealth.issues.join(" · ");
     }'''
-if old_order in snake:
-    snake = snake.replace(old_order, new_order, 1)
+if post_load in snake:
+    snake = snake.replace(post_load, '    render();', 1)
 
 # Auction runtime: source health is advisory and never destroys a valid auction session.
 if 'SourceHealth=window.FFODraftSourceHealth' not in auction:
