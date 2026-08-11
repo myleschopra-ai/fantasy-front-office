@@ -7,15 +7,23 @@ on:
     paths:
       - 'js/provider-draft-sync.js'
       - 'js/sleeper-draft-client.js'
+      - 'js/mock-draft-v4.js'
+      - 'js/draft-session.js'
+      - 'draft-room-v5.html'
       - 'tests/provider-draft-sync.test.js'
       - 'tests/sleeper-draft-client.test.js'
+      - 'tests/sleeper-live-draft-e2e.mjs'
       - '.github/workflows/validate-provider-draft-sync.yml'
   pull_request:
     paths:
       - 'js/provider-draft-sync.js'
       - 'js/sleeper-draft-client.js'
+      - 'js/mock-draft-v4.js'
+      - 'js/draft-session.js'
+      - 'draft-room-v5.html'
       - 'tests/provider-draft-sync.test.js'
       - 'tests/sleeper-draft-client.test.js'
+      - 'tests/sleeper-live-draft-e2e.mjs'
 
 jobs:
   reconcile-unit:
@@ -29,3 +37,29 @@ jobs:
       - run: node tests/sleeper-draft-client.test.js
       - run: node tests/draft-session.test.js
       - run: node tests/draft-intelligence.test.js
+
+  live-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.54.2
+          npx playwright install --with-deps chromium
+      - name: Start static server
+        run: |
+          python3 -m http.server 4180 --bind 127.0.0.1 > /tmp/ffo-sleeper-live-http.log 2>&1 &
+          for i in {1..20}; do
+            curl -fsS http://127.0.0.1:4180/draft.html >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/ffo-sleeper-live-http.log
+          exit 1
+      - name: Run Sleeper live draft reconciliation regression
+        env:
+          SLEEPER_LIVE_E2E_URL: http://127.0.0.1:4180/draft.html
+        run: node tests/sleeper-live-draft-e2e.mjs
