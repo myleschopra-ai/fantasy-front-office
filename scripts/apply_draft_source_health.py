@@ -86,16 +86,16 @@ if 'const healthLabel = SourceHealth.label(state.sourceHealth);' not in snake:
     snake = snake.replace(render_marker, render_insert, 1)
 
 # Auction runtime: source health is advisory and never destroys a valid auction session.
-if 'const SourceHealth=window.FFODraftSourceHealth' not in auction:
+if 'SourceHealth=window.FFODraftSourceHealth' not in auction:
     auction = auction.replace("const $=id=>document.getElementById(id), LS='ffo_auction_history_v2', SESSION_LS='ffo_auction_session_v4', Session=window.FFODraftSession;",
                               "const $=id=>document.getElementById(id), LS='ffo_auction_history_v2', SESSION_LS='ffo_auction_session_v4', Session=window.FFODraftSession, SourceHealth=window.FFODraftSourceHealth;", 1)
 
 if 'sourceHealth:null' not in auction:
-    auction = auction.replace('sessionStatus:Session?Session.STATES.BOOTING:\'BOOTING\',recoveryIssues:[]};',
-                              'sessionStatus:Session?Session.STATES.BOOTING:\'BOOTING\',recoveryIssues:[],sourceHealth:null};', 1)
+    auction = auction.replace("sessionStatus:Session?Session.STATES.BOOTING:'BOOTING',recoveryIssues:[]};",
+                              "sessionStatus:Session?Session.STATES.BOOTING:'BOOTING',recoveryIssues:[],sourceHealth:null};", 1)
 
-# The auction loader has a single intelligence fetch. Assess it immediately after assignment.
-auction_marker = 'S.intelligence=await fetchJson(`data/draft_intelligence.json?ts=${Date.now()}`);'
+# The auction loader has a single local intelligence snapshot fetch. Assess it after assignment.
+auction_marker = "S.intelligence=await fetch('data/draft_intelligence.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()});"
 auction_replacement = auction_marker + "S.sourceHealth=SourceHealth?SourceHealth.assessRuntime({intelligence:S.intelligence,marketOk:true,scoutingOk:true,newsOk:true}):null;"
 if 'SourceHealth.assessRuntime({intelligence:S.intelligence' not in auction:
     if auction_marker not in auction: raise SystemExit('auction intelligence assignment marker missing')
