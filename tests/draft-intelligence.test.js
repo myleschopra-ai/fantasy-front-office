@@ -305,4 +305,56 @@ assert.ok(
   'merged K must be selectable into a real starting lineup slot',
 );
 
+// SCARCITY ENGINE — the three exact required regression scenarios.
+
+// Build a realistic RB pool: 4 in tier 1 (premium), 6 in tier 2, matching a
+// plausible draft-board shape so the test proves real behavior, not an
+// artifact of a too-small fixture (the same mistake caught earlier).
+function makeRBPool(tier1Count, tier2Count) {
+  const pool = [];
+  for (let i = 0; i < tier1Count; i += 1) {
+    pool.push({ key: `rb-t1-${i}`, position: 'RB', name: `Premium RB ${i}`, overallRank: 5 + i, consensusScore: 95 - i, tier: 1 });
+  }
+  for (let i = 0; i < tier2Count; i += 1) {
+    pool.push({ key: `rb-t2-${i}`, position: 'RB', name: `Solid RB ${i}`, overallRank: 20 + i, consensusScore: 75 - i, tier: 2 });
+  }
+  return pool;
+}
+
+// POSITION RUN: same premium RB, before and after several tier-1 RBs are
+// removed from the pool (simulating a run) — scarcity must rise.
+const fullRBPool = makeRBPool(4, 6);
+const targetRB = fullRBPool[0]; // "Premium RB 0", stays in the pool both times
+const scarcityBeforeRun = D.scarcityScore(targetRB, fullRBPool, { picksUntilNextTurn: 10 });
+
+const afterRunPool = fullRBPool.filter((p) => p.key === 'rb-t1-0' || p.tier !== 1); // remove the other 3 tier-1 RBs
+const scarcityAfterRun = D.scarcityScore(targetRB, afterRunPool, { picksUntilNextTurn: 10 });
+assert.ok(
+  scarcityAfterRun.scarcity > scarcityBeforeRun.scarcity,
+  'POSITION RUN: removing several tier-1 RBs must raise scarcity for the remaining premium RB',
+);
+assert.ok(
+  scarcityAfterRun.tierDepth < scarcityBeforeRun.tierDepth,
+  'POSITION RUN: tier depth must actually decrease after the run',
+);
+
+// TIER CLIFF: same player, one tier-mate left vs. several remaining.
+const onlyOneLeftPool = makeRBPool(1, 6);
+const severalRemainPool = makeRBPool(5, 6);
+const scarcityOneLeft = D.scarcityScore(onlyOneLeftPool[0], onlyOneLeftPool, { picksUntilNextTurn: 10 });
+const scarcitySeveralLeft = D.scarcityScore(severalRemainPool[0], severalRemainPool, { picksUntilNextTurn: 10 });
+assert.ok(
+  scarcityOneLeft.scarcity > scarcitySeveralLeft.scarcity,
+  'TIER CLIFF: being the last player in a strong tier must raise scarcity versus several tier-mates remaining',
+);
+
+// DEEP POSITION: many similarly-valued (same-tier) players remain — scarcity
+// should stay low for any one of them.
+const deepPool = makeRBPool(8, 6);
+const deepScarcity = D.scarcityScore(deepPool[0], deepPool, { picksUntilNextTurn: 10 });
+assert.ok(
+  deepScarcity.scarcity < 40,
+  'DEEP POSITION: scarcity must remain low when many comparable players remain at the position',
+);
+
 console.log('draft-intelligence.js tests passed');
