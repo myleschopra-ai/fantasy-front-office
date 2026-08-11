@@ -1,0 +1,38 @@
+name: Apply mock draft runtime performance patch
+
+on:
+  push:
+    branches:
+      - agent/draft-room-v4-stable
+    paths:
+      - 'scripts/apply_mock_draft_runtime_patch.py'
+      - '.github/workflows/apply-mock-draft-runtime-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply runtime patch
+        run: python3 scripts/apply_mock_draft_runtime_patch.py
+      - name: Run draft intelligence regression suite
+        run: node tests/draft-intelligence.test.js
+      - name: Commit patched runtime
+        run: |
+          if git diff --quiet -- js/mock-draft-v4.js; then
+            echo 'No runtime changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/mock-draft-v4.js
+          git commit -m 'Optimize mock draft live render performance'
+          git push origin HEAD:agent/draft-room-v4-stable
