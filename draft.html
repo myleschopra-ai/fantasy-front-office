@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Front Office — Draft Room</title>
-<meta name="theme-color" content="#070b12">
-<style>html,body{height:100%;margin:0;background:#070b12;color:#f7f9fc;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{display:grid;place-items:center}.boot{text-align:center;color:#8794a8;font-size:12px}.boot strong{display:block;color:#f7f9fc;font-size:14px;margin-bottom:6px}</style>
+<meta name="theme-color" content="#070a10">
+<style>html,body{height:100%;margin:0;background:#070a10;color:#f7f9fc;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{display:grid;place-items:center}.boot{text-align:center;color:#8794a8;font-size:12px}.boot strong{display:block;color:#f7f9fc;font-size:14px;margin-bottom:6px}</style>
 <script>
 (function(){
   'use strict';
@@ -16,8 +16,9 @@
     location.replace('auction.html'+(params.toString()?'?'+params.toString():''));
     return;
   }
-  if(requested==='live') params.set('mode','live'); else params.delete('mode');
-  location.replace('draft-room-v2.html'+(params.toString()?'?'+params.toString():''));
+  if(requested==='live') params.set('draftMode','manual');
+  params.delete('mode');
+  location.replace('draft-room-v3.html'+(params.toString()?'?'+params.toString():''));
 })();
 </script>
 </head>
