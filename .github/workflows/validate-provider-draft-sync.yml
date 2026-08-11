@@ -1,0 +1,26 @@
+name: Validate provider draft sync
+
+on:
+  push:
+    branches:
+      - agent/sleeper-live-draft-sync
+    paths:
+      - 'js/provider-draft-sync.js'
+      - 'tests/provider-draft-sync.test.js'
+      - '.github/workflows/validate-provider-draft-sync.yml'
+  pull_request:
+    paths:
+      - 'js/provider-draft-sync.js'
+      - 'tests/provider-draft-sync.test.js'
+
+jobs:
+  reconcile-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tests/provider-draft-sync.test.js
+      - run: node tests/draft-session.test.js
+      - run: node tests/draft-intelligence.test.js
