@@ -22,6 +22,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Correct deterministic VORP fixture
+        run: sed -i "s/\['TE', 230, 4, 20\]/['TE', 230, 2, 20]/" scripts/apply_draft_calibration_patch.py
       - name: Apply deterministic source patch
         run: python scripts/apply_draft_calibration_patch.py
       - name: Run draft intelligence tests
