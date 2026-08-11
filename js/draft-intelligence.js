@@ -624,6 +624,21 @@
   function needScore(player, context) {
     const league = context.league || {};
     const picks = context.picks || [];
+    const counts = context.counts || rosterCounts(picks);
+    const have = numeric(counts[player.position], 0);
+    const configuredTargets = context.targets || starterTargets(league);
+    const starterTarget = numeric(configuredTargets[player.position], 0);
+    const round = numeric(context.round, 1);
+    const totalRounds = Math.max(1, numeric(context.totalRounds, 16));
+
+    // K/DST are roster-completion positions in conventional redraft formats:
+    // do not let an empty special-teams slot outrank meaningful RB/WR/QB/TE
+    // value early, and never recommend a redundant second K/DST once filled.
+    if (player.position === "K" || player.position === "DST") {
+      if (starterTarget <= 0 || have >= starterTarget) return 1;
+      if (round < Math.max(1, totalRounds - 2)) return 5;
+    }
+
     const startsIfAdded = wouldStart(player, picks, league);
 
     if (startsIfAdded) {
@@ -646,8 +661,6 @@
     // not the core starter-determination mechanism (which is fully
     // generic above), so light position-awareness here is intentional
     // and spec-sanctioned, not a special case for any named player.
-    const counts = context.counts || rosterCounts(picks);
-    const have = numeric(counts[player.position], 0);
     if (player.position === "QB" && !context.superflex && have >= 1) {
       return numeric(player.posRank, 99) <= 3 ? 22 : 4;
     }
