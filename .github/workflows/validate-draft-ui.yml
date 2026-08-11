@@ -1,6 +1,15 @@
 name: Validate draft room UI
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'draft.html'
+      - 'mock-draft-v4.html'
+      - 'auction.html'
+      - 'tests/draft-ui.test.js'
+      - '.github/workflows/validate-draft-ui.yml'
   pull_request:
     paths:
       - 'draft.html'
