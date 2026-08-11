@@ -1,10 +1,11 @@
 name: Validate live draft intelligence
 
-# This workflow is the production-facing calibration gate: synthetic unit
-# tests must pass first, then fresh real sources are rebuilt and checked.
+# Production-facing calibration gate for both snake and auction draft modes.
 on:
   pull_request:
     paths:
+      - 'auction.html'
+      - 'js/auction-intelligence.js'
       - 'js/draft-intelligence.js'
       - 'js/mock-draft-v4.js'
       - 'scripts/refresh_fantasypros.py'
@@ -12,7 +13,9 @@ on:
       - 'scripts/validate_draft_intelligence.py'
       - 'scripts/validate_live_draft_board.js'
       - 'scripts/validate_live_draft_board_v2.js'
+      - 'scripts/validate_live_auction_board.js'
       - 'tests/draft-intelligence.test.js'
+      - 'tests/auction-intelligence.test.js'
       - '.github/workflows/validate-live-draft-intelligence.yml'
   workflow_dispatch:
   schedule:
@@ -41,8 +44,11 @@ jobs:
       - name: Install pinned data dependencies
         run: python -m pip install nflreadpy==0.1.5 beautifulsoup4==4.13.4
 
-      - name: Run draft engine regression tests
+      - name: Run snake draft engine regression tests
         run: node tests/draft-intelligence.test.js
+
+      - name: Run auction draft engine regression tests
+        run: node tests/auction-intelligence.test.js
 
       - name: Run Python regression tests
         run: python -m unittest discover -s tests
@@ -73,15 +79,17 @@ jobs:
       - name: Validate draft-intelligence snapshot
         run: python scripts/validate_draft_intelligence.py data/draft_intelligence.json
 
-      - name: Run real-data ranking and behavior gates
+      - name: Run real-data snake ranking and behavior gates
         run: node scripts/validate_live_draft_board_v2.js --strict --output-dir=reports
 
-      - name: Show human-readable validation report
+      - name: Run real-data auction economy and behavior gates
+        run: node scripts/validate_live_auction_board.js --strict --output-dir=reports
+
+      - name: Show human-readable validation reports
         if: always()
         run: |
-          if [ -f reports/draft_validation_current.md ]; then
-            cat reports/draft_validation_current.md
-          fi
+          if [ -f reports/draft_validation_current.md ]; then cat reports/draft_validation_current.md; fi
+          if [ -f reports/auction_validation_current.md ]; then cat reports/auction_validation_current.md; fi
 
       - name: Upload live validation evidence
         if: always()
@@ -91,6 +99,8 @@ jobs:
           path: |
             reports/draft_validation_current.json
             reports/draft_validation_current.md
+            reports/auction_validation_current.json
+            reports/auction_validation_current.md
             fantasypros.json
             data/draft_intelligence.json
           if-no-files-found: warn
@@ -108,9 +118,7 @@ jobs:
       - name: Show 2025 report
         if: always()
         run: |
-          if [ -f data/backtests/2025/report.md ]; then
-            cat data/backtests/2025/report.md
-          fi
+          if [ -f data/backtests/2025/report.md ]; then cat data/backtests/2025/report.md; fi
       - name: Upload historical backtest evidence
         if: always()
         uses: actions/upload-artifact@v4
