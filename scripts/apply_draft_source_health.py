@@ -85,6 +85,31 @@ if 'const healthLabel = SourceHealth.label(state.sourceHealth);' not in snake:
     if render_marker not in snake: raise SystemExit('snake render source-health marker missing')
     snake = snake.replace(render_marker, render_insert, 1)
 
+# renderIntelligence() can update the source line. Make source health the final
+# presentation after the full render cycle so the visible status is authoritative.
+old_order = '''    if (SourceHealth && state.sourceHealth) {
+      const healthLabel = SourceHealth.label(state.sourceHealth);
+      const profileLabel = state.intelProfile?.id || "no compatible profile";
+      $("source").textContent = `${healthLabel} · ${profileLabel} · ${state.players.length} players${state.marketLoaded ? " · live market" : " · cached consensus"}`;
+      $("source").title = state.sourceHealth.issues.join(" · ");
+    }
+    // Data restoration is complete. Persist refreshed player/source metadata and
+    // leave the state machine in the truthful draft lifecycle state.
+    save();
+    render();'''
+new_order = '''    // Data restoration is complete. Persist refreshed player/source metadata and
+    // leave the state machine in the truthful draft lifecycle state.
+    save();
+    render();
+    if (SourceHealth && state.sourceHealth) {
+      const healthLabel = SourceHealth.label(state.sourceHealth);
+      const profileLabel = state.intelProfile?.id || "no compatible profile";
+      $("source").textContent = `${healthLabel} · ${profileLabel} · ${state.players.length} players${state.marketLoaded ? " · live market" : " · cached consensus"}`;
+      $("source").title = state.sourceHealth.issues.join(" · ");
+    }'''
+if old_order in snake:
+    snake = snake.replace(old_order, new_order, 1)
+
 # Auction runtime: source health is advisory and never destroys a valid auction session.
 if 'SourceHealth=window.FFODraftSourceHealth' not in auction:
     auction = auction.replace("const $=id=>document.getElementById(id), LS='ffo_auction_history_v2', SESSION_LS='ffo_auction_session_v4', Session=window.FFODraftSession;",
