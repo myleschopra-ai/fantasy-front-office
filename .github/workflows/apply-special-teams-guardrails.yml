@@ -1,0 +1,38 @@
+name: Apply special teams guardrails
+
+on:
+  push:
+    branches:
+      - agent/draft-advisor-roster-logic
+    paths:
+      - 'scripts/apply_special_teams_guardrails.py'
+      - '.github/workflows/apply-special-teams-guardrails.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply K DST recommendation guardrails
+        run: python3 scripts/apply_special_teams_guardrails.py
+      - name: Run draft intelligence tests
+        run: node tests/draft-intelligence.test.js
+      - name: Commit guardrails
+        run: |
+          if git diff --quiet -- js/draft-intelligence.js; then
+            echo 'No guardrail changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/draft-intelligence.js
+          git commit -m 'Delay K DST recommendations until roster completion'
+          git push origin HEAD:agent/draft-advisor-roster-logic
