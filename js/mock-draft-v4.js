@@ -1306,11 +1306,18 @@
     state.survivalCache.clear();
     if (!state.players.length) {
       $("source").textContent =
-        "Ranking feeds unavailable. Reload to retry; saved picks were preserved.";
+        "Ranking feeds unavailable. Retry data; saved picks were preserved.";
       $("best").textContent = "Rankings unavailable";
+      if (Session) updateSessionStatus(Session.STATES.ERROR, [
+        intelligenceResult.status === "rejected" ? `Draft intelligence: ${intelligenceResult.reason}` : "Draft intelligence contained no usable players",
+        marketResult.status === "rejected" ? `Market feed: ${marketResult.reason}` : "Market feed unavailable or empty",
+      ]);
       renderIntelligence();
       return;
     }
+    // Data restoration is complete. Persist refreshed player/source metadata and
+    // leave the state machine in the truthful draft lifecycle state.
+    save();
     render();
   }
 
