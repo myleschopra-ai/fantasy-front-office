@@ -618,4 +618,130 @@ assert.ok(
   'STEP 4: remaining WR supply must reflect the two WRs actually drafted during the sequence',
 );
 
+// EXPLAINABILITY OUTPUT — structured, deterministic reasons from real
+// engine state, no invented text.
+const explainLeague = { roster: { QB: 1, RB: 2, WR: 2, TE: 1, BENCH: 6 } };
+const explainContext = {
+  league: explainLeague, teams: 12, round: 3, totalRounds: 16, picks: [],
+  counts: {}, targets: D.starterTargets(explainLeague), superflex: false, poolSize: 250, survival: 50,
+};
+const explainWR = { key: 'exp-wr', name: 'Explain WR', position: 'WR', overallRank: 15, consensusScore: 88, tier: 1, tierEnd: true };
+const explainQB = { key: 'exp-qb', name: 'Explain QB', position: 'QB', overallRank: 5, consensusScore: 95, tier: 1 };
+const explainWREval = D.scorePlayer(explainWR, explainContext);
+const explainQBEval = D.scorePlayer(explainQB, explainContext);
+const explanation = D.explainPick(explainWR, explainWREval, [
+  { player: explainWR, evaluation: explainWREval },
+  { player: explainQB, evaluation: explainQBEval },
+]);
+assert.ok(Array.isArray(explanation.whyThisPlayer) && explanation.whyThisPlayer.length > 0, 'explainPick must produce real whyThisPlayer reasons');
+assert.ok(
+  explanation.whyThisPlayer.some((reason) => reason.includes('Tier')),
+  'a tier-ending player must generate a tier-based reason, not just generic text',
+);
+assert.ok(
+  explanation.whyNotAlternative.length > 0 && explanation.whyNotAlternative[0].includes('Explain QB'),
+  'whyNotAlternative must correctly identify the higher-grade alternative that was NOT chosen',
+);
+assert.ok(
+  explanation.canIWait && typeof explanation.canIWait.recommendation !== 'undefined',
+  'canIWait must expose a real recommendation field',
+);
+
+// THREE-BOARD DATA MODEL — Consensus/Model/Draft Now must be genuinely
+// distinct and react to different inputs, per the required test list.
+const boardLeague1QB = { roster: { QB: 1, RB: 2, WR: 2, TE: 1, BENCH: 6 } };
+const boardPlayers = [
+  { key: 'b-qb1', name: 'Board QB1', position: 'QB', overallRank: 3, posRank: 14, consensusScore: 96, tier: 1 },
+  { key: 'b-rb1', name: 'Board RB1', position: 'RB', overallRank: 5, posRank: 2, consensusScore: 94, tier: 1 },
+  { key: 'b-wr1', name: 'Board WR1', position: 'WR', overallRank: 8, posRank: 3, consensusScore: 91, tier: 1 },
+];
+const boardContextEmpty = { league: boardLeague1QB, teams: 12, round: 1, totalRounds: 16, picks: [], counts: {}, targets: D.starterTargets(boardLeague1QB), superflex: false, poolSize: 250, survival: 50 };
+const boardsEmpty = D.buildBoards(boardPlayers, boardContextEmpty);
+
+// Draft state changes: QB1 gets drafted (roster changes).
+const boardContextAfterQB = { ...boardContextEmpty, picks: [boardPlayers[0]], counts: D.rosterCounts([boardPlayers[0]]) };
+const boardsAfterQB = D.buildBoards(boardPlayers, boardContextAfterQB);
+
+assert.deepEqual(
+  boardsEmpty.consensus.map((e) => e.player.key), boardsAfterQB.consensus.map((e) => e.player.key),
+  'CONSENSUS board must remain stable after a roster change',
+);
+assert.deepEqual(
+  boardsEmpty.model.map((e) => e.player.key), boardsAfterQB.model.map((e) => e.player.key),
+  'MODEL board must remain stable after a roster change (only reacts to league config, not roster)',
+);
+assert.notDeepEqual(
+  boardsEmpty.draftNow.map((e) => e.value), boardsAfterQB.draftNow.map((e) => e.value),
+  'DRAFT NOW board values must change after a roster change (Pick Utility is roster-dependent)',
+);
+
+// League configuration change must move the MODEL board (QB1 vs Superflex).
+const superflexLeagueForBoards = { roster: { QB: 1, RB: 2, WR: 2, TE: 1, SUPER_FLEX: 1, BENCH: 6 } };
+const boardContextSuperflex = { ...boardContextEmpty, league: superflexLeagueForBoards, targets: D.starterTargets(superflexLeagueForBoards), superflex: true };
+const boardsSuperflex = D.buildBoards(boardPlayers, boardContextSuperflex);
+const qbModelValueEmpty = boardsEmpty.model.find((e) => e.player.key === 'b-qb1').value;
+const qbModelValueSuperflex = boardsSuperflex.model.find((e) => e.player.key === 'b-qb1').value;
+assert.notEqual(qbModelValueEmpty, qbModelValueSuperflex, 'MODEL board must change when league configuration changes');
+
+// COMPLETED ROSTER VALIDATION
+const validRosterLeague = { roster: { QB: 1, RB: 1, WR: 1, TE: 1, BENCH: 2 } };
+const validRosterPicks = [
+  { key: 'v-qb', name: 'V QB', position: 'QB', consensusScore: 90 },
+  { key: 'v-rb', name: 'V RB', position: 'RB', consensusScore: 85 },
+  { key: 'v-wr', name: 'V WR', position: 'WR', consensusScore: 80 },
+  { key: 'v-te', name: 'V TE', position: 'TE', consensusScore: 70 },
+  { key: 'v-bn1', name: 'V Bench 1', position: 'WR', consensusScore: 60 },
+];
+const rosterValidation = D.validateCompletedRoster(validRosterPicks, validRosterLeague);
+assert.equal(rosterValidation.valid, true, 'a genuinely valid completed roster must pass validation with zero issues');
+assert.equal(rosterValidation.issues.length, 0, 'a valid roster must report zero issues');
+
+// Deliberately broken case: a duplicate player key must be caught.
+const brokenRosterPicks = [...validRosterPicks, { key: 'v-qb', name: 'V QB', position: 'QB', consensusScore: 90 }];
+const brokenValidation = D.validateCompletedRoster(brokenRosterPicks, validRosterLeague);
+assert.equal(brokenValidation.valid, false, 'a roster with a duplicate player must fail validation');
+
+// CONSENSUS GUARDRAILS — synthetic data with a deliberately inserted
+// outlier, proving the validator actually catches it. Real execution
+// against the live dataset still needs to happen in an environment with
+// actual data access — this proves the LOGIC is correct.
+const guardrailLeague = { roster: { QB: 1, RB: 2, WR: 2, TE: 1, BENCH: 6 } };
+const guardrailPlayers = Array.from({ length: 60 }, (_v, i) => ({
+  key: `g-${i}`, name: `Guardrail Player ${i}`, position: ['QB', 'RB', 'WR', 'TE'][i % 4],
+  overallRank: i + 1, consensusScore: 100 - i, tier: Math.floor(i / 8) + 1,
+}));
+// Deliberately break one player's model-relevant fields so the model
+// ranks him far below his real consensus rank — the exact "WR12 vs WR48"
+// scenario the spec describes.
+const outlierIndex = 5;
+guardrailPlayers[outlierIndex] = {
+  ...guardrailPlayers[outlierIndex],
+  consensusScore: 20, // model will now rank him far lower than his overallRank of 6 suggests
+};
+const guardrailContext = { league: guardrailLeague, teams: 12, round: 1, totalRounds: 16, picks: [], counts: {}, targets: D.starterTargets(guardrailLeague), superflex: false, poolSize: 250, survival: 50 };
+const guardrailReport = D.validateConsensusAlignment(guardrailPlayers, guardrailContext, { deviationThreshold: 10 });
+assert.ok(
+  guardrailReport.overallFlags.some((flag) => flag.name === 'Guardrail Player 5'),
+  'Consensus Guardrails must actually flag a deliberately inserted large model-vs-consensus deviation',
+);
+assert.ok(
+  guardrailReport.overlap.top12.overlap >= 8,
+  'top-12 overlap must be broadly high when only one deliberate outlier exists among 60 players',
+);
+
+// BACKTEST HARNESS — synthetic historical fixture proving the math is
+// correct. Real historical calibration still requires real outcome data
+// this environment cannot fetch live.
+const backtestRecords = Array.from({ length: 30 }, (_v, i) => ({
+  key: `bt-${i}`, modelRank: i + 1, consensusRank: i + 1 + (i % 3), adpRank: i + 1 + (i % 5),
+  actualOutcomeRank: i + 1 + ((i % 7) - 3), injuryDistorted: i === 29,
+}));
+const backtestResult = D.runBacktest(backtestRecords);
+assert.ok(
+  backtestResult.modelRankCorrelation > 0.7,
+  'a model that closely tracks actual outcomes in the synthetic fixture must show strong positive correlation',
+);
+assert.equal(backtestResult.excludedInjuryDistorted, 1, 'injury-distorted records must be identifiably excluded, not silently blended into evidence');
+assert.equal(D.spearmanCorrelation([[1, 1], [2, 2], [3, 3]]), 1, 'perfect rank agreement must produce correlation of exactly 1');
+
 console.log('draft-intelligence.js tests passed');
