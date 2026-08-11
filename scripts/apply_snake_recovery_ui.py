@@ -6,15 +6,16 @@ ui=ui_path.read_text()
 room=room_path.read_text()
 
 if 'id="session-recovery"' not in room:
-    marker='<main class="workspace">'
-    panel='''<section id="session-recovery" class="session-recovery" style="display:none">
-  <div><strong>Draft session recovery</strong><div id="session-recovery-message" class="muted">A saved draft session was found.</div></div>
-  <div class="session-recovery-actions"><button id="session-resume" class="btn primary">Resume</button><button id="session-retry" class="btn secondary">Retry Data</button><button id="session-export" class="btn secondary">Export Session</button><button id="session-reset" class="btn danger">Reset</button></div>
-</section>
-<main class="workspace">'''
-    if marker not in room: raise SystemExit('workspace marker not found')
+    marker='<main class="main">\n  <div class="workspace">'
+    panel='''<main class="main">
+  <div class="workspace">
+    <section id="session-recovery" class="session-recovery" style="display:none">
+      <div><strong>Draft session recovery</strong><div id="session-recovery-message" class="muted">A saved draft session was found.</div></div>
+      <div class="session-recovery-actions"><button id="session-resume" class="btn primary">Resume</button><button id="session-retry" class="btn">Retry Data</button><button id="session-export" class="btn">Export Session</button><button id="session-reset" class="btn ghost">Reset</button></div>
+    </section>'''
+    if marker not in room: raise SystemExit('main/workspace marker not found')
     room=room.replace(marker,panel,1)
-    css='''.session-recovery{margin:8px 12px 0;padding:9px 11px;border:1px solid rgba(245,185,66,.35);border-radius:12px;background:rgba(18,24,38,.96);display:flex;gap:10px;align-items:center;justify-content:space-between}.session-recovery-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.session-recovery .muted{font-size:8px;margin-top:2px}@media(max-width:760px){.session-recovery{margin:6px 8px 0;align-items:flex-start;flex-direction:column}.session-recovery-actions{width:100%;justify-content:flex-start}.session-recovery-actions .btn{min-height:34px}}'''
+    css='''.session-recovery{padding:9px 11px;border:1px solid rgba(255,197,87,.35);border-radius:12px;background:rgba(18,24,38,.98);display:flex;gap:10px;align-items:center;justify-content:space-between}.session-recovery-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.session-recovery .muted{font-size:8px;margin-top:2px}@media(max-width:760px){.session-recovery{align-items:flex-start;flex-direction:column}.session-recovery-actions{width:100%;justify-content:flex-start}.session-recovery-actions .btn{min-height:34px}}'''
     room=room.replace('</style>',css+'</style>',1)
 
 if 'function showSessionRecovery(' not in ui:
@@ -71,7 +72,6 @@ new='''    if (el) {
 if old in ui:
     ui=ui.replace(old,new,1)
 
-# A valid recovered draft gets a non-destructive resume banner after restoration.
 needle='''    state.recoveredSession = state.picks.length > 0;
     updateSessionStatus(
 '''
@@ -82,7 +82,6 @@ replacement='''    state.recoveredSession = state.picks.length > 0;
 if needle in ui:
     ui=ui.replace(needle,replacement,1)
 
-# Recovery button handlers and iOS/browser lifecycle checkpointing.
 marker='''  $("start").onclick = start;
 '''
 handlers='''  if ($("session-resume")) $("session-resume").onclick = () => { state.recoveredSession = false; showSessionRecovery(); render(); };
