@@ -6,59 +6,24 @@
 <title>Front Office — Draft Room</title>
 <meta name="theme-color" content="#020617">
 <style>
-  html,body{height:100%;margin:0;background:#020617;color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-  body{display:grid;place-items:center}
-  .boot{display:grid;gap:10px;text-align:center;padding:24px;max-width:420px}
-  .boot strong{font-size:15px}.boot span{font-size:12px;color:#94a3b8}
-  .error{color:#f87171}
+html,body{height:100%;margin:0;background:#020617;color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{display:grid;place-items:center}.boot{display:grid;gap:10px;text-align:center;padding:24px;max-width:420px}.boot strong{font-size:15px}.boot span{font-size:12px;color:#94a3b8}.error{color:#f87171}
 </style>
-</head>
-<body>
-<div class="boot" id="boot"><strong>Loading Draft Room…</strong><span>Opening the validated draft engine directly.</span></div>
 <script>
-(async()=>{
+(function(){
   'use strict';
-  const params=new URLSearchParams(location.search);
-  const requested=String(params.get('mode')||'mock').toLowerCase();
-  const auction=requested==='auction';
-  const target=auction?'auction.html':'mock-draft-v4.html';
-  const embed=params.get('embed')==='1' || window.self!==window.top;
-  try{
-    const response=await fetch(`${target}?source=direct&ts=${Date.now()}`,{cache:'no-store'});
-    if(!response.ok)throw new Error(`${response.status} ${response.statusText}`);
-    let html=await response.text();
-    if(!auction){
-      const compact=`<style id="ffo-direct-embed-style">
-        ${embed?'header{display:none!important;}':''}
-        body{background:#080b11!important;}
-        main{max-width:none!important;padding:${embed?'8px':'14px'}!important;}
-        .ffo-league-switcher,.ffo-provider-strip{max-width:none!important;margin:4px 0 7px!important;}
-        .panel{border-radius:8px!important;padding:9px!important;}
-        .draft-grid-wrap{max-height:${embed?'165px':'220px'}!important;margin-top:5px!important;overflow:auto!important;}
-        .draft-cell{width:108px!important;min-height:48px!important;padding:4px!important;font-size:9px!important;}
-        .draft-cell.header{min-height:34px!important;}.draft-cell.round{width:42px!important;}
-        .grid{grid-template-columns:minmax(0,1.8fr) minmax(245px,.68fr)!important;gap:8px!important;}
-        .stack{gap:8px!important;}.fields{grid-template-columns:repeat(6,minmax(80px,1fr))!important;gap:6px!important;}
-        .metrics{gap:5px!important;}.metric{padding:7px!important;}.row{padding:7px!important;margin:4px 0!important;}
-        .board{max-height:58vh!important;overflow:auto!important;}
-        @media(max-width:760px){
-          main{padding:0!important}.ffo-league-switcher,.ffo-provider-strip{display:none!important}.grid{grid-template-columns:1fr!important;gap:0!important}
-          .panel{border-radius:0!important;border-left:0!important;border-right:0!important}.fields{grid-template-columns:repeat(3,1fr)!important}
-          .draft-grid-wrap{max-height:128px!important}.draft-cell{width:92px!important;min-height:42px!important}.board{max-height:52vh!important}
-        }
-      </style>`;
-      html=html.replace('</head>',`${compact}</head>`);
-      const desiredMode=requested==='live'?'manual':'sim';
-      html=html.replace('</body>',`<script>window.addEventListener('load',()=>{const m=document.getElementById('mode');if(m){m.value='${desiredMode}';m.dispatchEvent(new Event('change',{bubbles:true}));}});<\/script></body>`);
-    }
-    document.open();
-    document.write(html);
-    document.close();
-  }catch(error){
-    const boot=document.getElementById('boot');
-    boot.innerHTML=`<strong class="error">Draft Room failed to load</strong><span>${String(error.message||error)}</span><button onclick="location.reload()" style="padding:9px 12px;border:0;border-radius:7px;background:#f59e0b;font-weight:800;cursor:pointer">Retry</button>`;
-  }
+  var params=new URLSearchParams(location.search);
+  var requested=String(params.get('mode')||'mock').toLowerCase();
+  var target=requested==='auction'?'auction.html':'mock-draft-v4.html';
+  params.delete('mode');
+  if(requested==='live') params.set('draftMode','manual');
+  if(!params.has('embed') && window.self!==window.top) params.set('embed','1');
+  var suffix=params.toString();
+  location.replace(target+(suffix?'?'+suffix:''));
 })();
 </script>
+</head>
+<body>
+<div class="boot"><strong>Opening Draft Room…</strong><span>If this screen remains visible, refresh once.</span></div>
 </body>
 </html>
