@@ -690,6 +690,75 @@
     };
   }
 
+  // ---------------------------------------------------------------------
+  // Opportunity Cost. For a candidate, finds the best alternative at any
+  // OTHER position, and determines the real cost of passing on it —
+  // reusing wouldStart (does the alternative actually improve my starting
+  // lineup, not just have a good grade) and scarcityScore (is that
+  // alternative's position about to dry up). This is what lets the engine
+  // explain the spec's own example: a QB with the higher intrinsic grade
+  // can still be the wrong pick if he's bench-only right now and the
+  // remaining QB tier is deep, while a WR would start immediately and his
+  // position is scarce.
+  // ---------------------------------------------------------------------
+  function opportunityCost(candidate, availablePool, context = {}) {
+    const picks = context.picks || [];
+    const league = context.league || {};
+    const pool = availablePool || [];
+
+    const otherPositions = [
+      ...new Set(pool.map((player) => player.position)),
+    ].filter((position) => position && position !== candidate.position);
+
+    let bestAlternative = null;
+    let bestAlternativeValue = -Infinity;
+    otherPositions.forEach((position) => {
+      pool
+        .filter((player) => player.position === position)
+        .forEach((player) => {
+          const value = leagueValueScore(player, context);
+          if (value > bestAlternativeValue) {
+            bestAlternativeValue = value;
+            bestAlternative = player;
+          }
+        });
+    });
+
+    if (!bestAlternative) {
+      return {
+        opportunityCost: 0,
+        bestAlternative: null,
+        bestAlternativeValue: 0,
+        lineupImprovementForfeited: false,
+        alternativePositionScarcity: 0,
+      };
+    }
+
+    const candidateStarts = wouldStart(candidate, picks, league);
+    const alternativeStarts = wouldStart(bestAlternative, picks, league);
+    const alternativeScarcity = scarcityScore(bestAlternative, pool, context);
+    const candidateValue = leagueValueScore(candidate, context);
+
+    // Real marginal lineup value forfeited: the alternative would start
+    // and the candidate would not — a genuine lineup improvement passed up,
+    // not just a grade comparison.
+    const lineupImprovementForfeited = alternativeStarts && !candidateStarts;
+
+    const rawCost =
+      (bestAlternativeValue - candidateValue) +
+      (lineupImprovementForfeited ? 25 : 0) +
+      alternativeScarcity.scarcity * 0.2;
+
+    return {
+      opportunityCost: Math.round(clamp(rawCost, 0, 100)),
+      bestAlternative,
+      bestAlternativePosition: bestAlternative.position,
+      bestAlternativeValue: Math.round(bestAlternativeValue),
+      lineupImprovementForfeited,
+      alternativePositionScarcity: Math.round(alternativeScarcity.scarcity),
+    };
+  }
+
   function waitRiskCategory(inputs = {}) {
     const survivalProbability = clamp(numeric(inputs.survivalProbability, 50), 0, 100);
     const playerValue = clamp(numeric(inputs.playerValue, 50), 0, 100);
@@ -1101,6 +1170,7 @@
     mergeSupplementalPositions,
     normalizeName,
     optimalLineup,
+    opportunityCost,
     playerGrade,
     playerKey,
     roundAdjustedWeights,
