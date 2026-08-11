@@ -477,52 +477,92 @@
     Object.entries(byPosition).forEach(([position, points]) => {
       points.sort((a, b) => b - a);
       const rank = replacementRank(position, context);
-      const index = Math.min(points.length - 1, Math.max(0, rank - 1));
-      replacementPoints[position] = points.length ? points[index] : null;
+      // Fail closed on partial projection feeds. Clamping a 10-player sample
+      // to its last row pretends that QB10/RB10/etc. is replacement level and
+      // creates enormous fake VORP. No replacement point is better than a
+      // fabricated one; vbdScore() has a league-aware rank fallback.
+      if (points.length < rank) {
+        replacementPoints[position] = null;
+        return;
+      }
+      replacementPoints[position] = points[rank - 1];
     });
     return replacementPoints;
   }
 
-  // Computes a 0-100 VORP percentile per player, relative to other players
-  // at the SAME position (so a QB's raw point total, which runs much
-  // higher than a TE's, is never compared on the same absolute scale).
-  // Returns a Map from player key to percentile — attach the result to
-  // each player as `.vbdPercentileScore` before scoring.
+  // Computes a 0-100 VORP percentile across the eligible SKILL-PLAYER pool.
+  // VORP is already "points above replacement," so it is specifically the
+  // cross-position quantity we want to compare. Normalizing independently
+  // inside each position incorrectly makes QB1, TE1, K1 and DST1 all look
+  // like 100-value assets even when their actual advantage over replacement
+  // is radically different.
+  //
+  // This function also fails closed when the projection feed does not reach
+  // replacement level for all four offensive skill positions. Mixing a few
+  // true projected-point VORPs with rank-proxy VBD for the rest of the board
+  // creates incompatible scales and was observed with the 10-row API sample.
   function computeVBDPercentiles(players, context) {
     const replacementPoints = computeReplacementPoints(players, context);
-    const byPosition = {};
+    const corePositions = ["QB", "RB", "WR", "TE"];
+    if (corePositions.some((position) => replacementPoints[position] == null)) {
+      return {};
+    }
+
+    const entries = [];
     (players || []).forEach((player) => {
-      if (player.projectedPoints == null || !player.position) return;
+      if (!corePositions.includes(player.position) || player.projectedPoints == null) return;
       const replacement = replacementPoints[player.position];
       if (replacement == null) return;
-      const vorp = player.projectedPoints - replacement;
-      byPosition[player.position] = byPosition[player.position] || [];
-      byPosition[player.position].push({ key: player.key, vorp });
-    });
-    const result = {};
-    Object.values(byPosition).forEach((list) => {
-      const vorps = list.map((entry) => entry.vorp);
-      const min = Math.min(...vorps);
-      const max = Math.max(...vorps);
-      const range = Math.max(1, max - min);
-      list.forEach((entry) => {
-        result[entry.key] = clamp(((entry.vorp - min) / range) * 100);
+      entries.push({
+        key: player.key,
+        vorp: player.projectedPoints - replacement,
       });
+    });
+    if (!entries.length) return {};
+
+    const vorps = entries.map((entry) => entry.vorp);
+    const min = Math.min(...vorps);
+    const max = Math.max(...vorps);
+    const range = Math.max(1, max - min);
+    const result = {};
+    entries.forEach((entry) => {
+      result[entry.key] = clamp(((entry.vorp - min) / range) * 100);
     });
     return result;
   }
 
   function vbdScore(player, context) {
-    // Prefer real points-based VORP (precomputed pool-wide and attached to
-    // the player) when available. Falls back to the previous rank-based
-    // proxy when projection data hasn't loaded yet — same defensive
-    // pattern used for pedigree/ageCurve, missing data never crashes.
+    // Prefer real, pool-wide projected-point VORP when complete projection
+    // coverage exists. Otherwise use the FORMAT-SPECIFIC overall board as
+    // the fallback anchor; a positional rank proxy made every position's
+    // No. 1 option look elite across positions and materially inflated TE,
+    // K, DST, and 1QB quarterbacks.
     if (player.vbdPercentileScore != null) {
       return clamp(numeric(player.vbdPercentileScore, 50));
     }
-    const replacement = replacementRank(player.position, context);
-    const advantage = replacement - numeric(player.posRank, replacement);
-    return clamp(45 + (advantage / Math.max(6, replacement)) * 55);
+
+    const poolSize = numeric(context.poolSize, 250);
+    let score = percentileRank(
+      numeric(player.overallRank || player.rank, poolSize),
+      poolSize,
+    );
+    const roster = context.league?.roster || {};
+    const superflex =
+      numeric(roster.SUPER_FLEX, 0) > 0 || numeric(roster.QB, 1) > 1;
+    if (player.position === "QB") score += superflex ? 10 : -4;
+    if (player.position === "WR") {
+      score += Math.max(0, numeric(roster.WR, 2) - 2) * 3;
+      score += Math.max(0, numeric(roster.FLEX, 0)) * 0.75;
+    }
+    if (player.position === "RB") {
+      score += Math.max(0, numeric(roster.FLEX, 0)) * 0.5;
+    }
+    // K/DST advantages over replacement are narrow and volatile. Without
+    // full projections, never infer first-round-like value from K1/DST1.
+    if (player.position === "K" || player.position === "DST") {
+      score = Math.min(score, 18);
+    }
+    return clamp(score);
   }
 
   // ---------------------------------------------------------------------
@@ -808,11 +848,18 @@
         const deviation = consensusRank - modelEntry.rank; // positive = model ranks him higher than consensus
         if (Math.abs(deviation) >= deviationThreshold) {
           const evaluation = scorePlayer(entry.player, context);
-          const c = evaluation.components;
-          // Attribute the deviation to whichever component is furthest
-          // from a neutral 50 — a real, inspectable driver, not a guess.
-          const componentEntries = Object.entries(c).sort(
-            (a, b) => Math.abs(b[1] - 50) - Math.abs(a[1] - 50),
+          // Model/League Value is roster-independent, so attribution must
+          // only inspect inputs that can actually move League Value. The old
+          // diagnostic looked at Pick Utility components such as `need` and
+          // incorrectly blamed roster state for Model-board deviations.
+          const leagueDrivers = {
+            consensus: clamp(numeric(entry.player.consensusScore, 50)),
+            playerGrade: evaluation.playerGrade,
+            vbd: vbdScore(entry.player, context),
+          };
+          const driverEntries = Object.entries(leagueDrivers).sort(
+            (a, b) => Math.abs(b[1] - leagueDrivers.consensus) -
+              Math.abs(a[1] - leagueDrivers.consensus),
           );
           flags.push({
             name: entry.player.name,
@@ -820,7 +867,8 @@
             consensusRank,
             modelRank: modelEntry.rank,
             deviation,
-            likelyDriver: componentEntries[0] ? componentEntries[0][0] : null,
+            likelyDriver: driverEntries[0] ? driverEntries[0][0] : null,
+            leagueDrivers,
             group: label,
           });
         }
@@ -1201,7 +1249,26 @@
   function leagueValueScore(player, context = {}) {
     const grade = playerGrade(player);
     const vbd = vbdScore(player, context);
-    return clamp(grade * 0.55 + vbd * 0.45);
+    // Consensus is the calibration anchor until proprietary signals prove
+    // incremental value in backtests. Player Grade and league-aware VBD may
+    // move a player, but neither may casually overwhelm a broad public board.
+    const consensus = clamp(
+      numeric(
+        player.consensusScore,
+        percentileRank(
+          numeric(player.overallRank || player.rank, numeric(context.poolSize, 250)),
+          numeric(context.poolSize, 250),
+        ),
+      ),
+    );
+    let value = consensus * 0.60 + grade * 0.20 + vbd * 0.20;
+    // K/DST remain draftable and ranked within their positions, but their
+    // high replacement availability means they should not enter early-round
+    // cross-position Model territory in standard formats.
+    if (player.position === "K" || player.position === "DST") {
+      value = Math.min(value, 44);
+    }
+    return clamp(value);
   }
 
   // ---------------------------------------------------------------------
