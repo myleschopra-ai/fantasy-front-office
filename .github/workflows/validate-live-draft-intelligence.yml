@@ -1,5 +1,7 @@
 name: Validate live draft intelligence
 
+# This workflow is the production-facing calibration gate: synthetic unit
+# tests must pass first, then fresh real sources are rebuilt and checked.
 on:
   pull_request:
     paths:
