@@ -288,7 +288,8 @@
     const league = current();
     localStorage.setItem(ACTIVE_KEY, league.league_id);
     refreshUi();
-    if (!league.provider_league_id) showSetup(league, statusText, syncButton);
+    // Provider setup is explicit. Mock/auction drafting must remain usable without a connected league ID.
+    // The status strip and League ID / Connection button expose setup without blocking the draft room.
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
