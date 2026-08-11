@@ -5,7 +5,9 @@ out = Path('draft-room-v5.html')
 html = src.read_text(encoding='utf-8')
 
 if 'css/draft-room-ios-v5.css' not in html:
-    html = html.replace('</head>', '<link rel="stylesheet" href="css/draft-room-ios-v5.css?v=5" />\n</head>')
+    html = html.replace('</head>', '<link rel="stylesheet" href="css/draft-room-ios-v5.css?v=5" />\n<link rel="stylesheet" href="css/draft-room-ios-v5-layout-fix.css?v=5.1" />\n</head>')
+elif 'css/draft-room-ios-v5-layout-fix.css' not in html:
+    html = html.replace('</head>', '<link rel="stylesheet" href="css/draft-room-ios-v5-layout-fix.css?v=5.1" />\n</head>')
 if 'js/draft-room-ios-v5.js' not in html:
     html = html.replace('</body>', '<script src="js/draft-room-ios-v5.js?v=5"></script>\n</body>')
 html = html.replace('<title>Front Office — Draft Room</title>', '<title>Front Office — Draftboard</title>')
