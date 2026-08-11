@@ -1139,6 +1139,14 @@
         .join("") || '<div class="muted">No picks yet.</div>';
   }
 
+  function renderSourceHealth() {
+    if (!SourceHealth || !state.sourceHealth || !$("source")) return;
+    const healthLabel = SourceHealth.label(state.sourceHealth);
+    const profileLabel = state.intelProfile?.id || "no compatible profile";
+    $("source").textContent = `${healthLabel} · ${profileLabel} · ${state.players.length} players${state.marketLoaded ? " · live market" : " · cached consensus"}`;
+    $("source").title = state.sourceHealth.issues.join(" · ");
+  }
+
   function render() {
     if (!state.players.length) {
       renderIntelligence();
@@ -1155,6 +1163,7 @@
     if (state.activeDraftTab === "queue") renderQueue();
     if (state.activeDraftTab === "recommended") renderRecommended();
     bindPlayerLinks();
+    renderSourceHealth();
   }
 
   function draft(key) {
@@ -1373,12 +1382,6 @@
     // leave the state machine in the truthful draft lifecycle state.
     save();
     render();
-    if (SourceHealth && state.sourceHealth) {
-      const healthLabel = SourceHealth.label(state.sourceHealth);
-      const profileLabel = state.intelProfile?.id || "no compatible profile";
-      $("source").textContent = `${healthLabel} · ${profileLabel} · ${state.players.length} players${state.marketLoaded ? " · live market" : " · cached consensus"}`;
-      $("source").title = state.sourceHealth.issues.join(" · ");
-    }
   }
 
   if (!D) {
