@@ -50,6 +50,15 @@ try {
     if (!badges.some(text => validNeedLabels.includes(text))) {
       throw new Error(`${label}: no deterministic roster-need badge found (${badges.slice(0, 12).join(' / ')})`);
     }
+    const contradictions = await page.locator('#board .compact-rec').evaluateAll(rows => rows.flatMap(row => {
+      const texts = [...row.querySelectorAll('.action-badge')].map(el => (el.textContent || '').trim());
+      return texts.includes('DRAFT NOW') && (texts.includes('LUXURY') || texts.includes('SATURATED')) ? [texts.join(' + ')] : [];
+    }));
+    if (contradictions.length) throw new Error(`${label}: contradictory advisor action (${contradictions.join(' | ')})`);
+    const why = (await page.locator('#why').textContent() || '').trim();
+    if (why && !/(fills|projects|starter|depth|slot|prioritize)/i.test(why)) {
+      throw new Error(`${label}: recommendation lacks roster consequence explanation (${why})`);
+    }
   };
 
   const assertOptimizedRoster = async (label) => {
@@ -108,7 +117,6 @@ try {
     if (after === before) throw new Error(`after pick ${i}: board summary did not advance`);
   }
 
-  // My Team must use the same optimizer as the sidebar and expose starters + bench.
   await page.locator('.nav-btn', { hasText: 'Team' }).click();
   await page.waitForSelector('#team-roster-view', { state: 'visible', timeout: 5000 });
   const teamText = await page.locator('#team-roster-view').innerText();
