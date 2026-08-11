@@ -295,19 +295,7 @@
 
   function cpuScore(player, team, picks = state.picks) {
     const model = D.scorePlayer(player, scoreContext(player, team, picks, 50));
-    const baseAmplitude =
-      state.variance === "low" ? 2 : state.variance === "high" ? 9 : 5;
-    // Scale randomness by real cross-source agreement (already computed from
-    // actual rank spread across FantasyPros/FantasyCalc/FFC/etc in
-    // build_draft_intelligence.py) rather than a flat constant. Strong public
-    // consensus (e.g. 95%+ agreement — the clear, undisputed elites) should
-    // rarely get randomized out of order; genuinely contested rankings
-    // (common for Superflex QB valuation specifically, which varies a lot
-    // site-to-site) keep more natural variance, reflecting real uncertainty
-    // rather than manufactured noise.
-    const agreementFactor = clampLocal(numeric(player.agreement, 50), 0, 100) / 100;
-    const amplitude = baseAmplitude * (1.4 - agreementFactor);
-    return model.score + (Math.random() - 0.5) * amplitude * 2;
+    return model.score;
   }
 
   function clampLocal(value, min, max) {
@@ -315,13 +303,44 @@
   }
 
   function cpuChoice(team, picks = state.picks) {
-    return available(picks)
+    const baseAmplitude =
+      state.variance === "low" ? 2 : state.variance === "high" ? 9 : 5;
+    const candidates = available(picks)
       .slice(0, 70)
-      .map((player) => ({ player, score: cpuScore(player, team, picks) }))
-      .sort(
-        (a, b) =>
-          b.score - a.score || a.player.overallRank - b.player.overallRank,
-      )[0]?.player;
+      .map((player) => {
+        // Scale randomness by real cross-source agreement (already computed
+        // from actual rank spread across FantasyPros/FantasyCalc/FFC/etc in
+        // build_draft_intelligence.py) rather than a flat constant. Strong
+        // public consensus (e.g. 95%+ agreement — the clear, undisputed
+        // elites) should rarely get randomized out of order; genuinely
+        // contested rankings (common for Superflex QB valuation
+        // specifically, which varies a lot site-to-site) keep more natural
+        // variance, reflecting real uncertainty rather than manufactured
+        // noise.
+        const agreementFactor = clampLocal(numeric(player.agreement, 50), 0, 100) / 100;
+        const playerAmplitude = baseAmplitude * (1.4 - agreementFactor);
+        const scarcity = D.scarcityScore(player, available(picks), {
+          picksUntilNextTurn: 1, // opponent's own immediate pick, not the user's turn distance
+        });
+        return {
+          player,
+          score: cpuScore(player, team, picks),
+          scarcity: scarcity.scarcity,
+          amplitude: playerAmplitude,
+        };
+      });
+    // Real Math.random() in production — mocks are not identical run to
+    // run unless a deterministic seed is explicitly requested. The tested
+    // chooseBestCandidate function is the same one proven deterministic
+    // and bounded-rational in the test suite; production just feeds it
+    // true randomness instead of a seed.
+    const avgAmplitude =
+      candidates.reduce((sum, c) => sum + c.amplitude, 0) / Math.max(1, candidates.length);
+    return D.chooseBestCandidate(candidates, {
+      amplitude: avgAmplitude,
+      scarcityWeight: 0.15,
+      randomFn: Math.random,
+    });
   }
 
   function simulateToUser() {
