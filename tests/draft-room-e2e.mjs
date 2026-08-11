@@ -31,6 +31,7 @@ try {
   await page.waitForSelector('#start', { state: 'visible', timeout: 15000 });
   await page.waitForSelector('#board', { state: 'visible', timeout: 15000 });
   await page.waitForFunction(() => document.querySelectorAll('#board [data-k]').length > 0, null, { timeout: 30000 });
+  await page.waitForFunction(() => !document.querySelector('.ffo-league-modal'), null, { timeout: 5000 });
 
   const assertSurface = async (label) => {
     const boardVisible = await page.locator('#draft-grid').isVisible();
@@ -44,21 +45,32 @@ try {
     if (pageErrors.length) throw new Error(`${label}: browser errors: ${pageErrors.join(' | ')}`);
   };
 
+  const timedClick = async (locator, label, maxMs = 8000) => {
+    const started = Date.now();
+    await locator.click({ timeout: maxMs });
+    const elapsed = Date.now() - started;
+    if (elapsed > maxMs) throw new Error(`${label}: interaction exceeded ${maxMs}ms (${elapsed}ms)`);
+    console.log(`${label}: ${elapsed}ms`);
+  };
+
   await assertSurface('cold boot');
-  await page.click('#start');
-  await page.waitForTimeout(700);
-  await assertSurface('after start');
+  await timedClick(page.locator('#start'), 'start/reset');
+  await page.waitForFunction(() => /YOU ARE ON THE CLOCK/i.test(document.querySelector('#clock')?.textContent || ''), null, { timeout: 8000 });
+  await assertSurface('after start and CPU opening picks');
 
   for (let i = 1; i <= 3; i += 1) {
+    const before = await page.locator('#board-summary').textContent();
     const draftButton = page.locator('#board [data-k]').first();
-    await draftButton.waitFor({ state: 'visible', timeout: 15000 });
-    await draftButton.click();
-    await page.waitForTimeout(800);
-    await assertSurface(`after user pick ${i}`);
+    await draftButton.waitFor({ state: 'visible', timeout: 8000 });
+    await timedClick(draftButton, `user pick ${i}`);
+    await page.waitForFunction(() => /YOU ARE ON THE CLOCK/i.test(document.querySelector('#clock')?.textContent || ''), null, { timeout: 8000 });
+    await assertSurface(`after full CPU cycle ${i}`);
+    const after = await page.locator('#board-summary').textContent();
+    if (after === before) throw new Error(`after pick ${i}: board summary did not advance`);
   }
 
-  const picksText = await page.locator('#board-summary').textContent();
-  if (!picksText || !/selection/i.test(picksText)) throw new Error(`board summary did not update after multiple picks: ${picksText}`);
+  const summary = await page.locator('#board-summary').textContent();
+  if (!summary || !/selection/i.test(summary)) throw new Error(`board summary invalid after multiple picks: ${summary}`);
 
   console.log('draft room multi-pick E2E regression passed');
 } finally {
