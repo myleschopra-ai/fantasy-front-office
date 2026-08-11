@@ -7,9 +7,14 @@
     if(!meta){meta=document.createElement('meta');meta.name='apple-mobile-web-app-capable';meta.content='yes';document.head.appendChild(meta);}
     var status=document.querySelector('.turn .label');
     if(status && !status.textContent.trim()) status.textContent='DRAFT ROOM';
-    var nav=document.querySelectorAll('.nav-btn');
-    var labels=['Players','Queue','Team','Advisor','Picks'];
-    nav.forEach(function(btn,i){ if(labels[i]) btn.textContent=labels[i]; btn.setAttribute('role','tab'); btn.setAttribute('aria-label',labels[i]||'Draft tab'); });
+    var labelByNav={players:'Players',queue:'Queue',team:'Team',board:'Board',picks:'Picks'};
+    document.querySelectorAll('.nav-btn').forEach(function(btn){
+      var key=btn.getAttribute('data-nav')||'';
+      var label=labelByNav[key]||btn.textContent.trim()||'Draft tab';
+      btn.textContent=label;
+      btn.setAttribute('role','tab');
+      btn.setAttribute('aria-label',label);
+    });
     var search=document.getElementById('search');
     if(search){search.setAttribute('inputmode','search');search.setAttribute('enterkeyhint','search');search.setAttribute('autocomplete','off');}
     var board=document.querySelector('.draft-grid-wrap');
