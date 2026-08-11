@@ -39,6 +39,7 @@ try {
       const grid = document.querySelector('.draft-grid-wrap');
       const cell = document.querySelector('.draft-cell:not(.round)');
       const tab = document.querySelector('.tabbar');
+      const turn = document.querySelector('.turn');
       const gs = grid ? getComputedStyle(grid) : null;
       const cs = cell ? getComputedStyle(cell) : null;
       return {
@@ -46,12 +47,20 @@ try {
         cellWidth: cell?.getBoundingClientRect().width || 0,
         bg: cs?.backgroundColor || '',
         tabHeight: tab?.getBoundingClientRect().height || 0,
+        turnVisible: !!turn && getComputedStyle(turn).display !== 'none' && turn.getBoundingClientRect().height > 0,
         overflow: gs?.overflowY || '',
       };
     });
     if (cssLoaded.gridHeight < 160) throw new Error(`${profile.name}: draft board too small (${cssLoaded.gridHeight}px)`);
     if (cssLoaded.cellWidth < 75 || cssLoaded.cellWidth > 120) throw new Error(`${profile.name}: draft tile width invalid (${cssLoaded.cellWidth}px)`);
     if (cssLoaded.tabHeight < 45) throw new Error(`${profile.name}: bottom navigation too small (${cssLoaded.tabHeight}px)`);
+    if (!cssLoaded.turnVisible) throw new Error(`${profile.name}: centered turn state is hidden`);
+
+    const navLabels = await page.locator('.nav-btn').allTextContents();
+    const expectedNav = ['Players','Queue','Team','Board','Picks'];
+    if (navLabels.length < expectedNav.length || expectedNav.some((label, i) => navLabels[i]?.trim() !== label)) {
+      throw new Error(`${profile.name}: navigation labels mismatch (${navLabels.join(' / ')})`);
+    }
 
     await page.locator('#start').click();
     await page.waitForFunction(() => /YOU ARE ON THE CLOCK/i.test(document.querySelector('#clock')?.textContent || ''), null, { timeout: 10000 });
