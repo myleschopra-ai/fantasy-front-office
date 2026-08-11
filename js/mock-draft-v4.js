@@ -55,6 +55,36 @@
     Math.max(min, Math.min(max, numeric(value)));
   const formatSigned = (value) => `${value > 0 ? "+" : ""}${Math.round(value)}`;
 
+  function showSessionRecovery(message, force = false) {
+    const panel = $("session-recovery");
+    const text = $("session-recovery-message");
+    if (!panel) return;
+    const show = force || state.sessionStatus === Session?.STATES.ERROR || state.sessionStatus === Session?.STATES.RECOVERING || state.recoveredSession;
+    panel.style.display = show ? "flex" : "none";
+    if (text && message) text.textContent = message;
+  }
+
+  function exportSnakeSession() {
+    if (!Session) return;
+    const payload = Session.diagnosticExport("snake", sessionPayload(), {
+      status: state.sessionStatus,
+      issues: state.recoveryIssues,
+      league: { id: state.activeLeague?.id || state.activeLeague?.league_id || null, name: state.activeLeague?.name || null },
+    });
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "fantasy-front-office-draft-session.json";
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function resetSnakeSession() {
+    try { localStorage.removeItem(LS); } catch (_error) {}
+    window.location.reload();
+  }
+
   function sessionPayload() {
     return {
       version: Session ? Session.SCHEMA_VERSION : 4,
@@ -88,6 +118,7 @@
       el.dataset.state = status;
       el.title = state.recoveryIssues.join(" · ");
     }
+    if (status === Session?.STATES.ERROR) showSessionRecovery(state.recoveryIssues.join(" · ") || "Saved draft state needs attention.", true);
   }
 
   function save() {
@@ -127,6 +158,7 @@
     state.queue = Array.isArray(state.queue) ? state.queue : [];
     state.activeDraftTab = state.activeDraftTab || "board";
     state.recoveredSession = state.picks.length > 0;
+    if (state.recoveredSession) showSessionRecovery(`Recovered ${state.picks.length} selections and ${state.queue.length} queued player${state.queue.length === 1 ? "" : "s"}.`, true);
     updateSessionStatus(
       state.picks.length >= state.teams * state.rounds
         ? Session.STATES.COMPLETE
@@ -1346,6 +1378,12 @@
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closePlayer();
   });
+  if ($("session-resume")) $("session-resume").onclick = () => { state.recoveredSession = false; showSessionRecovery(); render(); };
+  if ($("session-retry")) $("session-retry").onclick = () => loadData();
+  if ($("session-export")) $("session-export").onclick = exportSnakeSession;
+  if ($("session-reset")) $("session-reset").onclick = resetSnakeSession;
+  window.addEventListener("pagehide", () => save());
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") save(); });
   $("start").onclick = start;
   $("advance").onclick = simulateToUser;
   $("undo").onclick = () => {
