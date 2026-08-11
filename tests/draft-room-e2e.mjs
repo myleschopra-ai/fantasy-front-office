@@ -1,5 +1,7 @@
 import { chromium } from 'playwright';
 
+// This regression intentionally runs after the generated v5 route exists so
+// desktop/tablet Chromium validates the same draft room promoted by WebKit.
 const base = process.env.DRAFT_E2E_URL || 'http://127.0.0.1:4173/draft.html';
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
