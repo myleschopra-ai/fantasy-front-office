@@ -22,6 +22,7 @@
       const pos=positionFromText(cell.querySelector('.pickmeta')?.textContent);
       if(pos) cell.classList.add(`pos-${pos}`);
       if(cell.classList.contains('active')) cell.setAttribute('aria-current','true');
+      else cell.removeAttribute('aria-current');
     });
   }
 
@@ -32,7 +33,8 @@
       const pos=positionFromText(row.querySelector('.meta')?.textContent || row.textContent);
       if(pos) row.classList.add(`pos-${pos}`);
       const draftBtn=row.querySelector('[data-k]');
-      if(draftBtn){ draftBtn.textContent='Draft'; draftBtn.classList.add('primary'); }
+      if(draftBtn && draftBtn.textContent!=='Draft') draftBtn.textContent='Draft';
+      if(draftBtn) draftBtn.classList.add('primary');
     });
   }
 
@@ -41,19 +43,32 @@
     document.querySelectorAll('[data-pos]').forEach(btn=>btn.classList.toggle('active',btn.dataset.pos===value));
   }
 
+  function refresh(){
+    polishGrid();
+    polishRows();
+    syncFilterChips();
+  }
+
+  function refreshAfterAction(){
+    requestAnimationFrame(refresh);
+    window.setTimeout(refresh,160);
+    window.setTimeout(refresh,420);
+  }
+
   function openOverlay(title,tab){
     $('overlay-title').textContent=title;
     overlay.classList.add('active');
     const map={team:'tab-team',queue:'tab-queue',picks:'tab-selections'};
     if(map[tab]) $(map[tab])?.click();
     document.querySelectorAll('.nav-btn').forEach(btn=>btn.classList.toggle('active',btn.dataset.nav===tab));
+    refreshAfterAction();
   }
 
   $('settings-open')?.addEventListener('click',()=>setup.classList.add('open'));
   $('settings-close')?.addEventListener('click',()=>setup.classList.remove('open'));
-  $('settings-done')?.addEventListener('click',()=>setup.classList.remove('open'));
+  $('settings-done')?.addEventListener('click',()=>{setup.classList.remove('open');refreshAfterAction();});
   setup?.addEventListener('click',(e)=>{if(e.target===setup)setup.classList.remove('open')});
-  $('overlay-close')?.addEventListener('click',()=>{overlay.classList.remove('active');$('tab-board')?.click();document.querySelectorAll('.nav-btn').forEach(btn=>btn.classList.toggle('active',btn.dataset.nav==='players'));});
+  $('overlay-close')?.addEventListener('click',()=>{overlay.classList.remove('active');$('tab-board')?.click();document.querySelectorAll('.nav-btn').forEach(btn=>btn.classList.toggle('active',btn.dataset.nav==='players'));refreshAfterAction();});
   $('board-expand')?.addEventListener('click',()=>{
     boardShell.classList.toggle('expanded');
     $('board-expand').textContent=boardShell.classList.contains('expanded')?'Collapse board':'Expand board';
@@ -64,8 +79,9 @@
     posSelect.value=btn.dataset.pos;
     posSelect.dispatchEvent(new Event('change',{bubbles:true}));
     syncFilterChips();
+    refreshAfterAction();
   }));
-  posSelect?.addEventListener('change',syncFilterChips);
+  posSelect?.addEventListener('change',refreshAfterAction);
 
   document.querySelectorAll('.nav-btn').forEach(btn=>btn.addEventListener('click',()=>{
     const nav=btn.dataset.nav;
@@ -83,7 +99,14 @@
     }else if(nav==='team') openOverlay('My Team','team');
     else if(nav==='queue') openOverlay('Draft Queue','queue');
     else if(nav==='picks') openOverlay('Draft Picks','picks');
+    refreshAfterAction();
   }));
+
+  document.addEventListener('click',(event)=>{
+    if(event.target.closest('[data-k],#start,#advance,#undo,#tab-board,#tab-team,#tab-selections,#tab-queue,#tab-recommended,[data-queue-k]')){
+      refreshAfterAction();
+    }
+  },true);
 
   const params=new URLSearchParams(location.search);
   if(params.get('draftMode')==='manual'){
@@ -91,19 +114,8 @@
     if(mode){mode.value='companion';mode.dispatchEvent(new Event('change',{bubbles:true}));}
   }
 
-  let scheduled=false;
-  const refresh=()=>{
-    if(scheduled) return;
-    scheduled=true;
-    requestAnimationFrame(()=>{
-      scheduled=false;
-      polishGrid();
-      polishRows();
-      syncFilterChips();
-    });
-  };
-  const observer=new MutationObserver(refresh);
-  observer.observe(document.body,{childList:true,subtree:true});
   window.addEventListener('resize',refresh,{passive:true});
-  refresh();
+  window.addEventListener('pageshow',refreshAfterAction,{passive:true});
+  window.setTimeout(refresh,0);
+  window.setTimeout(refresh,500);
 })();
