@@ -406,7 +406,12 @@
       playerValue: model.playerGrade,
       scarcity: scarcity.scarcity,
     });
-    return { ...model, eq: rosterEquity(projected), sv: survives, scarcity, waitRisk };
+    const oppCostContext = scoreContext(player, state.slot, state.picks, survives);
+    const opportunityCost = D.opportunityCost(player, available(state.picks), {
+      ...oppCostContext,
+      picksUntilNextTurn,
+    });
+    return { ...model, eq: rosterEquity(projected), sv: survives, scarcity, waitRisk, opportunityCost };
   }
 
   function actionFor(player, evaluation) {
@@ -760,7 +765,9 @@
             ${metric("Scarcity", evaluation.scarcity.scarcity)}
             ${metric("Tier Depth", evaluation.scarcity.tierDepth)}
             ${metric("Tier Dropoff", evaluation.scarcity.tierDropoff)}
+            ${metric("Opp. Cost", evaluation.opportunityCost.opportunityCost)}
           </div>
+          ${evaluation.opportunityCost.bestAlternative ? `<div class="detail-line" style="margin-top:6px;">Best alternative: ${esc(evaluation.opportunityCost.bestAlternative.name)} (${evaluation.opportunityCost.bestAlternativePosition})${evaluation.opportunityCost.lineupImprovementForfeited ? " — would start immediately, this pick would not" : ""}</div>` : ""}
         </div>`;
       })
       .join("");
