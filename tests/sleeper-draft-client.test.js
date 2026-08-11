@@ -45,5 +45,15 @@ const Client = require('../js/sleeper-draft-client.js');
   assert.equal(calls,2,'visible manual tick should sync');
   poller.stop();
   assert.equal(poller.status().running,false);
+
+  let deferredCalls=0;
+  const deferred=Client.createPoller(async()=>{deferredCalls+=1;},{intervalMs:5000,isVisible:()=>true});
+  deferred.start({immediate:false});
+  await new Promise(r=>setTimeout(r,10));
+  assert.equal(deferredCalls,0,'deferred start must not duplicate a just-completed manual sync');
+  await deferred.tick();
+  assert.equal(deferredCalls,1,'deferred poller remains manually actionable');
+  deferred.stop();
+
   console.log('sleeper draft client tests passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});
