@@ -674,6 +674,59 @@
     return clamp(40 - have * 4);
   }
 
+  function rosterNeedState(player, context = {}) {
+    const league = context.league || {};
+    const picks = context.picks || [];
+    const roster = league.roster || {};
+    const currentLineup = optimalLineup(picks, league);
+    const eligibleSlots = currentLineup.starters.filter((slot) => {
+      const eligible = SLOT_ELIGIBILITY[slot.slot] || [slot.slot];
+      return eligible.includes(player.position);
+    });
+    const unfilledEligible = eligibleSlots.find((slot) => !slot.player);
+    const withCandidate = optimalLineup([...picks, player], league);
+    const candidateSlot = withCandidate.starters.find((slot) => slot.player === player);
+
+    if (unfilledEligible && candidateSlot) {
+      const flexLike = /FLEX/.test(unfilledEligible.slot);
+      return {
+        state: flexLike ? 'flex_need' : 'starter_need',
+        label: flexLike ? 'FLEX NEED' : 'STARTER NEED',
+        slot: unfilledEligible.slot,
+        starts: true,
+        urgency: flexLike ? 86 : 94,
+      };
+    }
+    if (candidateSlot) {
+      return {
+        state: 'starter_upgrade',
+        label: 'STARTER UPGRADE',
+        slot: candidateSlot.slot,
+        starts: true,
+        urgency: 74,
+      };
+    }
+
+    const counts = context.counts || rosterCounts(picks);
+    const have = numeric(counts[player.position], 0);
+    const target = numeric(starterTargets(league)[player.position], 0);
+    const superflex = numeric(roster.SUPER_FLEX || roster.SF, 0) > 0 || numeric(roster.QB, 1) > 1;
+
+    if ((player.position === 'K' || player.position === 'DST') && target > 0 && have >= target) {
+      return { state: 'saturated', label: 'SATURATED', slot: null, starts: false, urgency: 4 };
+    }
+    if (player.position === 'QB' && !superflex && have >= 1) {
+      return { state: 'luxury', label: 'LUXURY', slot: null, starts: false, urgency: 10 };
+    }
+    if (player.position === 'TE' && have >= Math.max(1, target)) {
+      return { state: 'depth', label: 'DEPTH', slot: null, starts: false, urgency: 24 };
+    }
+    if (player.position === 'RB' || player.position === 'WR') {
+      return { state: 'depth_upside', label: 'DEPTH UPSIDE', slot: null, starts: false, urgency: 42 };
+    }
+    return { state: 'depth', label: 'DEPTH', slot: null, starts: false, urgency: 30 };
+  }
+
   function tierScore(player) {
     let score = 72 - Math.max(0, numeric(player.tier, 4) - 1) * 7;
     if (player.tierEnd)
@@ -1528,6 +1581,7 @@
     playerKey,
     roundAdjustedWeights,
     rosterCounts,
+    rosterNeedState,
     runBacktest,
     scarcityScore,
     seededRandom,

@@ -454,14 +454,20 @@
       .slice(0, 4);
   }
 
+  function advisorNeedState(player) {
+    return D.rosterNeedState(player, scoreContext(player, state.slot, state.picks, 50));
+  }
+
   function needLabel(player) {
-    const quality = positionQuality(state.slot, player.position);
-    if (quality.count < target(player.position)) return "STARTER NEED";
-    if (player.position === "QB" && target("QB") === 1 && quality.count >= 1)
-      return "QB DEPTH";
-    if (player.position === "TE" && target("TE") === 1 && quality.count >= 1)
-      return "TE DEPTH";
-    return "VALUE / DEPTH";
+    return advisorNeedState(player).label;
+  }
+
+  function needStateClass(needState) {
+    if (!needState) return "target";
+    if (needState.state === "starter_need" || needState.state === "flex_need") return "urgent";
+    if (needState.state === "starter_upgrade") return "closing";
+    if (needState.state === "luxury" || needState.state === "saturated") return "avoid";
+    return "target";
   }
 
   function componentSummary(evaluation) {
@@ -572,18 +578,31 @@
     });
   }
 
+  function rosterLineupHTML(team = state.slot) {
+    const drafted = teamPicks(team);
+    const lineup = D.optimalLineup(drafted, state.activeLeague || DEFAULT_LEAGUE);
+    const occurrence = {};
+    const starters = lineup.starters.map((entry) => {
+      occurrence[entry.slot] = (occurrence[entry.slot] || 0) + 1;
+      const totalForSlot = lineup.starters.filter((s) => s.slot === entry.slot).length;
+      const label = totalForSlot > 1 ? `${entry.slot}${occurrence[entry.slot]}` : entry.slot;
+      const player = entry.player;
+      return `<div class="slot lineup-slot ${player ? `pos-${String(player.position).toLowerCase()}` : 'empty'}"><span>${esc(label)}</span><strong>${player ? esc(player.name) : 'Empty'}</strong><span>${player ? `${esc(player.position)}${player.nflTeam ? ` · ${esc(player.nflTeam)}` : ''}` : 'starter need'}</span></div>`;
+    }).join('');
+    const bench = lineup.bench.length
+      ? `<div class="bench-label">BENCH · ${lineup.bench.length}</div><div class="bench-list">${lineup.bench.map((player) => `<span class="bench-chip pos-${String(player.position).toLowerCase()}">${esc(player.position)} ${esc(player.name)}</span>`).join('')}</div>`
+      : '<div class="bench-label">BENCH · Empty</div>';
+    return starters + bench;
+  }
+
   function renderRoster() {
     const rosterCounts = counts();
     const equity = rosterEquity();
-    $("roster").innerHTML = POSITIONS.map(
-      (position) =>
-        `<div class="slot"><span>${position}</span><strong>${rosterCounts[position] || 0}</strong><span>target ${target(position)}</span></div>`,
-    ).join("");
+    $("roster").innerHTML = rosterLineupHTML(state.slot);
     $("roster-equity").textContent = equity;
     $("equity-bar").style.width = `${equity}%`;
-    const gaps = POSITIONS.filter(
-      (position) => (rosterCounts[position] || 0) < target(position),
-    );
+    const validation = D.validateCompletedRoster(teamPicks(state.slot), state.activeLeague || DEFAULT_LEAGUE);
+    const openSlots = validation.lineup.starters.filter((slot) => !slot.player).map((slot) => slot.slot);
     const directive = D.strategyDirective({
       strategy: state.strategy,
       league: state.activeLeague,
@@ -593,7 +612,7 @@
       superflex: isSuperflex(),
     });
     $("profile").innerHTML =
-      `Starter gaps: <strong>${gaps.length ? gaps.join(", ") : "none"}</strong><br>Current plan: <strong>${esc(directive.directive)}</strong>${directive.warning ? `<br><span class="confidence-low">Guardrail: ${esc(directive.warning)}</span>` : ""}`;
+      `Starter gaps: <strong>${openSlots.length ? openSlots.join(", ") : "none"}</strong><br>Current plan: <strong>${esc(directive.directive)}</strong>${directive.warning ? `<br><span class="confidence-low">Guardrail: ${esc(directive.warning)}</span>` : ""}`;
   }
 
   function renderIntelligence() {
@@ -864,55 +883,21 @@
     const team = state.selectedTeam || state.slot;
     const roster = teamPicks(team);
     const league = state.activeLeague || DEFAULT_LEAGUE;
-    const rosterConfig = league.roster || {};
-
-    // Expand {QB:1, RB:2, ...} into individual named slots, matching real roster structure
-    // rather than an unordered flat pick list.
-    const eligibility = {
-      QB: ["QB"], RB: ["RB"], WR: ["WR"], TE: ["TE"], K: ["K"], DST: ["DST"],
-      FLEX: ["RB", "WR", "TE"], SUPER_FLEX: ["QB", "RB", "WR", "TE"],
-    };
-    // Non-positional slots (bench, taxi, IR) take ANY remaining player — they are not
-    // filtered by position at all. Previously these fell back to matching a literal
-    // position string like "BENCH", which no real player ever has, so every bench slot
-    // showed Empty even when real drafted players were sitting unassigned.
-    const catchAllSlots = new Set(["BENCH", "BN", "TAXI", "IR"]);
-
-    // Fill true positional slots first (QB/RB/WR/TE/FLEX/SUPER_FLEX), then bench-type
-    // slots, so starters are assigned before bench — order the config keys accordingly.
-    const positionalEntries = Object.entries(rosterConfig).filter(([name]) => !catchAllSlots.has(name));
-    const catchAllEntries = Object.entries(rosterConfig).filter(([name]) => catchAllSlots.has(name));
-
-    const slots = [];
-    positionalEntries.forEach(([slotName, count]) => {
-      for (let i = 0; i < numeric(count, 0); i += 1) slots.push(slotName);
-    });
-    catchAllEntries.forEach(([slotName, count]) => {
-      for (let i = 0; i < numeric(count, 0); i += 1) slots.push(slotName);
-    });
-
-    const pool = roster.map((pick) => ({ pick, used: false }));
-    const assigned = slots.map((slotName) => {
-      const isCatchAll = catchAllSlots.has(slotName);
-      const eligiblePositions = eligibility[slotName] || null;
-      const match = pool.find((p) => !p.used && (isCatchAll || (eligiblePositions && eligiblePositions.includes(p.pick.position))));
-      if (match) match.used = true;
-      return { slotName, pick: match ? match.pick : null };
-    });
-    // Any picks beyond every configured slot (positional + bench/taxi/IR combined) —
-    // should be rare if the league's bench count is realistic, but never silently drop a
-    // drafted player rather than show it.
-    const overflow = pool.filter((p) => !p.used).map((p) => p.pick);
-
+    const lineup = D.optimalLineup(roster, league);
+    const occurrence = {};
     const slotRow = (slotName, pick) => pick
-      ? `<div class="row"><div class="player-link" data-player="${esc(pick.key)}" tabindex="0" style="cursor:pointer;"><div class="name">${esc(pick.name)}</div><div class="meta">${slotName} · ${esc(pick.position)} · ${roundPick(pick.pick)}</div></div><span class="sim-badge">MOCK</span></div>`
-      : `<div class="row"><div class="muted">${slotName} — Empty</div></div>`;
+      ? `<div class="row"><div class="player-link" data-player="${esc(pick.key)}" tabindex="0" style="cursor:pointer;"><div class="name">${esc(pick.name)}</div><div class="meta">${esc(slotName)} · ${esc(pick.position)} · ${roundPick(pick.pick)}</div></div><span class="sim-badge">MOCK</span></div>`
+      : `<div class="row"><div class="muted">${esc(slotName)} — Empty</div></div>`;
 
     let html = `<div class="toolbar" style="margin-top:10px"><strong>Team ${team}${team === state.slot ? " · YOU" : ""}</strong><select id="team-select" style="width:auto">${Array.from({ length: state.teams }, (_value, index) => `<option value="${index + 1}" ${team === index + 1 ? "selected" : ""}>Team ${index + 1}${state.slot === index + 1 ? " · YOU" : ""}</option>`).join("")}</select></div>`;
-    html += `<div class="team-roster-list">${assigned.map((a) => slotRow(a.slotName, a.pick)).join("") || '<div class="muted">No roster slots configured for this league.</div>'}</div>`;
-    if (overflow.length) {
-      html += `<div class="muted" style="margin-top:10px">Additional picks (beyond configured roster slots)</div><div class="team-roster-list">${overflow.map((pick) => slotRow("EXTRA", pick)).join("")}</div>`;
-    }
+    const starterRows = lineup.starters.map((entry) => {
+      occurrence[entry.slot] = (occurrence[entry.slot] || 0) + 1;
+      const total = lineup.starters.filter((s) => s.slot === entry.slot).length;
+      const label = total > 1 ? `${entry.slot}${occurrence[entry.slot]}` : entry.slot;
+      return slotRow(label, entry.player);
+    }).join("");
+    html += `<div class="team-roster-list">${starterRows || '<div class="muted">No starter slots configured.</div>'}</div>`;
+    html += `<div class="muted" style="margin-top:10px">BENCH · ${lineup.bench.length}</div><div class="team-roster-list">${lineup.bench.map((pick) => slotRow("BENCH", pick)).join("") || '<div class="muted">Bench empty.</div>'}</div>`;
     html += `<div class="notice" style="margin-top:10px">This simulated class never modifies the real league roster.</div>`;
     $("team-roster-view").innerHTML = html;
     $("team-select").onchange = (event) => {
@@ -947,6 +932,7 @@
 
   function playerRowHTML(player, evaluation, queued) {
     const action = actionFor(player, evaluation);
+    const needState = advisorNeedState(player);
     const scarcity = tierScarcity(player);
     const cliff = player.tierEnd
       ? ` · cliff +${numeric(player.tierGapAfter, 0).toFixed(1)}`
@@ -975,6 +961,7 @@
       <div class="player-link" data-player="${esc(player.key)}" tabindex="0">
         <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
           <span class="action-badge ${actionClass(action)}">${action}</span>
+          <span class="action-badge ${needStateClass(needState)}">${esc(needState.label)}</span>
           <span class="name">${esc(player.name)}</span>
           <span class="meta">${player.position}${player.nflTeam ? ` · ${esc(player.nflTeam)}` : ""}</span>
         </div>

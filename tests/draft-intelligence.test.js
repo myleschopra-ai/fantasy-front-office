@@ -788,3 +788,31 @@ assert.equal(backtestResult.excludedInjuryDistorted, 1, 'injury-distorted record
 assert.equal(D.spearmanCorrelation([[1, 1], [2, 2], [3, 3]]), 1, 'perfect rank agreement must produce correlation of exactly 1');
 
 console.log('draft-intelligence.js tests passed');
+
+
+// Advisor roster-state taxonomy regression tests.
+(() => {
+  const league = { roster: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 }, scoring: { reception: 0.5 } };
+  const p = (name, position, overallRank, posRank) => ({ key: `${name}|${position}`, name, position, overallRank, rank: overallRank, posRank, consensusScore: Math.max(1, 101 - overallRank) });
+  const roster = [
+    p('QB One', 'QB', 12, 1),
+    p('RB One', 'RB', 8, 1), p('RB Two', 'RB', 22, 8),
+    p('WR One', 'WR', 10, 2), p('WR Two', 'WR', 28, 12),
+    p('TE One', 'TE', 45, 6),
+  ];
+  const flexCandidate = p('WR Three', 'WR', 32, 14);
+  const flexState = D.rosterNeedState(flexCandidate, { league, picks: roster, counts: D.rosterCounts(roster), superflex: false });
+  assert.ok(['flex_need', 'starter_upgrade'].includes(flexState.state), 'rosterNeedState identifies FLEX need or lineup upgrade');
+
+  const qbLuxury = p('QB Two', 'QB', 30, 4);
+  const qbState = D.rosterNeedState(qbLuxury, { league, picks: roster, counts: D.rosterCounts(roster), superflex: false });
+  assert.strictEqual(qbState.state, 'luxury', 'second 1QB is labeled luxury when it does not start');
+
+  const withK = [...roster, p('K One', 'K', 180, 1)];
+  const kState = D.rosterNeedState(p('K Two', 'K', 190, 2), { league, picks: withK, counts: D.rosterCounts(withK), superflex: false });
+  assert.strictEqual(kState.state, 'saturated', 'second kicker is saturated after K slot filled');
+
+  const completed = D.validateCompletedRoster([...withK, p('DST One', 'DST', 181, 1), p('RB Three', 'RB', 35, 15)], league);
+  assert.ok(completed.lineup.starters.some((slot) => slot.slot === 'K' && slot.player), 'completed lineup seats kicker');
+  assert.ok(completed.lineup.starters.some((slot) => slot.slot === 'DST' && slot.player), 'completed lineup seats defense');
+})();
