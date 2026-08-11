@@ -629,6 +629,62 @@
     return clamp(score);
   }
 
+  // ---------------------------------------------------------------------
+  // Scarcity Engine. Not a static positional multiplier — reacts to the
+  // ACTUAL remaining draft pool, so a run on a position genuinely raises
+  // scarcity for what's left, and a deep position with many comparable
+  // players genuinely stays low. Components are exposed separately per
+  // spec, not collapsed into one opaque number.
+  // ---------------------------------------------------------------------
+  function scarcityScore(player, availablePool, context = {}) {
+    const samePosition = (availablePool || []).filter(
+      (candidate) => candidate.position === player.position,
+    );
+    const remainingSupply = samePosition.length;
+    const playerTier = numeric(player.tier, 99);
+    const tierDepth = samePosition.filter(
+      (candidate) => numeric(candidate.tier, 99) === playerTier,
+    ).length;
+
+    const nextTier = samePosition.filter(
+      (candidate) => numeric(candidate.tier, 99) === playerTier + 1,
+    );
+    const thisGrade = playerGrade(player);
+    // If there's no visible next tier in the pool, assume a real (not
+    // zero) drop rather than silently treating scarcity as absent —
+    // absence of data is not evidence of depth.
+    const nextTierBestGrade = nextTier.length
+      ? Math.max(...nextTier.map((candidate) => playerGrade(candidate)))
+      : Math.max(0, thisGrade - 25);
+    const tierDropoff = clamp(thisGrade - nextTierBestGrade, 0, 100);
+
+    const picksUntilNext = Math.max(1, numeric(context.picksUntilNextTurn, 12));
+
+    // Fewer tier-mates remaining = higher urgency. One left = max.
+    const depthUrgency = clamp(100 - Math.max(0, tierDepth - 1) * 20);
+    // Bigger value gap to the next tier down = higher urgency to act now.
+    const dropoffUrgency = clamp(tierDropoff * 2.5);
+    // If remaining tier-mates are fewer than or comparable to picks before
+    // my next turn, real risk the tier is gone by then.
+    const survivalRatio = tierDepth / picksUntilNext;
+    const turnRisk = clamp(100 / (1 + survivalRatio));
+
+    const combined = clamp(
+      depthUrgency * 0.4 + dropoffUrgency * 0.35 + turnRisk * 0.25,
+    );
+
+    return {
+      scarcity: Math.round(combined),
+      remainingSupply,
+      tierDepth,
+      tierDropoff: Math.round(tierDropoff),
+      picksUntilNext,
+      depthUrgency: Math.round(depthUrgency),
+      dropoffUrgency: Math.round(dropoffUrgency),
+      turnRisk: Math.round(turnRisk),
+    };
+  }
+
   // Real draft methodology differs by round: early picks should lean almost
   // entirely on value (roster construction isn't defined yet), later picks
   // should weigh roster need, opportunity, and situational context (pedigree,
@@ -964,6 +1020,7 @@
     playerKey,
     roundAdjustedWeights,
     rosterCounts,
+    scarcityScore,
     scorePlayer,
     selectProfile,
     sourceSummary,
