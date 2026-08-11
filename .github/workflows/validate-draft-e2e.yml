@@ -8,7 +8,9 @@ on:
     paths:
       - 'draft.html'
       - 'draft-room-v2.html'
+      - 'draft-room-v3.html'
       - 'draft-room-v4.html'
+      - 'js/draft-room-polish.js'
       - 'js/mock-draft-v4.js'
       - 'js/draft-intelligence.js'
       - 'tests/draft-room-e2e.mjs'
@@ -17,7 +19,9 @@ on:
     paths:
       - 'draft.html'
       - 'draft-room-v2.html'
+      - 'draft-room-v3.html'
       - 'draft-room-v4.html'
+      - 'js/draft-room-polish.js'
       - 'js/mock-draft-v4.js'
       - 'js/draft-intelligence.js'
       - 'tests/draft-room-e2e.mjs'
