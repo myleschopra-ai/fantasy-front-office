@@ -83,10 +83,6 @@ function preparePlayers(snapshot, intelligence, league) {
   const profile = D.selectProfile(intelligence, league);
   if (!profile) throw new Error(`No full draft-intelligence profile for ${league.name}`);
 
-  // The full board comes from the repository's live draft-intelligence build,
-  // which aggregates nflreadpy FantasyPros ECR + FantasyCalc + FFC where
-  // applicable. This remains usable when the direct FantasyPros API key is
-  // sample-limited to 10 rows per endpoint.
   let players = D.enrichPlayers([], profile);
   players = D.mergeSupplementalPositions(players, profile.players || [], league);
 
@@ -103,7 +99,8 @@ function preparePlayers(snapshot, intelligence, league) {
   const baseContext = contextFor(league, players);
   const vbd = D.computeVBDPercentiles(players, baseContext);
   for (const player of players) {
-    if (vbd.has(player.key)) player.vbdPercentileScore = vbd.get(player.key);
+    const score = vbd[player.key];
+    if (Number.isFinite(score)) player.vbdPercentileScore = score;
   }
 
   return {
