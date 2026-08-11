@@ -4,16 +4,25 @@ on:
   push:
     branches:
       - main
+      - agent/draft-room-v4-stable
     paths:
       - 'draft.html'
-      - 'mock-draft-v4.html'
+      - 'draft-room-v2.html'
+      - 'draft-room-v3.html'
+      - 'js/draft-room-polish.js'
+      - 'js/league-switcher.js'
+      - 'js/mock-draft-v4.js'
       - 'auction.html'
       - 'tests/draft-ui.test.js'
       - '.github/workflows/validate-draft-ui.yml'
   pull_request:
     paths:
       - 'draft.html'
-      - 'mock-draft-v4.html'
+      - 'draft-room-v2.html'
+      - 'draft-room-v3.html'
+      - 'js/draft-room-polish.js'
+      - 'js/league-switcher.js'
+      - 'js/mock-draft-v4.js'
       - 'auction.html'
       - 'tests/draft-ui.test.js'
       - '.github/workflows/validate-draft-ui.yml'
@@ -34,7 +43,10 @@ jobs:
         run: node tests/draft-ui.test.js
       - name: Ensure referenced draft pages exist
         run: |
+          test -f draft-room-v2.html
+          test -f draft-room-v3.html
           test -f mock-draft-v4.html
           test -f auction.html
           test -f js/draft-intelligence.js
           test -f js/auction-intelligence.js
+          test -f js/draft-room-polish.js
