@@ -636,6 +636,46 @@
   // players genuinely stays low. Components are exposed separately per
   // spec, not collapsed into one opaque number.
   // ---------------------------------------------------------------------
+  // ---------------------------------------------------------------------
+  // ADP / Wait-Risk. Deliberately does NOT reimplement the survival
+  // simulation here — that already exists (Monte Carlo, using real
+  // CPU-pick behavior driven by ADP-influenced scoring and exact
+  // snake-turn distance) in the UI layer, where it has access to live
+  // draft state. This function takes an ALREADY-COMPUTED survival
+  // probability and turns it into the required categorical output,
+  // avoiding false precision (a bucketed category plus a bounded
+  // wait-cost number, not a claim of exact percentage confidence).
+  // ---------------------------------------------------------------------
+  function waitRiskCategory(inputs = {}) {
+    const survivalProbability = clamp(numeric(inputs.survivalProbability, 50), 0, 100);
+    const playerValue = clamp(numeric(inputs.playerValue, 50), 0, 100);
+    const scarcity = clamp(numeric(inputs.scarcity, 30), 0, 100);
+    const probabilityLost = 100 - survivalProbability;
+    // Strategic cost of waiting: value at stake × chance of actually losing it.
+    const waitCost = clamp((playerValue * probabilityLost) / 100);
+
+    let category;
+    if (survivalProbability < 25) {
+      category = "TAKE_NOW";
+    } else if (survivalProbability < 50) {
+      category = waitCost >= 35 ? "TAKE_NOW" : "HIGH_WAIT_RISK";
+    } else if (survivalProbability < 70) {
+      category =
+        playerValue >= 70 || scarcity >= 60
+          ? "MODERATE_WAIT_RISK"
+          : "STRONG_WAIT_CANDIDATE";
+    } else {
+      category = "LIKELY_AVAILABLE";
+    }
+
+    return {
+      category,
+      waitCost: Math.round(waitCost),
+      survivalProbability,
+      probabilityLost,
+    };
+  }
+
   function scarcityScore(player, availablePool, context = {}) {
     const samePosition = (availablePool || []).filter(
       (candidate) => candidate.position === player.position,
@@ -1021,6 +1061,7 @@
     roundAdjustedWeights,
     rosterCounts,
     scarcityScore,
+    waitRiskCategory,
     scorePlayer,
     selectProfile,
     sourceSummary,
