@@ -1,4 +1,4 @@
-# Full promotion gate for draft session reliability and source-health presentation.
+# Full promotion gate for draft session reliability, recovery, and authoritative source-health rendering.
 name: Validate draft session reliability
 
 on:
