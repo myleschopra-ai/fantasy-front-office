@@ -11,6 +11,7 @@ on:
       - 'auction.html'
       - 'draft-room-v5.html'
       - 'tests/draft-session-e2e.mjs'
+      - 'tests/draft-session-ios-e2e.mjs'
       - 'tests/auction-session-e2e.mjs'
       - '.github/workflows/validate-draft-session.yml'
   pull_request:
@@ -21,6 +22,7 @@ on:
       - 'auction.html'
       - 'draft-room-v5.html'
       - 'tests/draft-session-e2e.mjs'
+      - 'tests/draft-session-ios-e2e.mjs'
       - 'tests/auction-session-e2e.mjs'
 
 jobs:
@@ -60,6 +62,32 @@ jobs:
         env:
           DRAFT_SESSION_E2E_URL: http://127.0.0.1:4173/draft.html
         run: node tests/draft-session-e2e.mjs
+
+  snake-ios-refresh-resume:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright WebKit
+        run: |
+          npm install --no-save playwright@1.54.2
+          npx playwright install --with-deps webkit
+      - name: Start static server
+        run: |
+          python3 -m http.server 4175 --bind 127.0.0.1 > /tmp/ffo-session-ios-http.log 2>&1 &
+          for i in {1..20}; do
+            curl -fsS http://127.0.0.1:4175/draft.html >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/ffo-session-ios-http.log
+          exit 1
+      - name: Run iPhone and iPad refresh/resume regression
+        env:
+          DRAFT_SESSION_IOS_URL: http://127.0.0.1:4175/draft.html
+        run: node tests/draft-session-ios-e2e.mjs
 
   auction-refresh-resume:
     runs-on: ubuntu-latest
