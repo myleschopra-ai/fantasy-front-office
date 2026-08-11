@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const POSITIONS = ["QB", "RB", "WR", "TE"];
+  const POSITIONS = ["QB", "RB", "WR", "TE", "K", "DST"];
   const STRATEGIES = {
     adaptive: {
       label: "Adaptive VBD",
@@ -878,7 +878,7 @@
 
     const overallFlags = flagDeviations(boards.consensus.slice(0, 50), "overall_top50");
     const byPosition = {};
-    ["QB", "RB", "WR", "TE"].forEach((position) => {
+    ["QB", "RB", "WR", "TE", "K", "DST"].forEach((position) => {
       const positionList = boards.consensus.filter((e) => e.player.position === position).slice(0, 10);
       byPosition[position] = flagDeviations(positionList, `top10_${position}`);
     });

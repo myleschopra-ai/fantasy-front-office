@@ -4,12 +4,12 @@
   const D = window.FFODraftIntelligence;
   const $ = (id) => document.getElementById(id);
   const LS = "ffo_mock_draft_v4";
-  const POSITIONS = ["QB", "RB", "WR", "TE"];
+  const POSITIONS = ["QB", "RB", "WR", "TE", "K", "DST"];
   const DEFAULT_LEAGUE = {
     name: "12-team half-PPR",
     league_type: "redraft",
     scoring: { reception: 0.5 },
-    roster: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 2 },
+    roster: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 2, K: 1, DST: 1, BENCH: 6 },
   };
   const state = {
     players: [],
@@ -869,7 +869,7 @@
     // Expand {QB:1, RB:2, ...} into individual named slots, matching real roster structure
     // rather than an unordered flat pick list.
     const eligibility = {
-      QB: ["QB"], RB: ["RB"], WR: ["WR"], TE: ["TE"],
+      QB: ["QB"], RB: ["RB"], WR: ["WR"], TE: ["TE"], K: ["K"], DST: ["DST"],
       FLEX: ["RB", "WR", "TE"], SUPER_FLEX: ["QB", "RB", "WR", "TE"],
     };
     // Non-positional slots (bench, taxi, IR) take ANY remaining player — they are not
