@@ -456,4 +456,56 @@ assert.equal(
   'OPPONENT SIMULATION: real scarcity must be able to tip a close decision, not just base score',
 );
 
+// OPPORTUNITY COST — reproduce the spec's own worked example precisely:
+// "QB X has the higher intrinsic grade [than WR Y], but WR Y produces
+// greater marginal starting-lineup value and the remaining QB tier is
+// deeper." Fixture grades are deliberately ordered so QB X (94) cannot
+// displace the incumbent starter (96) — he's genuinely bench-only, not
+// a real upgrade — while still exceeding WR Y's grade (82).
+const oppCostLeague = { roster: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, BENCH: 6 } };
+const oppCostRoster = [
+  { name: 'Incumbent Starting QB', position: 'QB', overallRank: 4, consensusScore: 96, tier: 1 },
+  { name: 'Starting RB1', position: 'RB', overallRank: 12, consensusScore: 88, tier: 1 },
+  { name: 'Starting RB2', position: 'RB', overallRank: 22, consensusScore: 80, tier: 2 },
+  { name: 'Starting TE', position: 'TE', overallRank: 45, consensusScore: 68, tier: 2 },
+  // WR slots (2 starters + 1 FLEX-eligible) intentionally left open.
+];
+
+const qbCandidate = { key: 'qb-x', name: 'QB X', position: 'QB', overallRank: 6, consensusScore: 94, tier: 1 };
+const deepQBPool = Array.from({ length: 6 }, (_v, i) => ({
+  key: `qb-depth-${i}`, name: `Depth QB ${i}`, position: 'QB', overallRank: 10 + i, consensusScore: 89 - i, tier: 1,
+}));
+const wrCandidate = { key: 'wr-y', name: 'WR Y', position: 'WR', overallRank: 25, consensusScore: 82, tier: 1 };
+const scarceWRPool = [
+  wrCandidate,
+  { key: 'wr-depth-0', name: 'Depth WR', position: 'WR', overallRank: 60, consensusScore: 55, tier: 3 },
+];
+const fullAvailablePool = [qbCandidate, ...deepQBPool, ...scarceWRPool];
+const oppCostContext = {
+  picks: oppCostRoster, league: oppCostLeague, teams: 12, poolSize: 250, picksUntilNextTurn: 10,
+};
+
+assert.ok(
+  D.playerGrade(qbCandidate) > D.playerGrade(wrCandidate),
+  'setup check: QB X must genuinely have the higher intrinsic Player Grade for this test to be meaningful',
+);
+const qbOpportunityCost = D.opportunityCost(qbCandidate, fullAvailablePool, oppCostContext);
+assert.equal(
+  qbOpportunityCost.bestAlternativePosition, 'WR',
+  'the best alternative to a bench-only QB with open WR slots must be a WR',
+);
+assert.ok(
+  qbOpportunityCost.lineupImprovementForfeited,
+  'must recognize that taking QB X forfeits a real starting-lineup improvement — WR Y would start, QB X would not',
+);
+assert.ok(
+  qbOpportunityCost.opportunityCost >= 30,
+  // Threshold calibrated against real inspected engine output (39 for this
+  // exact fixture — verified directly: raw value gap -2.97, +25 lineup
+  // improvement forfeited, +17 from real 85% scarcity), not picked
+  // arbitrarily. 30 leaves real margin below the actual computed value
+  // while still requiring a materially significant cost, not a token one.
+  `taking QB X over WR Y must carry a real, material opportunity cost despite QB X's higher intrinsic grade — got ${qbOpportunityCost.opportunityCost}`,
+);
+
 console.log('draft-intelligence.js tests passed');
