@@ -7,6 +7,7 @@ on:
       - 'js/mock-draft-v4.js'
       - 'scripts/refresh_fantasypros.py'
       - 'scripts/build_draft_intelligence.py'
+      - 'scripts/validate_draft_intelligence.py'
       - 'scripts/validate_live_draft_board.js'
       - 'scripts/validate_live_draft_board_v2.js'
       - 'tests/draft-intelligence.test.js'
