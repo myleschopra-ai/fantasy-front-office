@@ -508,4 +508,114 @@ assert.ok(
   `taking QB X over WR Y must carry a real, material opportunity cost despite QB X's higher intrinsic grade — got ${qbOpportunityCost.opportunityCost}`,
 );
 
+// ---------------------------------------------------------------------
+// POST-PICK RECALCULATION — integration test. Not a unit test of one
+// function in isolation: this runs a real SEQUENCE of picks and verifies
+// that every downstream system (available pool, roster counts, optimal
+// lineup, need, scarcity, Pick Utility) correctly reflects updated state
+// after each one, while Player Grade for the same watched candidate
+// never moves — re-proving Phase 1 stability across a real sequence,
+// not just a single before/after snapshot.
+// ---------------------------------------------------------------------
+const seqLeague = { roster: { QB: 1, RB: 2, WR: 2, TE: 1, BENCH: 6 } };
+const seqTargets = D.starterTargets(seqLeague);
+
+// A realistic pool: 2 tiers of WR/RB/QB so scarcity has something real to
+// react to, plus the "watched" candidate whose treatment we track
+// across the whole sequence.
+const watchedWR = { key: 'watched-wr', name: 'Watched WR', position: 'WR', overallRank: 18, consensusScore: 84, tier: 1 };
+let seqPool = [
+  { key: 'seq-wr-1', name: 'Best WR', position: 'WR', overallRank: 8, consensusScore: 91, tier: 1 },
+  watchedWR,
+  { key: 'seq-wr-3', name: 'Third WR', position: 'WR', overallRank: 30, consensusScore: 74, tier: 2 },
+  { key: 'seq-rb-1', name: 'Best RB', position: 'RB', overallRank: 5, consensusScore: 93, tier: 1 },
+  { key: 'seq-rb-2', name: 'Second RB', position: 'RB', overallRank: 14, consensusScore: 86, tier: 1 },
+  { key: 'seq-qb-1', name: 'Best QB', position: 'QB', overallRank: 10, consensusScore: 90, tier: 1 },
+  { key: 'seq-qb-2', name: 'Second QB', position: 'QB', overallRank: 20, consensusScore: 83, tier: 1 },
+];
+let seqRoster = [];
+
+function seqContext(picksUntilNextTurn) {
+  return {
+    league: seqLeague, teams: 12, round: seqRoster.length + 1, totalRounds: 16,
+    picks: seqRoster, counts: D.rosterCounts(seqRoster), targets: seqTargets,
+    superflex: false, poolSize: 250, survival: 50, picksUntilNextTurn,
+  };
+}
+
+function draftInSequence(key) {
+  const player = seqPool.find((p) => p.key === key);
+  assert.ok(player, `test setup: player ${key} must exist in the sequence pool`);
+  seqPool = seqPool.filter((p) => p.key !== key);
+  seqRoster = [...seqRoster, player];
+  return player;
+}
+
+// STEP 0 (before any picks): watched WR should show real starter-slot need.
+const watchedGradeStep0 = D.playerGrade(watchedWR);
+const watchedStep0 = D.scorePlayer(watchedWR, seqContext(10));
+assert.ok(
+  watchedStep0.components.need >= 70,
+  'STEP 0: with both WR starter slots open, the watched WR must show real starter need',
+);
+
+// STEP 1: draft "Best WR" — fills one WR starter slot.
+draftInSequence('seq-wr-1');
+assert.equal(seqPool.some((p) => p.key === 'seq-wr-1'), false, 'drafted player must be removed from the available pool');
+assert.equal(D.rosterCounts(seqRoster).WR, 1, 'roster counts must reflect the new pick');
+const lineupAfterStep1 = D.optimalLineup(seqRoster, seqLeague);
+assert.ok(
+  lineupAfterStep1.starters.some((s) => s.slot === 'WR' && s.player && s.player.key === 'seq-wr-1'),
+  'STEP 1: the optimal lineup must actually seat the newly drafted WR as a starter',
+);
+const watchedStep1 = D.scorePlayer(watchedWR, seqContext(10));
+assert.equal(
+  D.playerGrade(watchedWR), watchedGradeStep0,
+  'STEP 1: Player Grade for the watched WR must not move just because a pick happened',
+);
+assert.ok(
+  watchedStep1.components.need >= 70,
+  'STEP 1: one WR starter slot is still open — watched WR need must remain high',
+);
+
+// STEP 2: draft "Best RB" — an unrelated position. Watched WR's need must
+// be unaffected by a pick at a different position.
+draftInSequence('seq-rb-1');
+const watchedStep2 = D.scorePlayer(watchedWR, seqContext(10));
+assert.equal(
+  watchedStep2.components.need, watchedStep1.components.need,
+  'STEP 2: a pick at an unrelated position (RB) must not change the watched WR need score',
+);
+
+// STEP 3: draft "Third WR" — fills the SECOND (final) WR starter slot.
+// Now the watched WR would only be bench/FLEX-eligible — need must drop.
+draftInSequence('seq-wr-3');
+const watchedStep3 = D.scorePlayer(watchedWR, seqContext(10));
+assert.equal(
+  D.playerGrade(watchedWR), watchedGradeStep0,
+  'STEP 3: Player Grade for the watched WR must STILL be identical after three real picks — full-sequence stability, not just a single snapshot',
+);
+assert.ok(
+  watchedStep3.components.need < watchedStep1.components.need,
+  'STEP 3: once both real WR starter slots are filled, watched WR need must genuinely drop versus when a slot was open',
+);
+
+// STEP 4: draft "Best QB" — verify the exact spec scenario now holds
+// mid-sequence: a second QB must show suppressed need, but the position
+// itself remains untouched by the unrelated WR/RB picks already made.
+draftInSequence('seq-qb-1');
+const secondQBStep4 = D.scorePlayer(seqPool.find((p) => p.key === 'seq-qb-2'), seqContext(10));
+assert.ok(
+  secondQBStep4.components.need < 30,
+  'STEP 4: after drafting a QB in a 1QB league, a second QB must show suppressed need — mid-sequence, not just in isolation',
+);
+
+// Scarcity must also reflect the shrinking pool across the sequence —
+// fewer WRs remain after two have been drafted.
+const finalWRScarcity = D.scarcityScore(watchedWR, seqPool, seqContext(10));
+assert.ok(
+  finalWRScarcity.remainingSupply < 3,
+  'STEP 4: remaining WR supply must reflect the two WRs actually drafted during the sequence',
+);
+
 console.log('draft-intelligence.js tests passed');
