@@ -2,6 +2,7 @@
   "use strict";
 
   const D = window.FFODraftIntelligence;
+  const Session = window.FFODraftSession;
   const $ = (id) => document.getElementById(id);
   const LS = "ffo_mock_draft_v4";
   const POSITIONS = ["QB", "RB", "WR", "TE", "K", "DST"];
@@ -31,6 +32,9 @@
     restored: false,
     loadToken: 0,
     survivalCache: new Map(),
+    sessionStatus: Session ? Session.STATES.BOOTING : "BOOTING",
+    recoveryIssues: [],
+    recoveredSession: false,
   };
 
   const esc = (value) =>
@@ -51,40 +55,87 @@
     Math.max(min, Math.min(max, numeric(value)));
   const formatSigned = (value) => `${value > 0 ? "+" : ""}${Math.round(value)}`;
 
+  function sessionPayload() {
+    return {
+      version: Session ? Session.SCHEMA_VERSION : 4,
+      picks: state.picks,
+      teams: state.teams,
+      slot: state.slot,
+      rounds: state.rounds,
+      strategy: state.strategy,
+      mode: state.mode,
+      variance: state.variance,
+      profiles: state.profiles,
+      selectedTeam: state.selectedTeam,
+      activeDraftTab: state.activeDraftTab,
+      queue: state.queue,
+      leagueId: state.activeLeague?.id || state.activeLeague?.league_id || null,
+      profileId: state.intelProfile?.id || null,
+      sourceSnapshot: {
+        generated_at: state.intelligence?.generated_at || state.intelligence?.meta?.generated_at || null,
+        profile: state.intelProfile?.id || null,
+      },
+      savedStatus: state.sessionStatus,
+    };
+  }
+
+  function updateSessionStatus(status, issues = []) {
+    state.sessionStatus = status;
+    state.recoveryIssues = Array.isArray(issues) ? issues : [];
+    const el = $("session-status");
+    if (el) {
+      el.textContent = status;
+      el.dataset.state = status;
+      el.title = state.recoveryIssues.join(" · ");
+    }
+  }
+
   function save() {
-    localStorage.setItem(
-      LS,
-      JSON.stringify({
-        version: 3,
-        picks: state.picks,
-        teams: state.teams,
-        slot: state.slot,
-        rounds: state.rounds,
-        strategy: state.strategy,
-        mode: state.mode,
-        variance: state.variance,
-        profiles: state.profiles,
-        selectedTeam: state.selectedTeam,
-        queue: state.queue,
-      }),
-    );
+    if (!Session) return;
+    const result = Session.safeSave(localStorage, LS, "snake", sessionPayload(), {
+      leagueName: state.activeLeague?.name || null,
+    });
+    if (!result.ok) updateSessionStatus(Session.STATES.ERROR, result.issues);
+    else if (state.picks.length >= state.teams * state.rounds) updateSessionStatus(Session.STATES.COMPLETE);
+    else if (state.picks.length) updateSessionStatus(Session.STATES.RUNNING);
+    else updateSessionStatus(Session.STATES.READY);
   }
 
   function restore() {
     if (state.restored) return;
     state.restored = true;
-    try {
-      const saved = JSON.parse(localStorage.getItem(LS) || "{}");
-      Object.assign(state, saved);
-      if (!D.STRATEGIES[state.strategy]) state.strategy = "adaptive";
-      state.picks = (state.picks || []).map((pick, index) =>
-        normalizePick(pick, index + 1),
-      );
-      state.selectedTeam = state.selectedTeam || state.slot;
-      state.queue = Array.isArray(state.queue) ? state.queue : [];
-    } catch (_error) {
+    if (!Session) {
       state.picks = [];
+      return;
     }
+    updateSessionStatus(Session.STATES.RECOVERING);
+    const result = Session.safeLoad(localStorage, LS, "snake");
+    if (!result.ok) {
+      state.picks = [];
+      state.recoveredSession = false;
+      updateSessionStatus(Session.STATES.ERROR, result.issues);
+      return;
+    }
+    if (!result.payload) {
+      updateSessionStatus(Session.STATES.READY);
+      return;
+    }
+    Object.assign(state, result.payload);
+    if (!D.STRATEGIES[state.strategy]) state.strategy = "adaptive";
+    state.picks = (state.picks || []).map((pick, index) => normalizePick(pick, index + 1));
+    state.selectedTeam = state.selectedTeam || state.slot;
+    state.queue = Array.isArray(state.queue) ? state.queue : [];
+    state.activeDraftTab = state.activeDraftTab || "board";
+    state.recoveredSession = state.picks.length > 0;
+    updateSessionStatus(
+      state.picks.length >= state.teams * state.rounds
+        ? Session.STATES.COMPLETE
+        : state.picks.length
+          ? Session.STATES.RUNNING
+          : Session.STATES.READY,
+    );
+    // Rewrite a migrated v3 save immediately using the checksummed v4 envelope.
+    if (result.migrated) save();
   }
 
   function ownerForPick(pick) {
@@ -1163,6 +1214,7 @@
   }
 
   async function loadData() {
+    if (Session) updateSessionStatus(Session.STATES.LOADING_DATA);
     const token = ++state.loadToken;
     const league = state.activeLeague || DEFAULT_LEAGUE;
     const qbs = isSuperflex() ? 2 : 1;
