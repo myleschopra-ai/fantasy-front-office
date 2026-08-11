@@ -105,14 +105,14 @@
     state.providerPoller = null;
   }
 
-  function ensureProviderPolling() {
+  function ensureProviderPolling({ immediate = true } = {}) {
     stopProviderPolling();
     if (state.mode !== "live" || !providerEligible()) return;
     state.providerPoller = SleeperDraft.createPoller(
       () => syncSleeperDraft({ manual: false }),
       { intervalMs: 8000, isVisible: () => document.visibilityState !== "hidden" },
     );
-    state.providerPoller.start();
+    state.providerPoller.start({ immediate });
   }
 
   function liveDraftType() {
@@ -1354,7 +1354,7 @@
     loadData().then(() => {
       updateProviderSyncUi();
       if (state.mode === "live") {
-        syncSleeperDraft({ manual: true }).then(() => ensureProviderPolling());
+        syncSleeperDraft({ manual: true }).then(() => ensureProviderPolling({ immediate: false }));
       }
     });
     if (state.mode === "sim") simulateToUser();
@@ -1554,7 +1554,7 @@
     state.survivalCache.clear();
     loadData().then(() => {
       updateProviderSyncUi();
-      if (state.mode === "live") syncSleeperDraft({ manual: true }).then(() => ensureProviderPolling());
+      if (state.mode === "live") syncSleeperDraft({ manual: true }).then(() => ensureProviderPolling({ immediate: false }));
     });
   });
   $("close-player-modal").onclick = closePlayer;
@@ -1592,7 +1592,7 @@
     state.mode = $("mode").value;
     save();
     updateProviderSyncUi();
-    if (state.mode === "live") syncSleeperDraft({ manual: true }).then(() => ensureProviderPolling());
+    if (state.mode === "live") syncSleeperDraft({ manual: true }).then(() => ensureProviderPolling({ immediate: false }));
     else stopProviderPolling();
   };
   $("pos").onchange = renderBoard;
@@ -1619,10 +1619,10 @@
     if (!state.players.length) {
       loadData().then(() => {
         updateProviderSyncUi();
-        if (state.mode === "live") syncSleeperDraft({ manual: true }).then(() => ensureProviderPolling());
+        if (state.mode === "live") syncSleeperDraft({ manual: true }).then(() => ensureProviderPolling({ immediate: false }));
       });
     } else if (state.mode === "live") {
-      syncSleeperDraft({ manual: true }).then(() => ensureProviderPolling());
+      syncSleeperDraft({ manual: true }).then(() => ensureProviderPolling({ immediate: false }));
     }
   }, 350);
 })();
