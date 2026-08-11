@@ -1,0 +1,33 @@
+name: Apply mock draft boot patch
+
+on:
+  push:
+    branches:
+      - agent/draft-room-v4-stable
+    paths:
+      - 'scripts/apply_mock_draft_boot_patch.py'
+      - '.github/workflows/apply-mock-draft-boot-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply nonblocking provider patch
+        run: python3 scripts/apply_mock_draft_boot_patch.py
+      - name: Commit patched boot behavior
+        run: |
+          if git diff --quiet -- js/league-switcher.js; then
+            echo 'No boot changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/league-switcher.js
+          git commit -m 'Keep provider setup nonblocking for mock drafts'
+          git push origin HEAD:agent/draft-room-v4-stable
