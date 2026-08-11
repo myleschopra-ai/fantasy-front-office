@@ -1,7 +1,7 @@
 """Refresh the validated FantasyPros draft snapshot.
 
 The official API is called only from GitHub Actions or a local operator session
-with ``FANTASYPROS_API_KEY`` configured.  A failed or incomplete refresh exits
+with ``FANTASYPROS_API_KEY`` configured. A failed or incomplete refresh exits
 before replacing the last known-good ``fantasypros.json`` snapshot.
 """
 
@@ -12,6 +12,7 @@ import os
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import date, datetime, timezone
@@ -25,7 +26,15 @@ API_KEY = os.environ.get("FANTASYPROS_API_KEY")
 SEASON = int(os.environ.get("NFL_SEASON", date.today().year))
 SCORING = os.environ.get("FANTASY_SCORING", "HALF").upper()
 POSITIONS = ["ALL", "QB", "RB", "WR", "TE", "K", "DST"]
-MINIMUM_RANKINGS = {"OVERALL": 100, "QB": 20, "RB": 30, "WR": 40, "TE": 20, "K": 20, "DST": 20}
+MINIMUM_RANKINGS = {
+    "OVERALL": 100,
+    "QB": 20,
+    "RB": 30,
+    "WR": 40,
+    "TE": 20,
+    "K": 20,
+    "DST": 20,
+}
 
 
 def get_json(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -41,8 +50,19 @@ def get_json(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
             "User-Agent": "FantasyFrontOffice/2.0",
         },
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.loads(response.read())
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.loads(response.read())
+    except urllib.error.HTTPError as error:
+        # Surface the API's validation message without ever printing the key.
+        # This turned a previously opaque HTTP 400 into actionable CI evidence.
+        try:
+            body = error.read().decode("utf-8", errors="replace")[:2000]
+        except Exception:
+            body = ""
+        raise RuntimeError(
+            f"FantasyPros HTTP {error.code} for {path} params={params or {}}: {body or error.reason}"
+        ) from error
 
 
 def compact_ranking(player: dict[str, Any]) -> dict[str, Any]:
@@ -66,9 +86,12 @@ def fetch_rankings() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
     metadata: dict[str, Any] = {}
     for position in POSITIONS:
         key = "OVERALL" if position == "ALL" else position
+        # Be explicit about draft rankings. The v2 API supports multiple
+        # ranking types and can otherwise resolve the request against a
+        # context-dependent default (weekly/ROS during parts of the season).
         payload = get_json(
             f"nfl/{SEASON}/consensus-rankings",
-            {"position": position, "scoring": SCORING},
+            {"position": position, "scoring": SCORING, "type": "DRAFT"},
         )
         rows = [
             compact_ranking(player)
@@ -81,6 +104,7 @@ def fetch_rankings() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
             "last_updated": payload.get("last_updated"),
             "total_experts": payload.get("total_experts"),
             "position": position,
+            "ranking_type": payload.get("ranking_type_name") or payload.get("type") or "DRAFT",
         }
         print(f"{key}: {len(rows)} rankings")
         time.sleep(1)
@@ -145,12 +169,10 @@ def fetch_injuries() -> list[dict[str, Any]]:
 
 
 def fetch_general_news() -> list[dict[str, Any]]:
-    """Broader news feed, no category filter — same proven endpoint pattern as
-    fetch_injuries(), just without narrowing to injury-only items. Intended to
-    surface real current sentiment/analysis text for late-round evaluation,
-    where public rankings alone don't capture recent buzz. Fails gracefully:
-    if this shape doesn't hold on a live call, callers see an empty list, not
-    a crash — the injury feed above is unaffected either way.
+    """Broader news feed, no category filter.
+
+    This intentionally fails soft because news is enrichment rather than a
+    ranking-critical source. Rankings/projections remain fail-closed.
     """
     try:
         payload = get_json("nfl/news", {"limit": 100})
