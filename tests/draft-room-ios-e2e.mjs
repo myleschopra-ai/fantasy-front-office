@@ -37,7 +37,7 @@ try {
 
     const cssLoaded = await page.evaluate(() => {
       const grid = document.querySelector('.draft-grid-wrap');
-      const cell = document.querySelector('.draft-cell');
+      const cell = document.querySelector('.draft-cell:not(.round)');
       const tab = document.querySelector('.tabbar');
       const gs = grid ? getComputedStyle(grid) : null;
       const cs = cell ? getComputedStyle(cell) : null;
