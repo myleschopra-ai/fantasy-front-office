@@ -4,6 +4,8 @@
   const D = window.FFODraftIntelligence;
   const Session = window.FFODraftSession;
   const SourceHealth = window.FFODraftSourceHealth;
+  const ProviderSync = window.FFOProviderDraftSync;
+  const SleeperDraft = window.FFOSleeperDraftClient;
   const $ = (id) => document.getElementById(id);
   const LS = "ffo_mock_draft_v4";
   const POSITIONS = ["QB", "RB", "WR", "TE", "K", "DST"];
@@ -37,6 +39,13 @@
     recoveryIssues: [],
     recoveredSession: false,
     sourceHealth: null,
+    providerSyncStatus: ProviderSync ? ProviderSync.STATUS.IDLE : "IDLE",
+    providerDraftId: null,
+    providerDraft: null,
+    providerRetrievedAt: null,
+    providerIssues: [],
+    providerPoller: null,
+    providerSyncInFlight: false,
   };
 
   const esc = (value) =>
@@ -56,6 +65,123 @@
   const clamp = (value, min = 0, max = 100) =>
     Math.max(min, Math.min(max, numeric(value)));
   const formatSigned = (value) => `${value > 0 ? "+" : ""}${Math.round(value)}`;
+
+  function providerLeagueId() {
+    if (String(state.activeLeague?.provider || "").toLowerCase() !== "sleeper") return "";
+    return String(state.activeLeague?.provider_league_id || "").trim();
+  }
+
+  function providerEligible() {
+    return Boolean(ProviderSync && SleeperDraft && providerLeagueId());
+  }
+
+  function providerPlayerLookup() {
+    const out = {};
+    state.players.forEach((player) => {
+      const ids = [player.key, player.playerId, player.sleeperId].filter(Boolean).map(String);
+      ids.forEach((id) => { out[id] = player; });
+    });
+    return out;
+  }
+
+  function updateProviderSyncUi(result = null) {
+    const statusEl = $("provider-sync-status");
+    const button = $("provider-sync");
+    const isSleeper = String(state.activeLeague?.provider || "").toLowerCase() === "sleeper";
+    const live = state.mode === "live";
+    if (button) button.style.display = live && isSleeper ? "" : "none";
+    if (statusEl) statusEl.style.display = live && isSleeper ? "" : "none";
+    if (!statusEl) return;
+    const label = result && ProviderSync
+      ? ProviderSync.syncLabel(result, state.providerDraft || {})
+      : `${String(state.providerSyncStatus || "IDLE").replaceAll("_", " ")}`;
+    statusEl.textContent = `SLEEPER ${label}`;
+    statusEl.dataset.state = state.providerSyncStatus || "IDLE";
+    statusEl.title = (state.providerIssues || []).join(" · ");
+  }
+
+  function stopProviderPolling() {
+    if (state.providerPoller) state.providerPoller.stop();
+    state.providerPoller = null;
+  }
+
+  function ensureProviderPolling() {
+    stopProviderPolling();
+    if (state.mode !== "live" || !providerEligible()) return;
+    state.providerPoller = SleeperDraft.createPoller(
+      () => syncSleeperDraft({ manual: false }),
+      { intervalMs: 8000, isVisible: () => document.visibilityState !== "hidden" },
+    );
+    state.providerPoller.start();
+  }
+
+  function liveDraftType() {
+    const format = String(state.activeLeague?.draft?.format || "snake").toLowerCase();
+    return format === "auction" ? "auction" : "snake";
+  }
+
+  async function syncSleeperDraft({ manual = false } = {}) {
+    if (state.mode !== "live") return null;
+    if (!providerEligible()) {
+      state.providerSyncStatus = ProviderSync?.STATUS.ERROR || "ERROR";
+      state.providerIssues = ["Sleeper league ID is required. Use League ID / Connection to save it first."];
+      updateProviderSyncUi();
+      return null;
+    }
+    if (state.providerSyncInFlight) return null;
+    state.providerSyncInFlight = true;
+    state.providerSyncStatus = ProviderSync.STATUS.SYNCING;
+    state.providerIssues = [];
+    updateProviderSyncUi();
+    try {
+      const snapshot = await SleeperDraft.snapshotForLeague(providerLeagueId(), {
+        season: state.activeLeague?.season,
+        type: liveDraftType(),
+      });
+      if (!snapshot.draft) {
+        state.providerSyncStatus = ProviderSync.STATUS.ERROR;
+        state.providerIssues = snapshot.issues || ["No Sleeper draft found"];
+        updateProviderSyncUi();
+        return null;
+      }
+      const incomingDraftId = String(snapshot.draft.draft_id || "");
+      const expectedDraftId = state.providerDraftId || incomingDraftId;
+      const result = ProviderSync.reconcile({
+        localPicks: state.picks,
+        providerPicks: snapshot.picks,
+        draft: snapshot.draft,
+        expectedDraftId,
+        playerLookup: providerPlayerLookup(),
+      });
+      state.providerDraft = snapshot.draft;
+      state.providerRetrievedAt = snapshot.retrievedAt;
+      state.providerSyncStatus = result.status;
+      state.providerIssues = result.issues || [];
+      if (result.safeToApply) {
+        state.providerDraftId = incomingDraftId;
+        if (result.additions.length) {
+          state.picks = ProviderSync.applyReconciliation(state.picks, result).map((pick, index) => normalizePick(pick, index + 1));
+          state.selectedTeam = state.picks[state.picks.length - 1]?.team || state.slot;
+          state.survivalCache.clear();
+          // Confirmed provider picks are canonical; remove them from queue if present.
+          const confirmed = new Set(state.picks.map((pick) => String(pick.key)));
+          state.queue = state.queue.filter((key) => !confirmed.has(String(key)));
+          save();
+          render();
+        }
+      }
+      updateProviderSyncUi(result);
+      return result;
+    } catch (error) {
+      state.providerSyncStatus = ProviderSync.STATUS.ERROR;
+      state.providerIssues = [String(error?.message || error)];
+      updateProviderSyncUi();
+      if (manual) console.error(error);
+      return null;
+    } finally {
+      state.providerSyncInFlight = false;
+    }
+  }
 
   function showSessionRecovery(message, force = false) {
     const panel = $("session-recovery");
@@ -103,6 +229,9 @@
       queue: state.queue,
       leagueId: state.activeLeague?.id || state.activeLeague?.league_id || null,
       profileId: state.intelProfile?.id || null,
+      providerLeagueId: providerLeagueId() || null,
+      providerDraftId: state.providerDraftId || null,
+      providerRetrievedAt: state.providerRetrievedAt || null,
       sourceSnapshot: {
         generated_at: state.intelligence?.generated_at || state.intelligence?.meta?.generated_at || null,
         profile: state.intelProfile?.id || null,
@@ -172,6 +301,7 @@
     );
     // Rewrite a migrated v3 save immediately using the checksummed v4 envelope.
     if (result.migrated) save();
+    updateProviderSyncUi();
   }
 
   function ownerForPick(pick) {
@@ -1167,6 +1297,12 @@
   }
 
   function draft(key) {
+    if (state.mode === "live") {
+      state.providerSyncStatus = ProviderSync?.STATUS.LOCAL_AHEAD || "LOCAL_AHEAD";
+      state.providerIssues = ["Live mode records confirmed Sleeper selections only. Queue the player or wait for provider confirmation."];
+      updateProviderSyncUi();
+      return;
+    }
     if (state.picks.length >= state.teams * state.rounds) return;
     const player = state.players.find((candidate) => candidate.key === key);
     if (!player || state.picks.some((pick) => pick.key === player.key)) return;
@@ -1209,8 +1345,18 @@
     state.selectedTeam = state.slot;
     initProfiles();
     save();
+    state.providerDraftId = null;
+    state.providerDraft = null;
+    state.providerRetrievedAt = null;
+    state.providerIssues = [];
+    state.providerSyncStatus = ProviderSync ? ProviderSync.STATUS.IDLE : "IDLE";
     render();
-    loadData();
+    loadData().then(() => {
+      updateProviderSyncUi();
+      if (state.mode === "live") {
+        syncSleeperDraft({ manual: true }).then(() => ensureProviderPolling());
+      }
+    });
     if (state.mode === "sim") simulateToUser();
   }
 
@@ -1396,11 +1542,20 @@
     `Active league: ${state.activeLeague.name || "custom"} · ${numeric(state.activeLeague.scoring?.reception, 0)} PPR${isSuperflex() ? " · Superflex" : ""}`;
 
   document.addEventListener("ffo:league-changed", (event) => {
+    stopProviderPolling();
     state.activeLeague = event.detail || DEFAULT_LEAGUE;
+    state.providerDraftId = null;
+    state.providerDraft = null;
+    state.providerRetrievedAt = null;
+    state.providerIssues = [];
+    state.providerSyncStatus = ProviderSync ? ProviderSync.STATUS.IDLE : "IDLE";
     $("league-note").textContent =
       `Active league: ${state.activeLeague.name || "custom"} · ${numeric(state.activeLeague.scoring?.reception, 0)} PPR${isSuperflex() ? " · Superflex" : ""}`;
     state.survivalCache.clear();
-    loadData();
+    loadData().then(() => {
+      updateProviderSyncUi();
+      if (state.mode === "live") syncSleeperDraft({ manual: true }).then(() => ensureProviderPolling());
+    });
   });
   $("close-player-modal").onclick = closePlayer;
   $("player-modal-backdrop").onclick = (event) => {
@@ -1413,15 +1568,32 @@
   if ($("session-retry")) $("session-retry").onclick = () => loadData();
   if ($("session-export")) $("session-export").onclick = exportSnakeSession;
   if ($("session-reset")) $("session-reset").onclick = resetSnakeSession;
-  window.addEventListener("pagehide", () => save());
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") save(); });
+  window.addEventListener("pagehide", () => { stopProviderPolling(); save(); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") save();
+    else if (state.mode === "live" && providerEligible()) ensureProviderPolling();
+  });
   $("start").onclick = start;
-  $("advance").onclick = simulateToUser;
+  $("advance").onclick = () => state.mode === "live" ? syncSleeperDraft({ manual: true }) : simulateToUser();
+  if ($("provider-sync")) $("provider-sync").onclick = () => syncSleeperDraft({ manual: true });
   $("undo").onclick = () => {
+    if (state.mode === "live") {
+      state.providerIssues = ["Confirmed Sleeper picks cannot be undone locally. Correct them in Sleeper and sync again."];
+      state.providerSyncStatus = ProviderSync?.STATUS.DIVERGED || "DIVERGED";
+      updateProviderSyncUi();
+      return;
+    }
     state.picks.pop();
     state.survivalCache.clear();
     save();
     render();
+  };
+  $("mode").onchange = () => {
+    state.mode = $("mode").value;
+    save();
+    updateProviderSyncUi();
+    if (state.mode === "live") syncSleeperDraft({ manual: true }).then(() => ensureProviderPolling());
+    else stopProviderPolling();
   };
   $("pos").onchange = renderBoard;
   $("search").oninput = renderBoard;
@@ -1442,7 +1614,15 @@
     save();
     render();
   };
+  updateProviderSyncUi();
   window.setTimeout(() => {
-    if (!state.players.length) loadData();
+    if (!state.players.length) {
+      loadData().then(() => {
+        updateProviderSyncUi();
+        if (state.mode === "live") syncSleeperDraft({ manual: true }).then(() => ensureProviderPolling());
+      });
+    } else if (state.mode === "live") {
+      syncSleeperDraft({ manual: true }).then(() => ensureProviderPolling());
+    }
   }, 350);
 })();
