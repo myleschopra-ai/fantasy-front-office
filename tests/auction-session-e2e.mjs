@@ -11,6 +11,7 @@ try {
   await page.evaluate(() => localStorage.removeItem('ffo_auction_session_v4'));
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => document.querySelectorAll('#board [data-k]').length > 5, null, { timeout: 30000 });
+  await page.waitForFunction(() => /FRESH|DEGRADED|STALE|EXPIRED|UNAVAILABLE/.test(document.querySelector('#source')?.textContent || ''), null, { timeout: 10000 });
 
   // Buy one player at a legal, deterministic price.
   await page.locator('#board [data-k]').first().click();
@@ -36,16 +37,19 @@ try {
     leagueRemaining: document.querySelector('#leagueRemaining')?.value,
     roster: document.querySelector('#roster')?.innerText || '',
     available: document.querySelectorAll('#board [data-k]').length,
+    source: document.querySelector('#source')?.textContent || '',
   }));
 
   if (!before.envelope || before.envelope.schemaVersion !== 4 || !before.envelope.checksum) throw new Error('auction session is not a checksummed v4 envelope');
   if (before.envelope.payload.sold.length !== 2) throw new Error(`expected 2 canonical sales, found ${before.envelope.payload.sold.length}`);
   if (before.envelope.payload.myRoster.length !== 1) throw new Error('my roster purchase not persisted');
+  if (!/FRESH|DEGRADED|STALE|EXPIRED|UNAVAILABLE/.test(before.source)) throw new Error(`auction source health label missing before reload: ${before.source}`);
   const soldKeys = before.envelope.payload.sold.map(s => s.key);
   if (new Set(soldKeys).size !== soldKeys.length) throw new Error('duplicate sold player IDs before reload');
 
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => document.querySelectorAll('#board [data-k]').length > 5, null, { timeout: 30000 });
+  await page.waitForFunction(() => /FRESH|DEGRADED|STALE|EXPIRED|UNAVAILABLE/.test(document.querySelector('#source')?.textContent || ''), null, { timeout: 10000 });
 
   const after = await page.evaluate(() => ({
     envelope: JSON.parse(localStorage.getItem('ffo_auction_session_v4') || 'null'),
@@ -54,6 +58,7 @@ try {
     leagueRemaining: document.querySelector('#leagueRemaining')?.value,
     roster: document.querySelector('#roster')?.innerText || '',
     availableKeys: [...document.querySelectorAll('#board [data-k]')].map(el => el.dataset.k),
+    source: document.querySelector('#source')?.textContent || '',
   }));
 
   if (errors.length) throw new Error(`auction browser errors: ${errors.join(' | ')}`);
@@ -64,6 +69,7 @@ try {
     throw new Error(`auction budget/slot state drifted (${before.remaining}/${before.slots}/${before.leagueRemaining} -> ${after.remaining}/${after.slots}/${after.leagueRemaining})`);
   }
   if (after.roster !== before.roster) throw new Error('auction roster display changed after reload');
+  if (!/FRESH|DEGRADED|STALE|EXPIRED|UNAVAILABLE/.test(after.source)) throw new Error(`auction source health label missing after reload: ${after.source}`);
   for (const key of soldKeys) if (after.availableKeys.includes(String(key))) throw new Error(`sold player ${key} reappeared in available pool`);
 
   // Resumed auction remains actionable.
@@ -74,7 +80,7 @@ try {
   await page.locator('#record').click();
   await page.waitForFunction(count => JSON.parse(localStorage.getItem('ffo_auction_session_v4') || 'null')?.payload?.sold?.length > count, before.envelope.payload.sold.length, { timeout: 10000 });
 
-  console.log('auction refresh/resume passed · budgets, roster and sold pool restored');
+  console.log(`auction refresh/resume passed · budgets, roster, sold pool and source health restored · ${after.source.split(' · ')[0]}`);
 } finally {
   await browser.close();
 }
