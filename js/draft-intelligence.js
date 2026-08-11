@@ -701,6 +701,277 @@
   // remaining QB tier is deep, while a WR would start immediately and his
   // position is scarce.
   // ---------------------------------------------------------------------
+  // ---------------------------------------------------------------------
+  // Explainability Output. Generates structured reasons entirely from
+  // already-computed engine state — no LLM call, nothing invented. An
+  // LLM could later turn these structured reasons into prose, but the
+  // reasons themselves are deterministic and traceable to real numbers.
+  // ---------------------------------------------------------------------
+  // ---------------------------------------------------------------------
+  // Three-Board Data Model. Three genuinely distinct ordered views —
+  // they must never reuse the same underlying ranking field under
+  // different labels:
+  //   CONSENSUS  — the external baseline (raw consensus rank). Stable
+  //                regardless of roster or league config.
+  //   MODEL      — League Value. Stable across roster changes; DOES
+  //                change with league configuration.
+  //   DRAFT NOW  — Pick Utility. Changes with both roster and draft state.
+  // ---------------------------------------------------------------------
+  // ---------------------------------------------------------------------
+  // Completed Roster Validation. Runs the real optimalLineup engine
+  // against a finished roster and checks the actual required conditions —
+  // not just "did picks happen," but genuine legality and completeness.
+  // ---------------------------------------------------------------------
+  // ---------------------------------------------------------------------
+  // Consensus Guardrails. Compares Consensus Rank against Model League
+  // Rank for configurable top-N slices (overall and per position), flags
+  // deviations beyond a configurable threshold, and attributes large
+  // disagreements to the actual component that drove them. No player is
+  // ever special-cased by name — this operates generically on whatever
+  // player list is passed in.
+  // ---------------------------------------------------------------------
+  // ---------------------------------------------------------------------
+  // Backtest / Benchmark Foundation. A repeatable harness, not a claim of
+  // calibrated accuracy — the spec is explicit that the harness itself is
+  // the deliverable this phase, not perfect historical prediction. Takes
+  // pre-computed rank pairs (model vs. actual outcome) rather than live
+  // data, so it can be exercised now with synthetic fixtures and later
+  // fed real historical snapshots without changing this function.
+  // ---------------------------------------------------------------------
+  function spearmanCorrelation(pairs) {
+    const n = pairs.length;
+    if (n < 2) return null;
+    const sumDiffSquared = pairs.reduce(
+      (sum, [a, b]) => sum + Math.pow(a - b, 2),
+      0,
+    );
+    return 1 - (6 * sumDiffSquared) / (n * (n * n - 1));
+  }
+
+  function runBacktest(records, options = {}) {
+    // records: [{ key, modelRank, consensusRank, adpRank, actualOutcomeRank, injuryDistorted }]
+    const excludeInjuryDistorted = options.excludeInjuryDistorted !== false;
+    const clean = (records || []).filter(
+      (record) => !excludeInjuryDistorted || !record.injuryDistorted,
+    );
+    const withOutcome = clean.filter((record) => record.actualOutcomeRank != null);
+
+    const modelPairs = withOutcome.map((r) => [r.modelRank, r.actualOutcomeRank]);
+    const consensusPairs = withOutcome
+      .filter((r) => r.consensusRank != null)
+      .map((r) => [r.consensusRank, r.actualOutcomeRank]);
+    const adpPairs = withOutcome
+      .filter((r) => r.adpRank != null)
+      .map((r) => [r.adpRank, r.actualOutcomeRank]);
+
+    function topNOverlapVsOutcome(pairs, n) {
+      const predictedTopN = new Set(
+        pairs.filter(([predicted]) => predicted <= n).map(([predicted]) => predicted),
+      );
+      const actualTopN = pairs.filter(([, actual]) => actual <= n);
+      let hits = 0;
+      actualTopN.forEach(([predicted]) => { if (predicted <= n) hits += 1; });
+      return { n, hits, total: actualTopN.length };
+    }
+
+    return {
+      sampleSize: withOutcome.length,
+      excludedInjuryDistorted: clean.length !== (records || []).length
+        ? (records || []).length - clean.length
+        : (records || []).filter((r) => r.injuryDistorted).length,
+      modelRankCorrelation: spearmanCorrelation(modelPairs),
+      consensusRankCorrelation: spearmanCorrelation(consensusPairs),
+      adpRankCorrelation: spearmanCorrelation(adpPairs),
+      modelTop24Overlap: topNOverlapVsOutcome(modelPairs, 24),
+      consensusTop24Overlap: topNOverlapVsOutcome(consensusPairs, 24),
+    };
+  }
+
+  function validateConsensusAlignment(players, context = {}, options = {}) {
+    const deviationThreshold = numeric(options.deviationThreshold, 15);
+    const boards = buildBoards(players, context);
+
+    function topNOverlap(n) {
+      const consensusTopN = new Set(boards.consensus.slice(0, n).map((e) => e.player.key));
+      const modelTopN = new Set(boards.model.slice(0, n).map((e) => e.player.key));
+      let overlap = 0;
+      consensusTopN.forEach((key) => { if (modelTopN.has(key)) overlap += 1; });
+      return { n, overlap, total: consensusTopN.size };
+    }
+
+    function flagDeviations(list, label) {
+      const flags = [];
+      list.forEach((entry) => {
+        const consensusRank = numeric(entry.player.overallRank || entry.player.rank, null);
+        const modelEntry = boards.model.find((m) => m.player.key === entry.player.key);
+        if (consensusRank == null || !modelEntry) return;
+        const deviation = consensusRank - modelEntry.rank; // positive = model ranks him higher than consensus
+        if (Math.abs(deviation) >= deviationThreshold) {
+          const evaluation = scorePlayer(entry.player, context);
+          const c = evaluation.components;
+          // Attribute the deviation to whichever component is furthest
+          // from a neutral 50 — a real, inspectable driver, not a guess.
+          const componentEntries = Object.entries(c).sort(
+            (a, b) => Math.abs(b[1] - 50) - Math.abs(a[1] - 50),
+          );
+          flags.push({
+            name: entry.player.name,
+            position: entry.player.position,
+            consensusRank,
+            modelRank: modelEntry.rank,
+            deviation,
+            likelyDriver: componentEntries[0] ? componentEntries[0][0] : null,
+            group: label,
+          });
+        }
+      });
+      return flags;
+    }
+
+    const overallFlags = flagDeviations(boards.consensus.slice(0, 50), "overall_top50");
+    const byPosition = {};
+    ["QB", "RB", "WR", "TE"].forEach((position) => {
+      const positionList = boards.consensus.filter((e) => e.player.position === position).slice(0, 10);
+      byPosition[position] = flagDeviations(positionList, `top10_${position}`);
+    });
+
+    return {
+      deviationThreshold,
+      overlap: { top12: topNOverlap(12), top24: topNOverlap(24), top50: topNOverlap(50) },
+      overallFlags,
+      positionFlags: byPosition,
+    };
+  }
+
+  function validateCompletedRoster(picks, league = {}) {
+    const lineup = optimalLineup(picks, league);
+    const issues = [];
+
+    lineup.starters.forEach((slot) => {
+      if (!slot.player) {
+        const eligiblePool = (picks || []).filter((player) =>
+          (SLOT_ELIGIBILITY[slot.slot] || [slot.slot]).includes(player.position),
+        );
+        // Only a real issue if eligible players existed and still weren't
+        // seated — an empty slot with zero eligible players anywhere on
+        // the roster isn't a bug, just an incomplete/short draft.
+        if (eligiblePool.length > lineup.starters.filter((s) => s.slot === slot.slot).length) {
+          issues.push(`${slot.slot} slot unfilled despite eligible players on the roster`);
+        }
+      }
+    });
+
+    // No player may appear twice, anywhere (starters + bench combined).
+    const allSeated = [
+      ...lineup.starters.filter((s) => s.player).map((s) => s.player.key),
+      ...lineup.bench.map((p) => p.key),
+    ];
+    const uniqueSeated = new Set(allSeated);
+    if (uniqueSeated.size !== allSeated.length) {
+      issues.push("A player appears more than once in the completed roster — illegal state");
+    }
+
+    // No player may be seated in a slot they're not eligible for.
+    lineup.starters.forEach((slot) => {
+      if (slot.player) {
+        const eligible = SLOT_ELIGIBILITY[slot.slot] || [slot.slot];
+        if (!eligible.includes(slot.player.position)) {
+          issues.push(`${slot.player.name} (${slot.player.position}) illegally seated in ${slot.slot}`);
+        }
+      }
+    });
+
+    // Every drafted player must be accounted for exactly once.
+    const totalDrafted = (picks || []).length;
+    if (allSeated.length !== totalDrafted) {
+      issues.push(`Roster accounting mismatch: ${totalDrafted} drafted, ${allSeated.length} accounted for in lineup+bench`);
+    }
+
+    return {
+      valid: issues.length === 0,
+      issues,
+      lineup,
+    };
+  }
+
+  function buildBoards(players, context = {}) {
+    const scored = (players || []).map((player) => ({
+      player,
+      evaluation: scorePlayer(player, context),
+    }));
+
+    const consensus = [...scored].sort(
+      (a, b) => numeric(a.player.overallRank || a.player.rank, 999) -
+                numeric(b.player.overallRank || b.player.rank, 999),
+    );
+    const model = [...scored].sort(
+      (a, b) => b.evaluation.leagueValue - a.evaluation.leagueValue,
+    );
+    const draftNow = [...scored].sort(
+      (a, b) => b.evaluation.pickUtility - a.evaluation.pickUtility,
+    );
+
+    return {
+      consensus: consensus.map((entry, index) => ({
+        rank: index + 1, player: entry.player, value: numeric(entry.player.overallRank || entry.player.rank, 999),
+      })),
+      model: model.map((entry, index) => ({
+        rank: index + 1, player: entry.player, value: entry.evaluation.leagueValue,
+      })),
+      draftNow: draftNow.map((entry, index) => ({
+        rank: index + 1, player: entry.player, value: entry.evaluation.pickUtility,
+      })),
+    };
+  }
+
+  function explainPick(player, evaluation, alternatives = []) {
+    const whyThisPlayer = [];
+    if (evaluation.components.need >= 80) {
+      whyThisPlayer.push(`Fills a currently unfilled starter slot at ${player.position}`);
+    } else if (evaluation.components.need >= 60) {
+      whyThisPlayer.push(`Upgrades your current ${player.position} starter`);
+    }
+    if (player.tierEnd) {
+      whyThisPlayer.push(`Final player remaining in Tier ${numeric(player.tier, "?")}`);
+    } else if (evaluation.scarcity && evaluation.scarcity.tierDepth <= 2) {
+      whyThisPlayer.push(`Only ${evaluation.scarcity.tierDepth} player(s) left in this tier`);
+    }
+    if (evaluation.sv != null) {
+      whyThisPlayer.push(`${evaluation.sv}% projected to survive to your next pick`);
+    }
+    if (evaluation.marketValue != null && evaluation.leagueValue != null) {
+      const gap = evaluation.leagueValue - evaluation.marketValue;
+      if (gap >= 10) {
+        whyThisPlayer.push(`League Value runs ahead of where the market has him — a real value gap, not just rank`);
+      }
+    }
+
+    // WHY NOT the highest-Player-Grade alternative that was NOT chosen.
+    const notChosen = (alternatives || [])
+      .filter((entry) => entry.player.key !== player.key)
+      .sort((a, b) => b.evaluation.playerGrade - a.evaluation.playerGrade);
+    const whyNotAlternative = [];
+    if (notChosen.length && notChosen[0].evaluation.playerGrade > evaluation.playerGrade) {
+      const alt = notChosen[0];
+      whyNotAlternative.push(`${alt.player.name} (${alt.player.position}) has the higher intrinsic Player Grade`);
+      if (alt.evaluation.components.need < evaluation.components.need) {
+        whyNotAlternative.push(`but his position shows less starter need right now than ${player.position}`);
+      }
+      if (alt.evaluation.scarcity && evaluation.scarcity && alt.evaluation.scarcity.scarcity < evaluation.scarcity.scarcity) {
+        whyNotAlternative.push(`and the remaining pool at his position is deeper — less urgent to act now`);
+      }
+    }
+
+    const canIWait = {
+      recommendation: evaluation.waitRisk ? evaluation.waitRisk.category : null,
+      survivalProbability: evaluation.sv,
+      waitCost: evaluation.waitRisk ? evaluation.waitRisk.waitCost : null,
+      comparablePlayersInTier: evaluation.scarcity ? Math.max(0, evaluation.scarcity.tierDepth - 1) : null,
+    };
+
+    return { whyThisPlayer, whyNotAlternative, canIWait };
+  }
+
   function opportunityCost(candidate, availablePool, context = {}) {
     const picks = context.picks || [];
     const league = context.league || {};
@@ -1161,10 +1432,12 @@
     POSITIONS,
     STRATEGIES,
     assignTiers,
+    buildBoards,
     chooseBestCandidate,
     computeReplacementPoints,
     computeVBDPercentiles,
     enrichPlayers,
+    explainPick,
     leagueValueScore,
     marketValueScore,
     mergeSupplementalPositions,
@@ -1175,16 +1448,20 @@
     playerKey,
     roundAdjustedWeights,
     rosterCounts,
+    runBacktest,
     scarcityScore,
     seededRandom,
     waitRiskCategory,
     scorePlayer,
     selectProfile,
     sourceSummary,
+    spearmanCorrelation,
     starterTargets,
     strategyCompatibility,
     strategyDirective,
     teamScheme,
+    validateCompletedRoster,
+    validateConsensusAlignment,
     wouldStart,
   };
 });
