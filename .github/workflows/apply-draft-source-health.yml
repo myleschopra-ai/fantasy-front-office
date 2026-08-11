@@ -1,0 +1,48 @@
+name: Apply draft source health
+
+on:
+  push:
+    branches:
+      - agent/draft-session-reliability
+    paths:
+      - 'scripts/apply_draft_source_health.py'
+      - 'js/draft-source-health.js'
+      - 'tests/draft-source-health.test.js'
+      - '.github/workflows/apply-draft-source-health.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/draft-session-reliability
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply source-health integration
+        run: python3 scripts/apply_draft_source_health.py
+      - name: Run source-health tests
+        run: node tests/draft-source-health.test.js
+      - name: Run session reliability tests
+        run: node tests/draft-session.test.js
+      - name: Run snake intelligence tests
+        run: node tests/draft-intelligence.test.js
+      - name: Run auction intelligence tests
+        run: node tests/auction-intelligence.test.js
+      - name: Commit integrated runtime
+        run: |
+          if git diff --quiet -- js/mock-draft-v4.js draft-room-v5.html auction.html; then
+            echo 'No source-health runtime changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/mock-draft-v4.js draft-room-v5.html auction.html
+          git commit -m 'Surface draft data freshness and confidence health'
+          git push origin HEAD:agent/draft-session-reliability
