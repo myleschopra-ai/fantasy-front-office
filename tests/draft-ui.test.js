@@ -4,11 +4,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const route = fs.readFileSync(path.join(__dirname, '..', 'draft.html'), 'utf8');
-const room = fs.readFileSync(path.join(__dirname, '..', 'draft-room-v3.html'), 'utf8');
-const polish = fs.readFileSync(path.join(__dirname, '..', 'js', 'draft-room-polish.js'), 'utf8');
+const room = fs.readFileSync(path.join(__dirname, '..', 'draft-room-v2.html'), 'utf8');
 
-assert.match(route, /draft-room-v3\.html/, 'snake/mock route must open Draft Room v3');
+assert.match(route, /draft-room-v2\.html/, 'production snake/mock route must open stable Draft Room v2');
 assert.match(route, /auction\.html/, 'auction mode must continue to open the validated auction engine');
+assert.doesNotMatch(route, /draft-room-v3\.html/, 'production route must not use unstable Draft Room v3');
 assert.doesNotMatch(route, /<iframe/i, 'draft route must not create nested iframe layers');
 assert.doesNotMatch(route, /document\.write/i, 'draft route must not rewrite its own document');
 assert.doesNotMatch(route, /fetch\(/i, 'draft route must not async-bootstrap another page');
@@ -24,27 +24,17 @@ const requiredIds = [
   'player-modal-backdrop','player-modal-title','close-player-modal','player-blurb','player-scheme','player-compare'
 ];
 for (const id of requiredIds) {
-  assert.match(room, new RegExp(`id=["']${id}["']`), `Draft Room v3 must preserve engine DOM contract #${id}`);
+  assert.match(room, new RegExp(`id=["']${id}["']`), `stable Draft Room v2 must preserve engine DOM contract #${id}`);
 }
 
-assert.match(room, /Front Office recommendation/, 'recommendation must remain the primary decision surface');
+assert.match(room, /Front Office recommendation/, 'recommendation must be a primary visual surface');
 assert.match(room, /Search available players/, 'player search must be immediately visible');
-assert.match(room, /Draft context/, 'compact draft context must remain visible');
-assert.match(room, /Expand board/, 'draft board must have an explicit expand/collapse interaction');
-assert.match(room, /quick-filters/, 'position quick filters must be first-class controls');
-assert.match(room, /My Team/, 'roster must remain a first-class surface');
-assert.match(room, /Advanced model detail/, 'advanced diagnostics must remain progressively disclosed');
-assert.match(room, /max-height:104px/, 'desktop draft board must stay compact by default');
-assert.match(room, /max-height:82px/, 'mobile draft board must stay compact by default');
-assert.doesNotMatch(room, /<iframe/i, 'Draft Room v3 must run the engine directly without another iframe');
-assert.match(room, /js\/draft-intelligence\.js/, 'Draft Room v3 must use the validated valuation engine');
-assert.match(room, /js\/mock-draft-v4\.js/, 'Draft Room v3 must use the validated draft-state engine');
-assert.match(room, /js\/draft-room-polish\.js/, 'Draft Room v3 must load its non-invasive polish layer');
+assert.match(room, /Draft context/, 'draft board must remain available as compact context');
+assert.match(room, /My Team/, 'roster must be a first-class navigation surface');
+assert.match(room, /Advanced model detail/, 'advanced diagnostics must use progressive disclosure');
+assert.doesNotMatch(room, /draft-room-polish\.js/, 'stable production room must not load the experimental v3 polish observer');
+assert.doesNotMatch(room, /<iframe/i, 'stable room must run the engine directly without another iframe');
+assert.match(room, /js\/draft-intelligence\.js/, 'stable room must use the validated valuation engine');
+assert.match(room, /js\/mock-draft-v4\.js/, 'stable room must use the validated draft-state engine');
 
-assert.match(polish, /gridTemplateColumns=`40px repeat\(\$\{teams\}, var\(--pickw\)\)`/, 'polish layer must repair renderer/CSS draft-column mismatch');
-assert.match(polish, /pos-qb/, 'polish layer must position-color draft/player cards');
-assert.match(polish, /MutationObserver/, 'polish layer must re-apply decoration after engine renders');
-assert.match(polish, /requestAnimationFrame/, 'polish updates must be batched to avoid render thrash');
-assert.match(polish, /draftMode.*manual/, 'live companion routing must remain supported');
-
-console.log('Draft Room v3 UI contract tests passed');
+console.log('stable Draft Room v2 production UI contract tests passed');
