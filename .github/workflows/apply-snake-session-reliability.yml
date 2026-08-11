@@ -1,0 +1,42 @@
+name: Apply snake session reliability
+
+on:
+  push:
+    branches:
+      - agent/draft-session-reliability
+    paths:
+      - 'scripts/apply_snake_session_reliability.py'
+      - '.github/workflows/apply-snake-session-reliability.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/draft-session-reliability
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply snake session integration
+        run: python3 scripts/apply_snake_session_reliability.py
+      - name: Run session reliability tests
+        run: node tests/draft-session.test.js
+      - name: Run draft intelligence tests
+        run: node tests/draft-intelligence.test.js
+      - name: Commit integrated runtime
+        run: |
+          if git diff --quiet -- js/mock-draft-v4.js draft-room-v5.html; then
+            echo 'No snake session changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/mock-draft-v4.js draft-room-v5.html
+          git commit -m 'Add versioned snake draft session recovery'
+          git push origin HEAD:agent/draft-session-reliability
