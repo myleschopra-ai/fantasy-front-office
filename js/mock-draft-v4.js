@@ -3,6 +3,7 @@
 
   const D = window.FFODraftIntelligence;
   const Session = window.FFODraftSession;
+  const SourceHealth = window.FFODraftSourceHealth;
   const $ = (id) => document.getElementById(id);
   const LS = "ffo_mock_draft_v4";
   const POSITIONS = ["QB", "RB", "WR", "TE", "K", "DST"];
@@ -35,6 +36,7 @@
     sessionStatus: Session ? Session.STATES.BOOTING : "BOOTING",
     recoveryIssues: [],
     recoveredSession: false,
+    sourceHealth: null,
   };
 
   const esc = (value) =>
@@ -104,6 +106,8 @@
       sourceSnapshot: {
         generated_at: state.intelligence?.generated_at || state.intelligence?.meta?.generated_at || null,
         profile: state.intelProfile?.id || null,
+        health: state.sourceHealth?.level || null,
+        ageHours: Number.isFinite(state.sourceHealth?.ageHours) ? Number(state.sourceHealth.ageHours.toFixed(2)) : null,
       },
       savedStatus: state.sessionStatus,
     };
@@ -508,7 +512,17 @@
           picksUntilNextTurn,
         })
       : { opportunityCost: 0, bestAlternative: null, bestAlternativePosition: null, lineupImprovementForfeited: false };
-    return { ...model, eq: rosterEquity(projected), sv: survives, scarcity, waitRisk, opportunityCost };
+    const sourcePenalty = SourceHealth ? SourceHealth.confidencePenalty(state.sourceHealth) : 0;
+    return {
+      ...model,
+      confidence: Math.max(1, numeric(model.confidence, 50) - sourcePenalty),
+      sourcePenalty,
+      eq: rosterEquity(projected),
+      sv: survives,
+      scarcity,
+      waitRisk,
+      opportunityCost,
+    };
   }
 
   function actionFor(player, evaluation) {
@@ -1268,6 +1282,14 @@
       intelligenceResult.status === "fulfilled"
         ? intelligenceResult.value
         : null;
+    state.sourceHealth = SourceHealth
+      ? SourceHealth.assessRuntime({
+          intelligence: state.intelligence,
+          marketOk: marketResult.status === "fulfilled",
+          scoutingOk: scoutingResult.status === "fulfilled",
+          newsOk: fpResult.status === "fulfilled",
+        })
+      : null;
     state.intelProfile = D.selectProfile(state.intelligence, league);
     const live =
       marketResult.status === "fulfilled"
@@ -1346,6 +1368,12 @@
       ]);
       renderIntelligence();
       return;
+    }
+    if (SourceHealth && state.sourceHealth) {
+      const healthLabel = SourceHealth.label(state.sourceHealth);
+      const profileLabel = state.intelProfile?.id || "no compatible profile";
+      $("source").textContent = `${healthLabel} · ${profileLabel} · ${state.players.length} players${state.marketLoaded ? " · live market" : " · cached consensus"}`;
+      $("source").title = state.sourceHealth.issues.join(" · ");
     }
     // Data restoration is complete. Persist refreshed player/source metadata and
     // leave the state machine in the truthful draft lifecycle state.
