@@ -429,6 +429,11 @@
   }
 
   function actionFor(player, evaluation) {
+    const needState = advisorNeedState(player);
+    // Never let an opaque composite score produce a contradictory live-draft
+    // instruction after the roster state says this position is already solved.
+    if (needState.state === "saturated") return "AVOID AT COST";
+    if (needState.state === "luxury" && evaluation.score < 92) return "WAIT";
     if (evaluation.score >= 76 && evaluation.sv < 50) return "DRAFT NOW";
     if (
       player.tierEnd &&
@@ -468,6 +473,20 @@
     if (needState.state === "starter_upgrade") return "closing";
     if (needState.state === "luxury" || needState.state === "saturated") return "avoid";
     return "target";
+  }
+
+  function needReason(player) {
+    const needState = advisorNeedState(player);
+    const slot = needState.slot ? needState.slot.replace("SUPER_FLEX", "Superflex") : null;
+    switch (needState.state) {
+      case "starter_need": return `fills your open ${slot || player.position} starter`;
+      case "flex_need": return `fills your open ${slot || "FLEX"} slot`;
+      case "starter_upgrade": return `projects into your starting lineup at ${slot || player.position}`;
+      case "depth_upside": return "adds RB/WR bench upside after current starter needs";
+      case "luxury": return `${player.position} starter is already secured; this is a luxury/depth pick`;
+      case "saturated": return `${player.position} slot is already filled; prioritize another position`;
+      default: return "adds depth rather than filling an open starter";
+    }
   }
 
   function componentSummary(evaluation) {
@@ -516,9 +535,15 @@
     const nextPick = state.picks.length + 1;
     const draftComplete = state.picks.length >= state.teams * state.rounds;
     if (draftComplete) {
+      const completed = D.validateCompletedRoster(teamPicks(state.slot), state.activeLeague || DEFAULT_LEAGUE);
+      const filled = completed.lineup.starters.filter((slot) => slot.player).length;
+      const total = completed.lineup.starters.length;
       $("pick-label").textContent = "Draft complete";
       $("clock").textContent = "";
-      $("best").textContent = `${state.picks.length} of ${state.teams * state.rounds} selections made.`;
+      $("best").textContent = `Lineup set · ${filled}/${total} starters · ${completed.lineup.bench.length} bench`;
+      $("why").textContent = completed.valid
+        ? "Optimized starting lineup is ready in My Team. Review starters, FLEX assignments and bench construction."
+        : `Roster review: ${completed.issues.join(" · ") || "check remaining starter gaps"}`;
       return;
     }
     $("pick-label").textContent =
@@ -546,7 +571,7 @@
     $("bust").textContent = `${best.confidence}%`;
     $("survive").textContent = `${best.sv}%`;
     $("why").textContent =
-      `${actionFor(best, best)} · ${needLabel(best)} · ${componentSummary(best)}. ${directive.directive}`;
+      `${actionFor(best, best)} · ${needLabel(best)} — ${needReason(best)}. ${componentSummary(best)}. ${directive.directive}`;
     $("alts").innerHTML = ranked
       .slice(1)
       .map(
@@ -753,7 +778,7 @@
       `${player.name} · ${player.position}${player.nflTeam ? ` · ${player.nflTeam}` : ""}${draftedPick ? ` · Drafted ${roundPick(draftedPick.pick)} (Team ${draftedPick.team})` : ""}`;
     $("player-blurb").textContent = draftedPick
       ? `Already drafted. Score shown below is recomputed now, using current context — not necessarily identical to the value at the moment this pick was made.`
-      : `${needLabel(player)}. Overall ${numeric(player.overallRank, player.rank)}, ${player.position}${numeric(player.posRank, 999)}, position tier ${numeric(player.tier, 99)}, ADP ${numeric(player.adp, player.overallRank).toFixed(1)}. ${numeric(player.sourceCount, 1)} ranking source${numeric(player.sourceCount, 1) === 1 ? "" : "s"} with ${Math.round(numeric(player.agreement, 50))}% agreement.`;
+      : `${needLabel(player)} — ${needReason(player)}. Overall ${numeric(player.overallRank, player.rank)}, ${player.position}${numeric(player.posRank, 999)}, position tier ${numeric(player.tier, 99)}, ADP ${numeric(player.adp, player.overallRank).toFixed(1)}. ${numeric(player.sourceCount, 1)} ranking source${numeric(player.sourceCount, 1) === 1 ? "" : "s"} with ${Math.round(numeric(player.agreement, 50))}% agreement.`;
     $("player-scheme").innerHTML = schemeHtml(player);
     $("player-compare").innerHTML = group
       .map((candidate, index) => {
