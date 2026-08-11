@@ -1369,16 +1369,16 @@
       renderIntelligence();
       return;
     }
+    // Data restoration is complete. Persist refreshed player/source metadata and
+    // leave the state machine in the truthful draft lifecycle state.
+    save();
+    render();
     if (SourceHealth && state.sourceHealth) {
       const healthLabel = SourceHealth.label(state.sourceHealth);
       const profileLabel = state.intelProfile?.id || "no compatible profile";
       $("source").textContent = `${healthLabel} · ${profileLabel} · ${state.players.length} players${state.marketLoaded ? " · live market" : " · cached consensus"}`;
       $("source").title = state.sourceHealth.issues.join(" · ");
     }
-    // Data restoration is complete. Persist refreshed player/source metadata and
-    // leave the state machine in the truthful draft lifecycle state.
-    save();
-    render();
   }
 
   if (!D) {
