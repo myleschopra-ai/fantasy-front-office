@@ -33,6 +33,7 @@ try {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#start', { state: 'visible', timeout: 15000 });
   await page.waitForFunction(() => document.querySelectorAll('#board [data-k]').length > 0, null, { timeout: 30000 });
+  await page.waitForFunction(() => /FRESH|DEGRADED|STALE|EXPIRED|UNAVAILABLE/.test(document.querySelector('#source')?.textContent || ''), null, { timeout: 10000 });
 
   // Queue one player before the draft so queue restoration is part of the session contract.
   const queueButton = page.locator('#board [data-queue-k]').nth(4);
@@ -55,6 +56,7 @@ try {
       summary: document.querySelector('#board-summary')?.textContent || '',
       roster: document.querySelector('#roster')?.innerText || '',
       status: document.querySelector('#session-status')?.textContent || '',
+      source: document.querySelector('#source')?.textContent || '',
     };
   });
 
@@ -62,6 +64,8 @@ try {
   if (!before.envelope.checksum) throw new Error('session envelope has no checksum');
   if (before.envelope.payload.picks.length < 3) throw new Error(`too few picks saved (${before.envelope.payload.picks.length})`);
   if (before.envelope.payload.queue.length !== 1) throw new Error(`queue was not saved (${before.envelope.payload.queue.length})`);
+  if (!before.envelope.payload.sourceSnapshot?.health) throw new Error('source health was not persisted in the session snapshot');
+  if (!/FRESH|DEGRADED|STALE|EXPIRED|UNAVAILABLE/.test(before.source)) throw new Error(`source health label missing before reload: ${before.source}`);
   const beforeKeys = before.envelope.payload.picks.map(p => p.key);
   if (new Set(beforeKeys).size !== beforeKeys.length) throw new Error('duplicate players existed before reload');
 
@@ -77,6 +81,7 @@ try {
       summary: document.querySelector('#board-summary')?.textContent || '',
       roster: document.querySelector('#roster')?.innerText || '',
       status: document.querySelector('#session-status')?.textContent || '',
+      source: document.querySelector('#source')?.textContent || '',
     };
   });
 
@@ -93,6 +98,8 @@ try {
   }
   if (after.roster !== before.roster) throw new Error('optimized roster changed on reload');
   if (!/selection/i.test(after.summary)) throw new Error(`board summary missing after reload: ${after.summary}`);
+  if (!after.envelope.payload.sourceSnapshot?.health) throw new Error('source health disappeared after reload');
+  if (!/FRESH|DEGRADED|STALE|EXPIRED|UNAVAILABLE/.test(after.source)) throw new Error(`source health label missing after reload: ${after.source}`);
 
   // Continue drafting after recovery. A resumed session must remain actionable.
   const resumedPickCount = after.envelope.payload.picks.length;
@@ -104,7 +111,7 @@ try {
     return envelope?.payload?.picks?.length > count;
   }, resumedPickCount, { timeout: 10000 });
 
-  console.log(`snake refresh/resume passed · ${resumedPickCount} picks restored · status ${after.status}`);
+  console.log(`snake refresh/resume passed · ${resumedPickCount} picks restored · status ${after.status} · source ${after.envelope.payload.sourceSnapshot.health}`);
 } finally {
   await browser.close();
 }
