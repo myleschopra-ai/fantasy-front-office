@@ -4,8 +4,8 @@ const base = process.env.DRAFT_E2E_URL || 'http://127.0.0.1:4173/draft.html';
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
 
-const positions = ['WR','RB','WR','RB','QB','TE'];
-const mockMarket = Array.from({ length: 120 }, (_, index) => ({
+const positions = ['WR','RB','WR','RB','QB','TE','K','DST'];
+const mockMarket = Array.from({ length: 160 }, (_, index) => ({
   player: {
     sleeperId: `e2e-${index + 1}`,
     id: `e2e-${index + 1}`,
@@ -27,7 +27,7 @@ try {
   page.on('pageerror', error => pageErrors.push(error.message));
 
   await page.goto(base, { waitUntil: 'domcontentloaded' });
-  await page.waitForURL(/draft-room-v2\.html|draft-room-v3\.html|draft-room-v4\.html/, { timeout: 15000 });
+  await page.waitForURL(/draft-room-v2\.html|draft-room-v3\.html|draft-room-v4\.html|draft-room-v5\.html/, { timeout: 15000 });
   await page.waitForSelector('#start', { state: 'visible', timeout: 15000 });
   await page.waitForSelector('#board', { state: 'visible', timeout: 15000 });
   await page.waitForFunction(() => document.querySelectorAll('#board [data-k]').length > 0, null, { timeout: 30000 });
