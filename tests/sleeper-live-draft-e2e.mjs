@@ -73,7 +73,11 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('#board [data-k]').length > 20, null, { timeout: 30000 });
   await page.waitForFunction(() => window.FFO_ACTIVE_LEAGUE?.provider_league_id === 'LEAGUE-LIVE-1', null, { timeout: 10000 });
 
+  // Use the same visible settings path a real user uses.
+  await page.locator('#settings-open').click();
+  await page.waitForSelector('#setup.open', { state: 'visible', timeout: 5000 });
   await page.selectOption('#mode', 'live');
+  await page.locator('#settings-done').click();
   await page.locator('#start').click();
   await page.waitForFunction(() => {
     const raw = localStorage.getItem('ffo_mock_draft_v4');
