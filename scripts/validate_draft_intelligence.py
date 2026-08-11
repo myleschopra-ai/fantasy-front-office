@@ -18,7 +18,11 @@ REQUIRED_PROFILES = {
     "dynasty_1qb_half",
     "dynasty_superflex_half",
 }
-POSITIONS = {"QB", "RB", "WR", "TE"}
+# Draftable player positions and scheme-environment positions are intentionally
+# different concepts. K/DST belong in standard draft pools, but the coaching
+# scheme model is defined only for offensive skill positions.
+PLAYER_POSITIONS = {"QB", "RB", "WR", "TE", "K", "DST"}
+SCHEME_POSITIONS = {"QB", "RB", "WR", "TE"}
 
 
 def validate(path: Path, max_age_days: int = 7) -> list[str]:
@@ -63,7 +67,7 @@ def validate(path: Path, max_age_days: int = 7) -> list[str]:
                 errors.append(f"{profile_id} contains duplicate {key}")
                 break
             keys.add(key)
-            if player.get("position") not in POSITIONS:
+            if player.get("position") not in PLAYER_POSITIONS:
                 errors.append(f"{profile_id} contains invalid position {player.get('position')}")
                 break
             rank = player.get("overall_rank")
@@ -92,8 +96,8 @@ def validate(path: Path, max_age_days: int = 7) -> list[str]:
         errors.append(f"only {verified_staff} team staffs were verified from official pages")
     for team, profile in teams.items():
         environment = profile.get("position_environment") or {}
-        if set(environment) != POSITIONS:
-            errors.append(f"{team} is missing position-environment scores")
+        if set(environment) != SCHEME_POSITIONS:
+            errors.append(f"{team} is missing offensive position-environment scores")
             continue
         if any(not isinstance(value, (int, float)) or not 0 <= value <= 100 for value in environment.values()):
             errors.append(f"{team} has an out-of-range position-environment score")
