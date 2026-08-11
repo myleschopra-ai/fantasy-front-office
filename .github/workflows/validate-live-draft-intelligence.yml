@@ -1,0 +1,106 @@
+name: Validate live draft intelligence
+
+on:
+  pull_request:
+    paths:
+      - 'js/draft-intelligence.js'
+      - 'js/mock-draft-v4.js'
+      - 'scripts/refresh_fantasypros.py'
+      - 'scripts/build_draft_intelligence.py'
+      - 'scripts/validate_live_draft_board.js'
+      - 'tests/draft-intelligence.test.js'
+      - '.github/workflows/validate-live-draft-intelligence.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '41 14 * 5-9 2,5'
+
+permissions:
+  contents: read
+
+jobs:
+  live-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NFL_SEASON: '2026'
+      FANTASY_SCORING: HALF
+      FANTASYPROS_API_KEY: ${{ secrets.FANTASYPROS_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install pinned data dependencies
+        run: python -m pip install nflreadpy==0.1.5 beautifulsoup4==4.13.4
+
+      - name: Run draft engine regression tests
+        run: node tests/draft-intelligence.test.js
+
+      - name: Run Python regression tests
+        run: python -m unittest discover -s tests
+
+      - name: Verify FantasyPros credential is configured
+        shell: bash
+        run: |
+          if [ -z "$FANTASYPROS_API_KEY" ]; then
+            echo 'FANTASYPROS_API_KEY repository secret is not configured.' >&2
+            exit 1
+          fi
+
+      - name: Refresh real FantasyPros snapshot
+        run: python scripts/refresh_fantasypros.py
+
+      - name: Build fresh draft intelligence
+        run: python scripts/build_draft_intelligence.py --season "$NFL_SEASON" --teams 12
+
+      - name: Validate draft-intelligence snapshot
+        run: python scripts/validate_draft_intelligence.py data/draft_intelligence.json
+
+      - name: Run real-data ranking and behavior gates
+        run: node scripts/validate_live_draft_board.js --strict --output-dir=reports
+
+      - name: Show human-readable validation report
+        if: always()
+        run: |
+          if [ -f reports/draft_validation_current.md ]; then
+            cat reports/draft_validation_current.md
+          fi
+
+      - name: Upload live validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-draft-validation
+          path: |
+            reports/draft_validation_current.json
+            reports/draft_validation_current.md
+            fantasypros.json
+          if-no-files-found: warn
+
+  historical-backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run existing no-lookahead 2025 manager backtest
+        run: python scripts/backtest_2025_manager.py data/backtests/2025
+      - name: Show 2025 report
+        if: always()
+        run: |
+          if [ -f data/backtests/2025/report.md ]; then
+            cat data/backtests/2025/report.md
+          fi
+      - name: Upload historical backtest evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 2025-manager-backtest-validation
+          path: data/backtests/2025/
+          if-no-files-found: warn
