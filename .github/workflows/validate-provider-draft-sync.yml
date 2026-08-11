@@ -6,12 +6,16 @@ on:
       - agent/sleeper-live-draft-sync
     paths:
       - 'js/provider-draft-sync.js'
+      - 'js/sleeper-draft-client.js'
       - 'tests/provider-draft-sync.test.js'
+      - 'tests/sleeper-draft-client.test.js'
       - '.github/workflows/validate-provider-draft-sync.yml'
   pull_request:
     paths:
       - 'js/provider-draft-sync.js'
+      - 'js/sleeper-draft-client.js'
       - 'tests/provider-draft-sync.test.js'
+      - 'tests/sleeper-draft-client.test.js'
 
 jobs:
   reconcile-unit:
@@ -22,5 +26,6 @@ jobs:
         with:
           node-version: 22
       - run: node tests/provider-draft-sync.test.js
+      - run: node tests/sleeper-draft-client.test.js
       - run: node tests/draft-session.test.js
       - run: node tests/draft-intelligence.test.js
