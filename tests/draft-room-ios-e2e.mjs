@@ -35,6 +35,13 @@ try {
     await page.waitForSelector('#draft-grid', { state: 'visible', timeout: 15000 });
     await page.waitForFunction(() => document.querySelectorAll('#board [data-k]').length > 0, null, { timeout: 30000 });
 
+    const configuredStarterSlots = await page.evaluate(() => {
+      const roster = window.FFO_ACTIVE_LEAGUE?.roster || { QB:1, RB:2, WR:2, TE:1, FLEX:2, K:1, DST:1 };
+      return Object.entries(roster)
+        .filter(([name, count]) => !['BENCH','BN','TAXI','IR'].includes(name) && Number(count) > 0)
+        .map(([name]) => name === 'SF' ? 'SUPER_FLEX' : name);
+    });
+
     const cssLoaded = await page.evaluate(() => {
       const grid = document.querySelector('.draft-grid-wrap');
       const cell = document.querySelector('.draft-cell:not(.round)');
@@ -69,8 +76,8 @@ try {
         throw new Error(`${profile.name} ${label}: roster-state badge missing (${badgeTexts.slice(0, 10).join(' / ')})`);
       }
       const slotLabels = await page.locator('#roster .lineup-slot > span:first-child').allTextContents();
-      for (const required of ['QB','RB','WR','TE','K','DST']) {
-        if (!slotLabels.some(v => v.startsWith(required))) throw new Error(`${profile.name} ${label}: missing ${required} starter slot`);
+      for (const required of configuredStarterSlots) {
+        if (!slotLabels.some(v => v.startsWith(required))) throw new Error(`${profile.name} ${label}: missing configured ${required} starter slot (${slotLabels.join(', ')})`);
       }
     };
 
