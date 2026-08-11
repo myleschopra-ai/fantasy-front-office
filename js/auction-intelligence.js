@@ -87,24 +87,85 @@
     return Math.max(0, budget - Math.max(0, (slots - 1) * minimum));
   }
 
+  function requiredPositionCounts(config) {
+    const roster = config.league?.roster || {};
+    return {
+      QB: config.teams * Math.max(0, numeric(roster.QB, 0)),
+      RB: config.teams * Math.max(0, numeric(roster.RB, 0)),
+      WR: config.teams * Math.max(0, numeric(roster.WR, 0)),
+      TE: config.teams * Math.max(0, numeric(roster.TE, 0)),
+      K: config.teams * Math.max(0, numeric(roster.K, 0)),
+      DST: config.teams * Math.max(0, numeric(roster.DST, 0)),
+    };
+  }
+
+  function positionDemandMultiplier(position, config) {
+    const roster = config.league?.roster || {};
+    const flex = Math.max(0, numeric(roster.FLEX, 0));
+    const sf = Math.max(0, numeric(roster.SUPER_FLEX ?? roster.SF, 0));
+    const explicit = Math.max(0, numeric(roster[position], 0));
+    if (position === 'QB') return 1 + sf * 0.55 + Math.max(0, explicit - 1) * 0.45;
+    if (position === 'WR') return 1 + Math.max(0, explicit - 2) * 0.14 + flex * 0.035;
+    if (position === 'RB') return 1 + Math.max(0, explicit - 2) * 0.12 + flex * 0.03;
+    if (position === 'TE') return 1 + Math.max(0, explicit - 1) * 0.12 + flex * 0.012;
+    if (position === 'K' || position === 'DST') return 0.035;
+    return 1;
+  }
+
+  function positionPriceCap(position, config, maxShare) {
+    if (position === 'K' || position === 'DST') return Math.max(config.minBid, Math.min(10, config.budget * 0.025));
+    return config.budget * maxShare;
+  }
+
+  function selectDraftablePool(eligible, config) {
+    const required = requiredPositionCounts(config);
+    const selected = new Set();
+    const draftable = [];
+    for (const [position, count] of Object.entries(required)) {
+      if (!(count > 0)) continue;
+      const candidates = eligible.filter((entry) => entry.player.position === position).slice(0, count);
+      for (const entry of candidates) {
+        if (selected.has(entry.index)) continue;
+        selected.add(entry.index);
+        draftable.push(entry);
+      }
+    }
+    const remaining = eligible.filter((entry) => !selected.has(entry.index));
+    remaining.sort((a, b) => {
+      const aWeighted = a.value * positionDemandMultiplier(a.player.position, config);
+      const bWeighted = b.value * positionDemandMultiplier(b.player.position, config);
+      return bWeighted - aWeighted || a.index - b.index;
+    });
+    for (const entry of remaining) {
+      if (draftable.length >= config.totalSlots) break;
+      selected.add(entry.index);
+      draftable.push(entry);
+    }
+    draftable.sort((a, b) => b.value - a.value || a.index - b.index);
+    return draftable.slice(0, config.totalSlots);
+  }
+
   function buildIntrinsicPrices(players, options = {}) {
     const config = compileAuctionConfig(options);
     const valueField = options.valueField || 'leagueValue';
     const exponent = clamp(numeric(options.exponent, 1.35), 1, 2.5);
     const maxShare = clamp(numeric(options.maxShare, 0.4), 0.15, 0.6);
-    const eligible = (players || []).map((player, index) => ({ player, value: numeric(player[valueField] ?? player.leagueValue ?? player.modelValue ?? player.value, 0), index })).filter((entry) => entry.player && entry.player.position).sort((a, b) => b.value - a.value || a.index - b.index);
-    const draftable = eligible.slice(0, Math.min(config.totalSlots, eligible.length));
+    const eligible = (players || [])
+      .map((player, index) => ({ player, value: numeric(player[valueField] ?? player.leagueValue ?? player.modelValue ?? player.value, 0), index }))
+      .filter((entry) => entry.player && entry.player.position)
+      .sort((a, b) => b.value - a.value || a.index - b.index);
+    const draftable = selectDraftablePool(eligible, config);
     if (!draftable.length) return { config, replacementValue: 0, prices: {}, rows: [], totalAssigned: 0 };
 
-    const replacementValue = draftable[draftable.length - 1].value;
+    const replacementValue = Math.min(...draftable.map((entry) => entry.value));
     const weights = draftable.map((entry, index) => {
       const edge = Math.max(0, entry.value - replacementValue);
       const rankFloor = Math.max(0.001, (draftable.length - index) / draftable.length);
-      return Math.pow(edge + rankFloor * 0.15, exponent);
+      const demand = positionDemandMultiplier(entry.player.position, config);
+      return Math.pow(edge + rankFloor * 0.15, exponent) * demand;
     });
-    const maxPrice = config.budget * maxShare;
     const prices = new Array(draftable.length).fill(config.minBid);
-    let remainingPool = config.discretionaryPool;
+    let remainingPool = Math.max(0, config.totalBudget - draftable.length * config.minBid);
     let active = draftable.map((_entry, index) => index);
     let activeWeights = [...weights];
 
@@ -116,7 +177,8 @@
       for (let j = 0; j < active.length; j += 1) {
         const index = active[j];
         const share = remainingPool * (activeWeights[j] / weightTotal);
-        const room = Math.max(0, maxPrice - prices[index]);
+        const cap = positionPriceCap(draftable[index].player.position, config, maxShare);
+        const room = Math.max(0, cap - prices[index]);
         const add = Math.min(room, share);
         prices[index] += add;
         spentThisRound += add;
@@ -129,14 +191,42 @@
     }
 
     if (remainingPool > 0.0001) {
-      for (let i = prices.length - 1; i >= 0 && remainingPool > 0.0001; i -= 1) {
-        const add = Math.min(remainingPool, config.budget - prices[i]);
-        prices[i] += add;
-        remainingPool -= add;
+      const order = draftable.map((_entry, index) => index).filter((index) => !['K', 'DST'].includes(draftable[index].player.position));
+      for (let pass = 0; pass < 3 && remainingPool > 0.0001; pass += 1) {
+        for (const index of order) {
+          if (remainingPool <= 0.0001) break;
+          const cap = positionPriceCap(draftable[index].player.position, config, maxShare);
+          const room = Math.max(0, cap - prices[index]);
+          const add = Math.min(room, remainingPool);
+          prices[index] += add;
+          remainingPool -= add;
+        }
       }
     }
 
-    const rows = draftable.map((entry, index) => ({ player: entry.player, value: entry.value, intrinsicPrice: Math.round(prices[index] * 10) / 10, auctionRank: index + 1, replacementValue }));
+    const rounded = prices.map((price) => Math.round(price * 10) / 10);
+    let diffTenths = Math.round((config.totalBudget - sum(rounded)) * 10);
+    const adjustable = draftable
+      .map((_entry, index) => index)
+      .filter((index) => !['K', 'DST'].includes(draftable[index].player.position));
+    let cursor = 0;
+    let guard = 0;
+    while (diffTenths !== 0 && adjustable.length && guard < 100000) {
+      const index = adjustable[cursor % adjustable.length];
+      const step = diffTenths > 0 ? 0.1 : -0.1;
+      const cap = positionPriceCap(draftable[index].player.position, config, maxShare);
+      const next = Math.round((rounded[index] + step) * 10) / 10;
+      if (next >= config.minBid - 1e-9 && next <= cap + 1e-9) {
+        rounded[index] = next;
+        diffTenths += diffTenths > 0 ? -1 : 1;
+      }
+      cursor += 1;
+      guard += 1;
+    }
+
+    const rows = draftable
+      .map((entry, index) => ({ player: entry.player, value: entry.value, intrinsicPrice: rounded[index], auctionRank: index + 1, replacementValue }))
+      .sort((a, b) => b.intrinsicPrice - a.intrinsicPrice || b.value - a.value);
     const priceMap = Object.fromEntries(rows.map((row) => [String(row.player.key ?? `${row.player.name}|${row.player.position}`), row.intrinsicPrice]));
     return { config, replacementValue, prices: priceMap, rows, totalAssigned: Math.round(sum(rows.map((row) => row.intrinsicPrice)) * 10) / 10 };
   }
@@ -230,5 +320,5 @@
     return { player, intrinsicPrice, expectedPrice: clearingPrice, currentPrice: observedPrice, maxBid: bidCap, surplus, recommendation: recommendation({ currentPrice: observedPrice, expectedPrice: clearingPrice, maxBid: bidCap, intrinsicPrice, surplus }), nomination: nomination({ surplus, expectedPrice: clearingPrice, maxBid: bidCap, roomInflation: inflation, need, opponentsNeedingPosition, endgame: teamState.slotsLeft <= 3 }), need, scarcity, tierUrgency, inflation };
   }
 
-  return { clamp, auctionTier, rosterSlotCount, compileAuctionConfig, normalizeHistory, leagueModel, maximumLegalBid, buildIntrinsicPrices, roomInflation, expectedLeaguePrice, maxBid, acquisitionSurplus, recommendation, nomination, capableBidderCount, applyPurchase, budgetHealth, evaluatePlayer };
+  return { clamp, auctionTier, rosterSlotCount, compileAuctionConfig, requiredPositionCounts, positionDemandMultiplier, normalizeHistory, leagueModel, maximumLegalBid, buildIntrinsicPrices, roomInflation, expectedLeaguePrice, maxBid, acquisitionSurplus, recommendation, nomination, capableBidderCount, applyPurchase, budgetHealth, evaluatePlayer };
 });
