@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - agent/draft-room-v4-stable
+      - agent/draft-advisor-roster-logic
     paths:
       - 'draft.html'
       - 'draft-room-v2.html'
