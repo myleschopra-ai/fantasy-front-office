@@ -4,66 +4,60 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Front Office — Draft Room</title>
-<meta name="theme-color" content="#0b0e14">
+<meta name="theme-color" content="#020617">
 <style>
-:root{--bg:#07090f;--panel:#0d1119;--panel2:#131925;--line:#202838;--text:#f4f7fb;--muted:#8290a6;--cyan:#38e5ea;--gold:#f5b942;--green:#38d996;--red:#ff667a;--qb:#ff7285;--rb:#63d4c9;--wr:#67b9ff;--te:#f3c86a;--k:#c69cff;--dst:#a2acbb}
-*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}.shell{height:100dvh;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto}.top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;background:#090d14;border-bottom:1px solid var(--line)}.brand{display:flex;align-items:center;gap:9px;min-width:0}.mark{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--cyan);color:#031014;font-weight:1000}.title{font-size:13px;font-weight:900;white-space:nowrap}.sub{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top-actions,.modebar{display:flex;align-items:center;gap:6px}.icon,.mode,.action{border:1px solid var(--line);background:var(--panel2);color:var(--muted);border-radius:8px;padding:7px 10px;font:inherit;font-size:11px;font-weight:750;cursor:pointer;touch-action:manipulation}.mode.active{background:#16252b;border-color:#26727a;color:var(--cyan)}.action.primary{background:var(--cyan);border-color:var(--cyan);color:#051014}.action.secondary{color:var(--text)}.turnbar{padding:8px 12px;background:#0b1018;border-bottom:1px solid var(--line);display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px}.turnstate{font-size:10px;font-weight:900;letter-spacing:.08em;color:var(--cyan);text-transform:uppercase}.clock{font-size:18px;font-weight:900;font-variant-numeric:tabular-nums}.context{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.workspace{min-height:0;padding:8px;background:#080b11}.frame-wrap{height:100%;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0b1018;position:relative}.frame{width:100%;height:100%;border:0;background:#0b1018}.loading{position:absolute;inset:0;display:grid;place-items:center;background:#0b1018;color:var(--muted);font-size:12px;z-index:2}.loading.hidden{display:none}.bottom{display:none;background:#0a0e15;border-top:1px solid var(--line);padding-bottom:max(4px,env(safe-area-inset-bottom))}.bottom button{flex:1;border:0;background:none;color:var(--muted);padding:9px 4px 7px;font-size:10px;font-weight:800}.bottom button.active{color:var(--cyan)}.badge{display:inline-block;border-radius:999px;padding:2px 7px;background:#151d28;color:var(--muted);font-size:9px}.notice{position:absolute;right:10px;bottom:10px;z-index:3;max-width:290px;padding:8px 10px;background:rgba(8,12,18,.92);border:1px solid var(--line);border-radius:8px;color:var(--muted);font-size:10px;line-height:1.35}.notice strong{color:var(--text)}
-@media(max-width:700px){.shell{grid-template-rows:auto auto minmax(0,1fr) auto}.top{padding:8px 9px}.title{font-size:12px}.top-actions .mode{padding:6px 8px}.top-actions .icon{display:none}.turnbar{padding:6px 9px;grid-template-columns:auto 1fr auto}.clock{font-size:15px}.workspace{padding:0}.frame-wrap{border:0;border-radius:0}.bottom{display:flex}.notice{display:none}}
+  html,body{height:100%;margin:0;background:#020617;color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  body{display:grid;place-items:center}
+  .boot{display:grid;gap:10px;text-align:center;padding:24px;max-width:420px}
+  .boot strong{font-size:15px}.boot span{font-size:12px;color:#94a3b8}
+  .error{color:#f87171}
 </style>
 </head>
 <body>
-<div class="shell">
-  <header class="top">
-    <div class="brand"><div class="mark">FO</div><div style="min-width:0"><div class="title">Draft Room</div><div id="room-sub" class="sub">Mock draft · calibrated Front Office engine</div></div></div>
-    <div class="top-actions">
-      <button class="mode active" data-mode="mock">Mock</button>
-      <button class="mode" data-mode="live">Live</button>
-      <button class="mode" data-mode="auction">Auction</button>
-      <button id="settings" class="icon" title="Show draft settings">⚙</button>
-      <button class="icon" onclick="location.href='index.html'">Dashboard</button>
-    </div>
-  </header>
-  <div class="turnbar">
-    <div><div id="turn-state" class="turnstate">Ready</div><div id="clock" class="clock">--:--</div></div>
-    <div><div id="context" class="context">Start a mock to simulate opponents and update recommendations after every pick.</div><span id="mode-badge" class="badge">SNAKE MOCK</span></div>
-    <div class="modebar"><button id="start-draft" class="action primary">Start Draft</button><button id="advance-draft" class="action secondary">To My Pick</button></div>
-  </div>
-  <main class="workspace">
-    <div class="frame-wrap">
-      <div id="loading" class="loading">Loading draft room…</div>
-      <iframe id="room-frame" class="frame" title="Fantasy draft room"></iframe>
-      <div class="notice"><strong>Compact draft room.</strong> The board is kept as context for position runs and opponent behavior; player decisions, queue, roster and recommendations get the working space.</div>
-    </div>
-  </main>
-  <nav class="bottom">
-    <button class="active" data-child-tab="board">Board</button>
-    <button data-child-tab="recommended">Players</button>
-    <button data-child-tab="queue">Queue</button>
-    <button data-child-tab="team">Team</button>
-  </nav>
-</div>
-<script src="js/league-switcher.js"></script>
+<div class="boot" id="boot"><strong>Loading Draft Room…</strong><span>Opening the validated draft engine directly.</span></div>
 <script>
-(()=>{'use strict';
-const $=id=>document.getElementById(id), frame=$('room-frame'), loading=$('loading');
-const P=new URLSearchParams(location.search);let mode='mock',settingsOpen=false,timer=null,seconds=60;
-function modeSrc(next){if(next==='auction')return 'auction.html';return 'mock-draft-v4.html';}
-function child(){try{return frame.contentDocument}catch{return null}}
-function injectCompact(){const d=child();if(!d)return;const old=d.getElementById('ffo-sleeper-compact');if(old)old.remove();const s=d.createElement('style');s.id='ffo-sleeper-compact';s.textContent=`
-header{display:none!important}body{background:#080b11!important}main{max-width:none!important;padding:7px!important}.ffo-league-switcher,.ffo-provider-strip{margin:4px 7px!important;max-width:none!important}.panel{border-radius:8px!important;padding:9px!important}.draft-grid-wrap{max-height:178px!important;margin-top:5px!important}.draft-cell{width:108px!important;min-height:49px!important;padding:4px!important;font-size:9px!important}.draft-cell.header{min-height:36px!important}.draft-cell.round{width:42px!important}.grid{grid-template-columns:minmax(0,1.65fr) minmax(245px,.72fr)!important;gap:8px!important}.stack{gap:8px!important}.fields{grid-template-columns:repeat(6,minmax(80px,1fr))!important}.metrics{gap:5px!important}.metric{padding:7px!important}.notice{margin:6px 0!important}.board{max-height:56vh!important}.row{padding:7px!important;margin:4px 0!important}body.ffo-hide-settings main>section.panel:first-of-type{display:none!important}@media(max-width:760px){main{padding:0!important}.ffo-league-switcher,.ffo-provider-strip{display:none!important}.grid{grid-template-columns:1fr!important}.draft-grid-wrap{max-height:142px!important}.draft-cell{width:94px!important;min-height:44px!important}.panel{border-radius:0!important;border-left:0!important;border-right:0!important}.fields{grid-template-columns:repeat(3,1fr)!important}.board{max-height:48vh!important}}
-`;d.head.appendChild(s);if(!settingsOpen&&mode!=='auction')d.body.classList.add('ffo-hide-settings');else d.body.classList.remove('ffo-hide-settings');
-if(mode==='live'){const m=d.getElementById('mode');if(m){m.value='manual';m.dispatchEvent(new Event('change',{bubbles:true}))}}
-}
-function setMode(next){mode=next;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));$('room-sub').textContent=mode==='auction'?'Auction draft · intrinsic value, room price, max bid':mode==='live'?'Live companion · manual pick recording + recommendations':'Mock draft · calibrated Front Office engine';$('mode-badge').textContent=mode==='auction'?'AUCTION':mode==='live'?'LIVE COMPANION':'SNAKE MOCK';$('start-draft').textContent=mode==='auction'?'Auction Room':'Start Draft';$('advance-draft').style.display=mode==='auction'?'none':'inline-block';$('turn-state').textContent=mode==='live'?'Live Ready':'Ready';$('context').textContent=mode==='auction'?'Track room inflation, roster budget, expected clearing price and max bid.':mode==='live'?'Use manual mode to record the room while Draft Now recommendations recalculate after every selection.':'Start a mock to simulate opponents and update recommendations after every pick.';loading.classList.remove('hidden');frame.src=modeSrc(mode)+'?embed=1&'+P.toString();}
-function startClock(){clearInterval(timer);seconds=60;const draw=()=>{$('clock').textContent=`00:${String(seconds).padStart(2,'0')}`;$('turn-state').textContent='Your Turn';if(seconds>0)seconds--;};draw();timer=setInterval(draw,1000)}
-frame.addEventListener('load',()=>{loading.classList.add('hidden');setTimeout(injectCompact,80);setTimeout(injectCompact,700)});
-$('start-draft').onclick=()=>{if(mode==='auction'){frame.contentWindow?.focus();return}const d=child();if(!d)return;const m=d.getElementById('mode');if(m){m.value=mode==='live'?'manual':'sim';m.dispatchEvent(new Event('change',{bubbles:true}))}d.getElementById('start')?.click();startClock();$('context').textContent=mode==='live'?'Record each selection from the live room; the board and recommendation layer update immediately.':'CPU picks are simulated to your slot. Draft from Players or Recommended.';};
-$('advance-draft').onclick=()=>{child()?.getElementById('advance')?.click();startClock()};
-$('settings').onclick=()=>{settingsOpen=!settingsOpen;injectCompact();$('settings').textContent=settingsOpen?'✕':'⚙'};
-document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
-document.querySelectorAll('[data-child-tab]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-child-tab]').forEach(x=>x.classList.remove('active'));b.classList.add('active');const d=child();if(!d||mode==='auction')return;const id=b.dataset.childTab==='board'?'tab-board':`tab-${b.dataset.childTab}`;d.getElementById(id)?.click()});
-document.addEventListener('ffo:league-changed',e=>{const f=String(e.detail?.draft?.format||'').toLowerCase();if(f==='auction')setMode('auction');else if(f==='snake'||f==='linear')setMode('mock')});
-setMode(P.get('mode')||'mock');
+(async()=>{
+  'use strict';
+  const params=new URLSearchParams(location.search);
+  const requested=String(params.get('mode')||'mock').toLowerCase();
+  const auction=requested==='auction';
+  const target=auction?'auction.html':'mock-draft-v4.html';
+  const embed=params.get('embed')==='1' || window.self!==window.top;
+  try{
+    const response=await fetch(`${target}?source=direct&ts=${Date.now()}`,{cache:'no-store'});
+    if(!response.ok)throw new Error(`${response.status} ${response.statusText}`);
+    let html=await response.text();
+    if(!auction){
+      const compact=`<style id="ffo-direct-embed-style">
+        ${embed?'header{display:none!important;}':''}
+        body{background:#080b11!important;}
+        main{max-width:none!important;padding:${embed?'8px':'14px'}!important;}
+        .ffo-league-switcher,.ffo-provider-strip{max-width:none!important;margin:4px 0 7px!important;}
+        .panel{border-radius:8px!important;padding:9px!important;}
+        .draft-grid-wrap{max-height:${embed?'165px':'220px'}!important;margin-top:5px!important;overflow:auto!important;}
+        .draft-cell{width:108px!important;min-height:48px!important;padding:4px!important;font-size:9px!important;}
+        .draft-cell.header{min-height:34px!important;}.draft-cell.round{width:42px!important;}
+        .grid{grid-template-columns:minmax(0,1.8fr) minmax(245px,.68fr)!important;gap:8px!important;}
+        .stack{gap:8px!important;}.fields{grid-template-columns:repeat(6,minmax(80px,1fr))!important;gap:6px!important;}
+        .metrics{gap:5px!important;}.metric{padding:7px!important;}.row{padding:7px!important;margin:4px 0!important;}
+        .board{max-height:58vh!important;overflow:auto!important;}
+        @media(max-width:760px){
+          main{padding:0!important}.ffo-league-switcher,.ffo-provider-strip{display:none!important}.grid{grid-template-columns:1fr!important;gap:0!important}
+          .panel{border-radius:0!important;border-left:0!important;border-right:0!important}.fields{grid-template-columns:repeat(3,1fr)!important}
+          .draft-grid-wrap{max-height:128px!important}.draft-cell{width:92px!important;min-height:42px!important}.board{max-height:52vh!important}
+        }
+      </style>`;
+      html=html.replace('</head>',`${compact}</head>`);
+      const desiredMode=requested==='live'?'manual':'sim';
+      html=html.replace('</body>',`<script>window.addEventListener('load',()=>{const m=document.getElementById('mode');if(m){m.value='${desiredMode}';m.dispatchEvent(new Event('change',{bubbles:true}));}});<\/script></body>`);
+    }
+    document.open();
+    document.write(html);
+    document.close();
+  }catch(error){
+    const boot=document.getElementById('boot');
+    boot.innerHTML=`<strong class="error">Draft Room failed to load</strong><span>${String(error.message||error)}</span><button onclick="location.reload()" style="padding:9px 12px;border:0;border-radius:7px;background:#f59e0b;font-weight:800;cursor:pointer">Retry</button>`;
+  }
 })();
 </script>
 </body>
