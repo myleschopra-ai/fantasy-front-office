@@ -382,7 +382,12 @@
     const scarcity = D.scarcityScore(player, available(state.picks), {
       picksUntilNextTurn,
     });
-    return { ...model, eq: rosterEquity(projected), sv: survives, scarcity };
+    const waitRisk = D.waitRiskCategory({
+      survivalProbability: survives,
+      playerValue: model.playerGrade,
+      scarcity: scarcity.scarcity,
+    });
+    return { ...model, eq: rosterEquity(projected), sv: survives, scarcity, waitRisk };
   }
 
   function actionFor(player, evaluation) {
@@ -694,10 +699,27 @@
         const evaluation = equityFor(candidate);
         const c = evaluation.components;
         const metric = (label, value) => `<div class="metric-box"><span class="metric-label">${label}</span><span class="metric-value">${value}</span></div>`;
+        const waitLabels = {
+          TAKE_NOW: "TAKE NOW",
+          HIGH_WAIT_RISK: "HIGH WAIT RISK",
+          MODERATE_WAIT_RISK: "MODERATE WAIT RISK",
+          STRONG_WAIT_CANDIDATE: "STRONG WAIT CANDIDATE",
+          LIKELY_AVAILABLE: "LIKELY AVAILABLE",
+        };
+        const waitColors = {
+          TAKE_NOW: "#f87171",
+          HIGH_WAIT_RISK: "#f5b942",
+          MODERATE_WAIT_RISK: "#f5b942",
+          STRONG_WAIT_CANDIDATE: "#2dd4bf",
+          LIKELY_AVAILABLE: "#2dd4bf",
+        };
+        const waitLabel = waitLabels[evaluation.waitRisk.category] || evaluation.waitRisk.category;
+        const waitColor = waitColors[evaluation.waitRisk.category] || "#94a3b8";
         return `<div class="compare-card ${index === 0 ? "primary" : ""}">
           <div class="muted">${index === 0 ? (draftedPick ? "DRAFTED" : "SELECTED") : "POSITION PEER"}</div>
           <div class="name">${esc(candidate.name)}</div>
           <div class="meta">O${numeric(candidate.overallRank, candidate.rank)} · ${candidate.position}${numeric(candidate.posRank, 999)} · T${numeric(candidate.tier, 99)}</div>
+          <div style="margin-top:6px;"><span class="action-badge" style="background:${waitColor}22; color:${waitColor};">${waitLabel}</span> <span class="detail-line" style="display:inline;">— ${evaluation.sv}% survives to your next pick, wait cost ${evaluation.waitRisk.waitCost}</span></div>
           <div class="metric-grid" style="grid-template-columns: repeat(4, 1fr); margin-top:6px;">
             ${metric("Player Grade", evaluation.playerGrade)}
             ${metric("Market Value", evaluation.marketValue)}
