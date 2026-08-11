@@ -103,10 +103,10 @@
       finally { inFlight = false; }
     }
 
-    function start() {
+    function start(startOptions = {}) {
       if (running) return;
       running = true;
-      tick();
+      if (startOptions.immediate !== false) tick();
       timer = setInterval(tick, intervalMs);
     }
     function stop() {
