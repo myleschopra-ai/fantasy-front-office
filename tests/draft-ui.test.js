@@ -4,21 +4,22 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'draft.html'), 'utf8');
+const mock = fs.readFileSync(path.join(__dirname, '..', 'mock-draft-v4.html'), 'utf8');
 
-for (const id of ['room-frame','start-draft','advance-draft','turn-state','clock','mode-badge']) {
-  assert.match(html, new RegExp(`id=["']${id}["']`), `draft room must expose #${id}`);
-}
-for (const mode of ['mock','live','auction']) {
-  assert.match(html, new RegExp(`data-mode=["']${mode}["']`), `draft room must expose ${mode} mode`);
-}
-for (const tab of ['board','recommended','queue','team']) {
-  assert.match(html, new RegExp(`data-child-tab=["']${tab}["']`), `mobile draft nav must expose ${tab}`);
-}
-assert.match(html, /mock-draft-v4\.html/, 'snake/mock mode must load the validated mock engine');
-assert.match(html, /auction\.html/, 'auction mode must load the validated auction engine');
-assert.match(html, /getElementById\(['"]start['"]\)\?\.click\(\)/, 'Start Draft must dispatch to the child engine start action');
-assert.match(html, /max-height:178px/, 'desktop draftboard must be compact rather than dominate the viewport');
-assert.match(html, /max-height:142px/, 'mobile draftboard must be compact');
-assert.match(html, /data-child-tab=["']recommended["']>Players</, 'mobile player workspace should follow Sleeper-style Players navigation');
+assert.match(html, /mock-draft-v4\.html/, 'draft room must load the validated snake/mock engine');
+assert.match(html, /auction\.html/, 'draft room must route auction mode to the validated auction engine');
+assert.doesNotMatch(html, /<iframe/i, 'draft room must not add another iframe layer around the draft engine');
+assert.match(html, /document\.write\(html\)/, 'draft room should write the selected engine directly into the current document');
+assert.match(html, /max-height:\$\{embed\?'165px':'220px'\}/, 'embedded desktop draft board must remain compact');
+assert.match(html, /max-height:128px/, 'mobile draft board must remain compact');
+assert.match(html, /requested==='live'\?'manual':'sim'/, 'live mode must switch the snake engine to manual companion mode');
+assert.match(html, /Draft Room failed to load/, 'draft loader must surface an actionable failure state');
 
-console.log('draft.html Sleeper-style UI smoke tests passed');
+for (const id of ['start','advance','undo','board','roster']) {
+  assert.match(mock, new RegExp(`id=["']${id}["']`), `native mock engine must retain #${id}`);
+}
+assert.match(mock, /Start \/ Reset/, 'native draft engine must retain an explicit Start / Reset action');
+assert.match(mock, /Available board/, 'native draft engine must retain the player board');
+assert.match(mock, /Recommended/, 'native draft engine must retain recommendation navigation');
+
+console.log('draft direct-loader UI regression tests passed');
