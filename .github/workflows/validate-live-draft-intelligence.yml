@@ -1,0 +1,133 @@
+name: Validate live draft intelligence
+
+# Production-facing calibration gate for both snake and auction draft modes.
+on:
+  pull_request:
+    paths:
+      - 'auction.html'
+      - 'js/auction-intelligence.js'
+      - 'js/backtest-intelligence.js'
+      - 'js/draft-intelligence.js'
+      - 'js/mock-draft-v4.js'
+      - 'scripts/refresh_fantasypros.py'
+      - 'scripts/build_draft_intelligence.py'
+      - 'scripts/validate_draft_intelligence.py'
+      - 'scripts/validate_live_draft_board.js'
+      - 'scripts/validate_live_draft_board_v2.js'
+      - 'scripts/validate_live_auction_board.js'
+      - 'tests/draft-intelligence.test.js'
+      - 'tests/auction-intelligence.test.js'
+      - 'tests/backtest-intelligence.test.js'
+      - '.github/workflows/validate-live-draft-intelligence.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '41 14 * 5-9 2,5'
+
+permissions:
+  contents: read
+
+jobs:
+  live-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NFL_SEASON: '2026'
+      FANTASY_SCORING: HALF
+      FANTASYPROS_API_KEY: ${{ secrets.FANTASYPROS_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install pinned data dependencies
+        run: python -m pip install nflreadpy==0.1.5 beautifulsoup4==4.13.4
+
+      - name: Run snake draft engine regression tests
+        run: node tests/draft-intelligence.test.js
+
+      - name: Run auction draft engine regression tests
+        run: node tests/auction-intelligence.test.js
+
+      - name: Run hardened backtest metric tests
+        run: node tests/backtest-intelligence.test.js
+
+      - name: Run Python regression tests
+        run: python -m unittest discover -s tests
+
+      - name: Verify FantasyPros credential is configured
+        shell: bash
+        run: |
+          if [ -z "$FANTASYPROS_API_KEY" ]; then
+            echo 'FANTASYPROS_API_KEY repository secret is not configured; direct API refresh will be unavailable.' >&2
+          else
+            echo 'FantasyPros API credential is configured.'
+          fi
+
+      - name: Attempt direct FantasyPros API refresh
+        id: fantasypros_refresh
+        continue-on-error: true
+        run: python scripts/refresh_fantasypros.py
+
+      - name: Record direct API limitation without blocking aggregate validation
+        if: steps.fantasypros_refresh.outcome != 'success'
+        run: |
+          echo 'Direct FantasyPros refresh did not produce a production-complete snapshot.'
+          echo 'Continuing with the full live aggregate path (nflreadpy FantasyPros ECR + FantasyCalc + configured sources).'
+
+      - name: Build fresh full draft intelligence
+        run: python scripts/build_draft_intelligence.py --season "$NFL_SEASON" --teams 12
+
+      - name: Validate draft-intelligence snapshot
+        run: python scripts/validate_draft_intelligence.py data/draft_intelligence.json
+
+      - name: Run real-data snake ranking and behavior gates
+        run: node scripts/validate_live_draft_board_v2.js --strict --output-dir=reports
+
+      - name: Run real-data auction economy and behavior gates
+        run: node scripts/validate_live_auction_board.js --strict --output-dir=reports
+
+      - name: Show human-readable validation reports
+        if: always()
+        run: |
+          if [ -f reports/draft_validation_current.md ]; then cat reports/draft_validation_current.md; fi
+          if [ -f reports/auction_validation_current.md ]; then cat reports/auction_validation_current.md; fi
+
+      - name: Upload live validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-draft-validation
+          path: |
+            reports/draft_validation_current.json
+            reports/draft_validation_current.md
+            reports/auction_validation_current.json
+            reports/auction_validation_current.md
+            fantasypros.json
+            data/draft_intelligence.json
+          if-no-files-found: warn
+
+  historical-backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run existing no-lookahead 2025 manager backtest
+        run: python scripts/backtest_2025_manager.py data/backtests/2025
+      - name: Show 2025 report
+        if: always()
+        run: |
+          if [ -f data/backtests/2025/report.md ]; then cat data/backtests/2025/report.md; fi
+      - name: Upload historical backtest evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 2025-manager-backtest-validation
+          path: data/backtests/2025/
+          if-no-files-found: warn

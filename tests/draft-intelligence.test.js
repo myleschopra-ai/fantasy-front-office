@@ -245,14 +245,57 @@ assert.ok(
   'a bigger Superflex league must push QB replacement level deeper into the pool (lower points) than a small 1QB league',
 );
 
-const vbdPercentiles = D.computeVBDPercentiles(vorpPool, smallLeague);
+const vbdPercentilesIncomplete = D.computeVBDPercentiles(vorpPool, smallLeague);
+assert.deepEqual(
+  vbdPercentilesIncomplete,
+  {},
+  'partial projections that do not reach replacement level across QB/RB/WR/TE must fail closed instead of mixing true VORP with rank proxies',
+);
+
+// Complete projection fixture: raw points-over-replacement must be comparable
+// ACROSS positions, not re-normalized so every positional No. 1 equals 100.
+const completeVorpPool = [];
+for (const [position, top, step, count] of [
+  ['QB', 360, 4, 24],
+  ['RB', 300, 5, 30],
+  ['WR', 285, 4, 30],
+  ['TE', 230, 2, 20],
+]) {
+  for (let i = 0; i < count; i += 1) {
+    completeVorpPool.push({
+      key: `${position.toLowerCase()}-complete-${i + 1}`,
+      position,
+      projectedPoints: top - i * step,
+    });
+  }
+}
+const completeLeague = {
+  teams: 8,
+  league: { roster: { QB: 1, RB: 1, WR: 1, TE: 1 } },
+  targets: D.starterTargets({ roster: { QB: 1, RB: 1, WR: 1, TE: 1 } }),
+};
+const completeVbd = D.computeVBDPercentiles(completeVorpPool, completeLeague);
 assert.ok(
-  vbdPercentiles.qb1 > vbdPercentiles.qb35,
-  'the highest-projected QB must have a higher VBD percentile than the lowest',
+  Object.keys(completeVbd).length > 0,
+  'complete replacement-level projection coverage must activate real projected-point VORP',
 );
 assert.ok(
-  vbdPercentiles.qb1 >= 0 && vbdPercentiles.qb1 <= 100,
-  'VBD percentile must be normalized to 0-100',
+  completeVbd['qb-complete-1'] !== completeVbd['te-complete-1'],
+  'cross-position VORP must not force QB1 and TE1 to the same 100 score merely because each is first at his position',
+);
+assert.ok(
+  completeVbd['qb-complete-1'] >= 0 && completeVbd['qb-complete-1'] <= 100,
+  'global VORP percentile must remain normalized to 0-100',
+);
+
+// K/DST fallback VBD must never inherit a near-100 positional-rank score.
+const earlyK = { key: 'early-k', name: 'Early K', position: 'K', overallRank: 70, posRank: 1, consensusScore: 72, tier: 1 };
+const earlyKLeagueValue = D.leagueValueScore(earlyK, {
+  league: kdstLeague, teams: 12, poolSize: 250, targets: kdstTargets,
+});
+assert.ok(
+  earlyKLeagueValue <= 44,
+  `K/DST league value must be capped below early-round skill-player territory; got ${earlyKLeagueValue}`,
 );
 
 // K/DST pool integration: must actually enter the draftable pool from a
