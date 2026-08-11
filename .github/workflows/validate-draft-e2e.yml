@@ -1,0 +1,52 @@
+name: Validate draft room browser E2E
+
+on:
+  push:
+    branches:
+      - main
+      - agent/draft-room-v4-stable
+    paths:
+      - 'draft.html'
+      - 'draft-room-v2.html'
+      - 'draft-room-v4.html'
+      - 'js/mock-draft-v4.js'
+      - 'js/draft-intelligence.js'
+      - 'tests/draft-room-e2e.mjs'
+      - '.github/workflows/validate-draft-e2e.yml'
+  pull_request:
+    paths:
+      - 'draft.html'
+      - 'draft-room-v2.html'
+      - 'draft-room-v4.html'
+      - 'js/mock-draft-v4.js'
+      - 'js/draft-intelligence.js'
+      - 'tests/draft-room-e2e.mjs'
+      - '.github/workflows/validate-draft-e2e.yml'
+
+jobs:
+  browser-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.54.2
+          npx playwright install --with-deps chromium
+      - name: Start static web server
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/ffo-http.log 2>&1 &
+          echo $! > /tmp/ffo-http.pid
+          for i in {1..20}; do
+            curl -fsS http://127.0.0.1:4173/draft.html >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/ffo-http.log
+          exit 1
+      - name: Run multi-pick browser regression
+        env:
+          DRAFT_E2E_URL: http://127.0.0.1:4173/draft.html
+        run: node tests/draft-room-e2e.mjs
