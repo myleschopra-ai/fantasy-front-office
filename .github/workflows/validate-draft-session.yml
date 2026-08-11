@@ -1,0 +1,33 @@
+name: Validate draft session reliability
+
+on:
+  push:
+    branches:
+      - agent/draft-session-reliability
+    paths:
+      - 'js/draft-session.js'
+      - 'tests/draft-session.test.js'
+      - 'js/mock-draft-v4.js'
+      - 'auction.html'
+      - 'draft-room-v5.html'
+      - 'tests/draft-session-e2e.mjs'
+      - '.github/workflows/validate-draft-session.yml'
+  pull_request:
+    paths:
+      - 'js/draft-session.js'
+      - 'tests/draft-session.test.js'
+      - 'js/mock-draft-v4.js'
+      - 'auction.html'
+      - 'draft-room-v5.html'
+      - 'tests/draft-session-e2e.mjs'
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tests/draft-session.test.js
+      - run: node tests/draft-intelligence.test.js
