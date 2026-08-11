@@ -3,23 +3,38 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const html = fs.readFileSync(path.join(__dirname, '..', 'draft.html'), 'utf8');
-const mock = fs.readFileSync(path.join(__dirname, '..', 'mock-draft-v4.html'), 'utf8');
+const route = fs.readFileSync(path.join(__dirname, '..', 'draft.html'), 'utf8');
+const room = fs.readFileSync(path.join(__dirname, '..', 'draft-room-v2.html'), 'utf8');
 
-assert.match(html, /mock-draft-v4\.html/, 'draft route must redirect to the validated snake/mock engine');
-assert.match(html, /auction\.html/, 'draft route must redirect auction mode to the validated auction engine');
-assert.doesNotMatch(html, /<iframe/i, 'draft route must not add another iframe layer around the engine');
-assert.doesNotMatch(html, /document\.write/i, 'draft route must not rewrite its own document at runtime');
-assert.doesNotMatch(html, /fetch\(/i, 'draft route must not async-fetch and bootstrap the engine');
-assert.match(html, /location\.replace\(target/, 'draft route must use a browser-native navigation to the selected engine');
-assert.match(html, /draftMode','manual'/, 'live mode must preserve manual companion intent');
-assert.match(html, /params\.set\('embed','1'\)/, 'embedded dashboard route must preserve embed state');
+assert.match(route, /draft-room-v2\.html/, 'snake/mock route must open the polished draft room');
+assert.match(route, /auction\.html/, 'auction mode must continue to open the validated auction engine');
+assert.doesNotMatch(route, /<iframe/i, 'draft route must not create nested iframe layers');
+assert.doesNotMatch(route, /document\.write/i, 'draft route must not rewrite its own document');
+assert.doesNotMatch(route, /fetch\(/i, 'draft route must not async-bootstrap another page');
+assert.match(route, /location\.replace/, 'draft route must use browser-native navigation');
 
-for (const id of ['start','advance','undo','board','roster']) {
-  assert.match(mock, new RegExp(`id=["']${id}["']`), `native mock engine must retain #${id}`);
+const requiredIds = [
+  'mode','teams','slot','rounds','strategy','variance','league-note',
+  'start','advance','undo','board-summary','tab-board','tab-team','tab-selections','tab-queue','tab-recommended',
+  'draft-grid-view','draft-grid','team-roster-view','selections-view','queue-view','recommended-view',
+  'best','why','pick-label','clock','equity','delta','ceiling','breakout','bust','survive','alts',
+  'source','pos','search','board','roster','equity-bar','roster-equity','profile',
+  'intelligence-status','strategy-playbook','weight-summary','room-status','picks',
+  'player-modal-backdrop','player-modal-title','close-player-modal','player-blurb','player-scheme','player-compare'
+];
+for (const id of requiredIds) {
+  assert.match(room, new RegExp(`id=["']${id}["']`), `polished draft room must preserve engine DOM contract #${id}`);
 }
-assert.match(mock, /Start \/ Reset/, 'native draft engine must retain an explicit Start / Reset action');
-assert.match(mock, /Available board/, 'native draft engine must retain the player board');
-assert.match(mock, /Recommended/, 'native draft engine must retain recommendation navigation');
 
-console.log('draft native-route UI regression tests passed');
+assert.match(room, /Front Office recommendation/, 'recommendation must be a primary visual surface');
+assert.match(room, /Search available players/, 'player search must be immediately visible');
+assert.match(room, /Draft context/, 'draft board must remain available as compact context');
+assert.match(room, /My Team/, 'roster must be a first-class navigation surface');
+assert.match(room, /Advanced model detail/, 'advanced diagnostics must use progressive disclosure');
+assert.match(room, /max-height:118px/, 'desktop draft board must be compact by default');
+assert.match(room, /max-height:86px/, 'mobile draft board must be even more compact');
+assert.doesNotMatch(room, /<iframe/i, 'polished room must run the engine directly without another iframe');
+assert.match(room, /js\/draft-intelligence\.js/, 'polished room must use the validated valuation engine');
+assert.match(room, /js\/mock-draft-v4\.js/, 'polished room must use the validated draft-state engine');
+
+console.log('polished draft room UI contract tests passed');
