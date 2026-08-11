@@ -37,6 +37,13 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('#board [data-k]').length > 0, null, { timeout: 30000 });
   await page.waitForFunction(() => !document.querySelector('.ffo-league-modal'), null, { timeout: 5000 });
 
+  const configuredStarterSlots = await page.evaluate(() => {
+    const roster = window.FFO_ACTIVE_LEAGUE?.roster || { QB:1, RB:2, WR:2, TE:1, FLEX:2, K:1, DST:1 };
+    return Object.entries(roster)
+      .filter(([name, count]) => !['BENCH','BN','TAXI','IR'].includes(name) && Number(count) > 0)
+      .map(([name]) => name === 'SF' ? 'SUPER_FLEX' : name);
+  });
+
   const assertAdvisorState = async (label) => {
     const badges = (await page.locator('#board .action-badge').allTextContents()).map(v => v.trim());
     const validNeedLabels = ['STARTER NEED','FLEX NEED','STARTER UPGRADE','DEPTH UPSIDE','DEPTH','LUXURY','SATURATED'];
@@ -48,11 +55,11 @@ try {
   const assertOptimizedRoster = async (label) => {
     const slots = page.locator('#roster .lineup-slot');
     const slotCount = await slots.count();
-    if (slotCount < 7) throw new Error(`${label}: optimized starter view has too few slots (${slotCount})`);
+    if (slotCount < 4) throw new Error(`${label}: optimized starter view has too few slots (${slotCount})`);
     const slotLabels = await page.locator('#roster .lineup-slot > span:first-child').allTextContents();
-    for (const required of ['QB','RB','WR','TE','K','DST']) {
+    for (const required of configuredStarterSlots) {
       if (!slotLabels.some(labelText => labelText.startsWith(required))) {
-        throw new Error(`${label}: missing ${required} starter slot (${slotLabels.join(', ')})`);
+        throw new Error(`${label}: missing configured ${required} starter slot (${slotLabels.join(', ')})`);
       }
     }
     const starterNames = (await page.locator('#roster .lineup-slot strong').allTextContents())
