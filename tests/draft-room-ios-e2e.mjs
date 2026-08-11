@@ -62,10 +62,23 @@ try {
       throw new Error(`${profile.name}: navigation labels mismatch (${navLabels.join(' / ')})`);
     }
 
+    const assertAdvisorAndRoster = async label => {
+      const badgeTexts = (await page.locator('#board .action-badge').allTextContents()).map(v => v.trim());
+      const validNeedLabels = ['STARTER NEED','FLEX NEED','STARTER UPGRADE','DEPTH UPSIDE','DEPTH','LUXURY','SATURATED'];
+      if (!badgeTexts.some(v => validNeedLabels.includes(v))) {
+        throw new Error(`${profile.name} ${label}: roster-state badge missing (${badgeTexts.slice(0, 10).join(' / ')})`);
+      }
+      const slotLabels = await page.locator('#roster .lineup-slot > span:first-child').allTextContents();
+      for (const required of ['QB','RB','WR','TE','K','DST']) {
+        if (!slotLabels.some(v => v.startsWith(required))) throw new Error(`${profile.name} ${label}: missing ${required} starter slot`);
+      }
+    };
+
+    await assertAdvisorAndRoster('cold boot');
     await page.locator('#start').click();
     await page.waitForFunction(() => /YOU ARE ON THE CLOCK/i.test(document.querySelector('#clock')?.textContent || ''), null, { timeout: 10000 });
 
-    for (let i = 0; i < 3; i += 1) {
+    for (let i = 0; i < 4; i += 1) {
       const first = page.locator('#board [data-k]').first();
       await first.waitFor({ state: 'visible', timeout: 10000 });
       await first.click();
@@ -73,7 +86,17 @@ try {
       if (!(await page.locator('#draft-grid').isVisible())) throw new Error(`${profile.name}: draft board disappeared after pick ${i + 1}`);
       if (!(await page.locator('#board').isVisible())) throw new Error(`${profile.name}: player drawer disappeared after pick ${i + 1}`);
       if (errors.length) throw new Error(`${profile.name}: browser errors: ${errors.join(' | ')}`);
+      await assertAdvisorAndRoster(`after pick ${i + 1}`);
     }
+
+    // Verify the mobile Team surface is truthful: optimized starters plus bench.
+    await page.locator('.nav-btn', { hasText: 'Team' }).click();
+    await page.waitForSelector('#team-roster-view', { state: 'visible', timeout: 5000 });
+    const teamText = await page.locator('#team-roster-view').innerText();
+    if (!/QB|RB|WR|TE/.test(teamText) || !/BENCH/.test(teamText)) {
+      throw new Error(`${profile.name}: Team view is not an optimized starter/bench roster`);
+    }
+    await page.locator('.nav-btn', { hasText: 'Players' }).click();
 
     const horizontalScroll = await page.evaluate(() => {
       const el = document.querySelector('.draft-grid-wrap');
@@ -84,7 +107,7 @@ try {
     });
     if (!horizontalScroll) throw new Error(`${profile.name}: draft board horizontal scrolling failed`);
 
-    console.log(`${profile.name} WebKit draft regression passed`);
+    console.log(`${profile.name} WebKit advisor + draft regression passed`);
     await context.close();
   }
 } finally {
