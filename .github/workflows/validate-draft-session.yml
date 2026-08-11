@@ -6,7 +6,9 @@ on:
       - agent/draft-session-reliability
     paths:
       - 'js/draft-session.js'
+      - 'js/draft-source-health.js'
       - 'tests/draft-session.test.js'
+      - 'tests/draft-source-health.test.js'
       - 'js/mock-draft-v4.js'
       - 'auction.html'
       - 'draft-room-v5.html'
@@ -17,7 +19,9 @@ on:
   pull_request:
     paths:
       - 'js/draft-session.js'
+      - 'js/draft-source-health.js'
       - 'tests/draft-session.test.js'
+      - 'tests/draft-source-health.test.js'
       - 'js/mock-draft-v4.js'
       - 'auction.html'
       - 'draft-room-v5.html'
@@ -33,6 +37,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - run: node tests/draft-source-health.test.js
       - run: node tests/draft-session.test.js
       - run: node tests/draft-intelligence.test.js
       - run: node tests/auction-intelligence.test.js
