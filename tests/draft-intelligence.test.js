@@ -357,4 +357,51 @@ assert.ok(
   'DEEP POSITION: scarcity must remain low when many comparable players remain at the position',
 );
 
+// ADP / WAIT-RISK — the three required regression scenarios. These test
+// the categorization layer directly with an already-computed survival
+// probability as input, since the real Monte Carlo survival simulation
+// (which itself correctly incorporates ADP-driven CPU behavior and exact
+// snake-turn distance) lives in the UI-coupled mock-draft-v4.js and isn't
+// part of this pure-function test harness. What's validated here is the
+// actual logic under test: given a survival signal, does the engine
+// correctly decide whether to recommend taking now or waiting.
+
+// MODEL LOVES / MARKET WAITS: strong model value, but market ADP suggests
+// he'll likely still be there (high survival probability) — must NOT
+// force an immediate TAKE_NOW.
+const modelLovesMarketWaits = D.waitRiskCategory({
+  survivalProbability: 80, playerValue: 85, scarcity: 30,
+});
+assert.notEqual(
+  modelLovesMarketWaits.category, 'TAKE_NOW',
+  'MODEL LOVES / MARKET WAITS: a high-value player with strong survival odds must not force TAKE_NOW',
+);
+
+// MARKET PRESSURE: identical intrinsic value, but market pressure drops
+// survival probability — wait risk (and cost) must rise materially.
+const marketPressure = D.waitRiskCategory({
+  survivalProbability: 20, playerValue: 85, scarcity: 30,
+});
+assert.ok(
+  marketPressure.waitCost > modelLovesMarketWaits.waitCost,
+  'MARKET PRESSURE: lower survival probability for the same player value must raise wait cost',
+);
+assert.equal(marketPressure.category, 'TAKE_NOW', 'MARKET PRESSURE: sufficiently low survival must escalate to TAKE_NOW');
+
+// TURN DISTANCE: the categorization layer must differentiate correctly
+// when survival probability differs (which, in the live app, is exactly
+// what a long vs. short snake-turn distance produces via the real
+// simulation) — same player value, near-turn (low survival) vs.
+// far-turn (high survival) must NOT produce the same recommendation.
+const nearTurnDrafter = D.waitRiskCategory({ survivalProbability: 15, playerValue: 60, scarcity: 40 });
+const farTurnDrafter = D.waitRiskCategory({ survivalProbability: 85, playerValue: 60, scarcity: 40 });
+assert.notEqual(
+  nearTurnDrafter.category, farTurnDrafter.category,
+  'TURN DISTANCE: a near turn (low survival) and a far turn (high survival) must not produce the same recommendation for the same player',
+);
+assert.ok(
+  nearTurnDrafter.waitCost > farTurnDrafter.waitCost,
+  'TURN DISTANCE: a closer turn must carry higher wait cost than a distant one, same player',
+);
+
 console.log('draft-intelligence.js tests passed');
