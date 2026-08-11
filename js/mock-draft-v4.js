@@ -377,7 +377,12 @@
       ...state.picks,
       createSelection(player, state.picks.length + 1, state.slot, "projection"),
     ];
-    return { ...model, eq: rosterEquity(projected), sv: survives };
+    const nextPick = nextUserPick(state.picks.length);
+    const picksUntilNextTurn = nextPick != null ? nextPick - (state.picks.length + 1) : 12;
+    const scarcity = D.scarcityScore(player, available(state.picks), {
+      picksUntilNextTurn,
+    });
+    return { ...model, eq: rosterEquity(projected), sv: survives, scarcity };
   }
 
   function actionFor(player, evaluation) {
@@ -711,6 +716,9 @@
             ${metric("Pedigree", Math.round(c.pedigree))}
             ${metric("Age Curve", Math.round(c.ageCurve))}
             ${metric("Survives", `${evaluation.sv}%`)}
+            ${metric("Scarcity", evaluation.scarcity.scarcity)}
+            ${metric("Tier Depth", evaluation.scarcity.tierDepth)}
+            ${metric("Tier Dropoff", evaluation.scarcity.tierDropoff)}
           </div>
         </div>`;
       })
