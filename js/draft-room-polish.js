@@ -11,6 +11,17 @@
     return match?match[1].toLowerCase():'';
   }
 
+  function dismissInitialProviderGate(){
+    const dismiss=()=>{
+      const status=document.querySelector('#ffo-provider-status');
+      const modal=document.querySelector('.ffo-league-modal');
+      if(modal && /league ID required/i.test(status?.textContent||'')) modal.remove();
+    };
+    window.setTimeout(dismiss,0);
+    window.setTimeout(dismiss,120);
+    window.setTimeout(dismiss,400);
+  }
+
   function polishGrid(){
     const grid=document.querySelector('#draft-grid .draft-grid');
     if(!grid) return;
@@ -114,8 +125,9 @@
     if(mode){mode.value='companion';mode.dispatchEvent(new Event('change',{bubbles:true}));}
   }
 
+  dismissInitialProviderGate();
   window.addEventListener('resize',refresh,{passive:true});
-  window.addEventListener('pageshow',refreshAfterAction,{passive:true});
+  window.addEventListener('pageshow',()=>{dismissInitialProviderGate();refreshAfterAction();},{passive:true});
   window.setTimeout(refresh,0);
   window.setTimeout(refresh,500);
 })();
