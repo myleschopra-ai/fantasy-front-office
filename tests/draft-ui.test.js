@@ -4,11 +4,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const route = fs.readFileSync(path.join(__dirname, '..', 'draft.html'), 'utf8');
-const room = fs.readFileSync(path.join(__dirname, '..', 'draft-room-v2.html'), 'utf8');
+const room = fs.readFileSync(path.join(__dirname, '..', 'draft-room-v3.html'), 'utf8');
+const polish = fs.readFileSync(path.join(__dirname, '..', 'js', 'draft-room-polish.js'), 'utf8');
+const runtime = fs.readFileSync(path.join(__dirname, '..', 'js', 'mock-draft-v4.js'), 'utf8');
+const leagueSwitcher = fs.readFileSync(path.join(__dirname, '..', 'js', 'league-switcher.js'), 'utf8');
 
-assert.match(route, /draft-room-v2\.html/, 'production snake/mock route must open stable Draft Room v2');
+assert.match(route, /draft-room-v3\.html/, 'candidate snake/mock route must open redesigned room');
 assert.match(route, /auction\.html/, 'auction mode must continue to open the validated auction engine');
-assert.doesNotMatch(route, /draft-room-v3\.html/, 'production route must not use unstable Draft Room v3');
 assert.doesNotMatch(route, /<iframe/i, 'draft route must not create nested iframe layers');
 assert.doesNotMatch(route, /document\.write/i, 'draft route must not rewrite its own document');
 assert.doesNotMatch(route, /fetch\(/i, 'draft route must not async-bootstrap another page');
@@ -24,17 +26,25 @@ const requiredIds = [
   'player-modal-backdrop','player-modal-title','close-player-modal','player-blurb','player-scheme','player-compare'
 ];
 for (const id of requiredIds) {
-  assert.match(room, new RegExp(`id=["']${id}["']`), `stable Draft Room v2 must preserve engine DOM contract #${id}`);
+  assert.match(room, new RegExp(`id=["']${id}["']`), `redesigned room must preserve engine DOM contract #${id}`);
 }
 
 assert.match(room, /Front Office recommendation/, 'recommendation must be a primary visual surface');
 assert.match(room, /Search available players/, 'player search must be immediately visible');
-assert.match(room, /Draft context/, 'draft board must remain available as compact context');
+assert.match(room, /Expand board/, 'board must support compact/expanded modes');
+assert.match(room, /data-pos="FLEX"/, 'quick position filters must include FLEX');
 assert.match(room, /My Team/, 'roster must be a first-class navigation surface');
-assert.match(room, /Advanced model detail/, 'advanced diagnostics must use progressive disclosure');
-assert.doesNotMatch(room, /draft-room-polish\.js/, 'stable production room must not load the experimental v3 polish observer');
-assert.doesNotMatch(room, /<iframe/i, 'stable room must run the engine directly without another iframe');
-assert.match(room, /js\/draft-intelligence\.js/, 'stable room must use the validated valuation engine');
-assert.match(room, /js\/mock-draft-v4\.js/, 'stable room must use the validated draft-state engine');
+assert.match(room, /js\/draft-intelligence\.js/, 'room must use validated valuation engine');
+assert.match(room, /js\/mock-draft-v4\.js/, 'room must use validated draft-state engine');
+assert.match(room, /js\/draft-room-polish\.js/, 'room must load the bounded redesign helper');
+assert.doesNotMatch(room, /<iframe/i, 'room must not introduce nested iframes');
 
-console.log('stable Draft Room v2 production UI contract tests passed');
+assert.doesNotMatch(polish, /MutationObserver/, 'redesign helper must not use recursive DOM observation');
+assert.match(polish, /requestAnimationFrame\(refresh\)/, 'redesign helper must refresh only after bounded actions');
+assert.match(runtime, /function approximateSurvival\(/, 'live board must use a cheap survival estimate');
+assert.match(runtime, /function survival\(player, runs = 5\)/, 'full Monte Carlo survival must be bounded');
+assert.match(runtime, /equityFor\(player, false\)/, 'scrolling player board must avoid full Monte Carlo for every row');
+assert.match(runtime, /var\(--pickw,108px\)/, 'draft renderer and CSS must share the same responsive pick width contract');
+assert.doesNotMatch(leagueSwitcher, /if \(!league\.provider_league_id\) showSetup/, 'mock boot must not be blocked by automatic provider setup');
+
+console.log('stable Draft Room redesign candidate contract tests passed');
