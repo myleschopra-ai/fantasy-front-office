@@ -33,7 +33,6 @@ if 'function rosterNeedState(' not in intel:
         urgency: flexLike ? 86 : 94,
       };
     }
-
     if (candidateSlot) {
       return {
         state: 'starter_upgrade',
@@ -75,52 +74,64 @@ if '    rosterNeedState,' not in intel:
         raise SystemExit('export marker not found')
     intel = intel.replace(marker, marker + '    rosterNeedState,\n', 1)
 
-if 'function advisorNeedState(' not in ui:
-    marker = '  function playerRowHTML(player, evaluation, queued) {'
-    block = r'''  function advisorNeedState(player) {
+# Replace legacy count-based labeler with optimal-lineup-aware state.
+legacy_need = r'''  function needLabel(player) {
+    const quality = positionQuality(state.slot, player.position);
+    if (quality.count < target(player.position)) return "STARTER NEED";
+    if (player.position === "QB" && target("QB") === 1 && quality.count >= 1)
+      return "QB DEPTH";
+    if (player.position === "TE" && target("TE") === 1 && quality.count >= 1)
+      return "TE DEPTH";
+    return "VALUE / DEPTH";
+  }
+'''
+new_need = r'''  function advisorNeedState(player) {
     return D.rosterNeedState(player, scoreContext(player, state.slot, state.picks, 50));
   }
 
-  function needStateClass(needState) {
-    if (!needState) return 'target';
-    if (needState.state === 'starter_need' || needState.state === 'flex_need') return 'urgent';
-    if (needState.state === 'starter_upgrade') return 'closing';
-    if (needState.state === 'luxury' || needState.state === 'saturated') return 'avoid';
-    return 'target';
+  function needLabel(player) {
+    return advisorNeedState(player).label;
   }
 
+  function needStateClass(needState) {
+    if (!needState) return "target";
+    if (needState.state === "starter_need" || needState.state === "flex_need") return "urgent";
+    if (needState.state === "starter_upgrade") return "closing";
+    if (needState.state === "luxury" || needState.state === "saturated") return "avoid";
+    return "target";
+  }
 '''
-    if marker not in ui:
-        raise SystemExit('playerRowHTML marker not found')
-    ui = ui.replace(marker, block + marker, 1)
+if legacy_need in ui:
+    ui = ui.replace(legacy_need, new_need, 1)
+elif 'function advisorNeedState(' not in ui:
+    raise SystemExit('legacy needLabel block not found')
 
 if 'const needState = advisorNeedState(player);' not in ui:
     old = '  function playerRowHTML(player, evaluation, queued) {\n    const action = actionFor(player, evaluation);'
     new = '  function playerRowHTML(player, evaluation, queued) {\n    const action = actionFor(player, evaluation);\n    const needState = advisorNeedState(player);'
     if old not in ui:
-        raise SystemExit('playerRowHTML body marker not found')
+        raise SystemExit('playerRowHTML marker not found')
     ui = ui.replace(old, new, 1)
 
-# Add a deterministic need badge next to the existing action badges.
-needle = '${esc(action)}'
-if 'needState.label' not in ui:
-    # Insert after the action badge text in the first player row template occurrence.
-    idx = ui.find(needle)
-    if idx == -1:
-        raise SystemExit('action template marker not found')
-    end = idx + len(needle)
-    ui = ui[:end] + '${` · ${esc(needState.label)}`}' + ui[end:]
+badge_old = '<span class="action-badge ${actionClass(action)}">${action}</span>'
+badge_new = '<span class="action-badge ${actionClass(action)}">${action}</span>\n          <span class="action-badge ${needStateClass(needState)}">${esc(needState.label)}</span>'
+if badge_new not in ui:
+    if badge_old not in ui:
+        raise SystemExit('action badge marker not found')
+    ui = ui.replace(badge_old, badge_new, 1)
 
-# Replace the count-only roster card with optimal starters + bench, preserving IDs.
 if 'function rosterLineupHTML(' not in ui:
     marker = '  function renderRoster() {'
     helper = r'''  function rosterLineupHTML(team = state.slot) {
     const drafted = teamPicks(team);
     const lineup = D.optimalLineup(drafted, state.activeLeague || DEFAULT_LEAGUE);
-    const starters = lineup.starters.map((entry, index) => {
-      const label = `${entry.slot}${lineup.starters.filter((s) => s.slot === entry.slot).length > 1 ? index + 1 : ''}`;
+    const occurrence = {};
+    const starters = lineup.starters.map((entry) => {
+      occurrence[entry.slot] = (occurrence[entry.slot] || 0) + 1;
+      const totalForSlot = lineup.starters.filter((s) => s.slot === entry.slot).length;
+      const label = totalForSlot > 1 ? `${entry.slot}${occurrence[entry.slot]}` : entry.slot;
       const player = entry.player;
-      return `<div class="slot lineup-slot ${player ? `pos-${String(player.position).toLowerCase()}` : 'empty'}"><span>${esc(label)}</span><strong>${player ? esc(player.name) : 'Empty'}</strong><span>${player ? `${esc(player.position)} · ${esc(player.nflTeam || '')}` : 'starter need'}</span></div>`;
+      return `<div class="slot lineup-slot ${player ? `pos-${String(player.position).toLowerCase()}` : 'empty'}"><span>${esc(label)}</span><strong>${player ? esc(player.name) : 'Empty'}</strong><span>${player ? `${esc(player.position)}${player.nflTeam ? ` · ${esc(player.nflTeam)}` : ''}` : 'starter need'}</span></div>`;
     }).join('');
     const bench = lineup.bench.length
       ? `<div class="bench-label">BENCH · ${lineup.bench.length}</div><div class="bench-list">${lineup.bench.map((player) => `<span class="bench-chip pos-${String(player.position).toLowerCase()}">${esc(player.position)} ${esc(player.name)}</span>`).join('')}</div>`
@@ -134,24 +145,71 @@ if 'function rosterLineupHTML(' not in ui:
     ui = ui.replace(marker, helper + marker, 1)
 
 start = ui.find('  function renderRoster() {')
-if start == -1:
-    raise SystemExit('renderRoster not found')
-end = ui.find('\n  function ', start + 10)
-if end == -1:
-    raise SystemExit('renderRoster end not found')
+end = ui.find('\n  function renderIntelligence()', start)
+if start == -1 or end == -1:
+    raise SystemExit('renderRoster boundaries not found')
 old_block = ui[start:end]
-if 'rosterLineupHTML' not in old_block:
+if 'rosterLineupHTML(state.slot)' not in old_block:
     new_block = r'''  function renderRoster() {
+    const rosterCounts = counts();
     const equity = rosterEquity();
     $("roster").innerHTML = rosterLineupHTML(state.slot);
-    $("roster-equity").textContent = `${equity}% roster equity`;
-    const equityFill = $("roster-equity-fill");
-    if (equityFill) equityFill.style.width = `${equity}%`;
+    $("roster-equity").textContent = equity;
+    $("equity-bar").style.width = `${equity}%`;
+    const validation = D.validateCompletedRoster(teamPicks(state.slot), state.activeLeague || DEFAULT_LEAGUE);
+    const openSlots = validation.lineup.starters.filter((slot) => !slot.player).map((slot) => slot.slot);
+    const directive = D.strategyDirective({
+      strategy: state.strategy,
+      league: state.activeLeague,
+      round: Math.floor(state.picks.length / state.teams) + 1,
+      picks: teamPicks(state.slot),
+      counts: rosterCounts,
+      superflex: isSuperflex(),
+    });
+    $("profile").innerHTML =
+      `Starter gaps: <strong>${openSlots.length ? openSlots.join(", ") : "none"}</strong><br>Current plan: <strong>${esc(directive.directive)}</strong>${directive.warning ? `<br><span class="confidence-low">Guardrail: ${esc(directive.warning)}</span>` : ""}`;
   }
 '''
     ui = ui[:start] + new_block + ui[end:]
 
-# Add core unit assertions once.
+# Upgrade team roster rendering to use the same optimizer instead of a separate greedy model.
+team_start = ui.find('  function renderTeamRoster() {')
+team_end = ui.find('\n  function renderSelections()', team_start)
+if team_start == -1 or team_end == -1:
+    raise SystemExit('renderTeamRoster boundaries not found')
+team_block = ui[team_start:team_end]
+if 'D.optimalLineup(roster, league)' not in team_block:
+    replacement = r'''  function renderTeamRoster() {
+    const team = state.selectedTeam || state.slot;
+    const roster = teamPicks(team);
+    const league = state.activeLeague || DEFAULT_LEAGUE;
+    const lineup = D.optimalLineup(roster, league);
+    const occurrence = {};
+    const slotRow = (slotName, pick) => pick
+      ? `<div class="row"><div class="player-link" data-player="${esc(pick.key)}" tabindex="0" style="cursor:pointer;"><div class="name">${esc(pick.name)}</div><div class="meta">${esc(slotName)} · ${esc(pick.position)} · ${roundPick(pick.pick)}</div></div><span class="sim-badge">MOCK</span></div>`
+      : `<div class="row"><div class="muted">${esc(slotName)} — Empty</div></div>`;
+
+    let html = `<div class="toolbar" style="margin-top:10px"><strong>Team ${team}${team === state.slot ? " · YOU" : ""}</strong><select id="team-select" style="width:auto">${Array.from({ length: state.teams }, (_value, index) => `<option value="${index + 1}" ${team === index + 1 ? "selected" : ""}>Team ${index + 1}${state.slot === index + 1 ? " · YOU" : ""}</option>`).join("")}</select></div>`;
+    const starterRows = lineup.starters.map((entry) => {
+      occurrence[entry.slot] = (occurrence[entry.slot] || 0) + 1;
+      const total = lineup.starters.filter((s) => s.slot === entry.slot).length;
+      const label = total > 1 ? `${entry.slot}${occurrence[entry.slot]}` : entry.slot;
+      return slotRow(label, entry.player);
+    }).join("");
+    html += `<div class="team-roster-list">${starterRows || '<div class="muted">No starter slots configured.</div>'}</div>`;
+    html += `<div class="muted" style="margin-top:10px">BENCH · ${lineup.bench.length}</div><div class="team-roster-list">${lineup.bench.map((pick) => slotRow("BENCH", pick)).join("") || '<div class="muted">Bench empty.</div>'}</div>`;
+    html += `<div class="notice" style="margin-top:10px">This simulated class never modifies the real league roster.</div>`;
+    $("team-roster-view").innerHTML = html;
+    $("team-select").onchange = (event) => {
+      state.selectedTeam = numeric(event.target.value, state.slot);
+      save();
+      renderTeamRoster();
+    };
+    bindPlayerLinks();
+  }
+'''
+    ui = ui[:team_start] + replacement + ui[team_end:]
+
 if 'rosterNeedState identifies FLEX need' not in tests:
     tests += r'''
 
@@ -186,4 +244,4 @@ if 'rosterNeedState identifies FLEX need' not in tests:
 intel_path.write_text(intel)
 ui_path.write_text(ui)
 test_path.write_text(tests)
-print('advisor need-state + lineup presentation patch applied')
+print('advisor need-state + optimized lineup presentation patch applied')
