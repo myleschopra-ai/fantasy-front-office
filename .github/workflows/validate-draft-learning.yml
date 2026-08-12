@@ -50,3 +50,9 @@ jobs:
           sample="$(mktemp --suffix=.csv)"
           printf 'pick,name,position,player_id\n1,Test Player,RB,1\n' > "$sample"
           python3 scripts/import_draft_history.py "$sample" --kind snake | python3 -m json.tool >/dev/null
+      - name: Verify Draft Room builder is idempotent
+        run: |
+          cp draft-room-v5.html /tmp/draft-room-v5.before
+          python3 scripts/build_draft_room_v5.py
+          diff -u /tmp/draft-room-v5.before draft-room-v5.html
+          node tests/draft-ui.test.js

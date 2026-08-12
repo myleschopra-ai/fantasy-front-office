@@ -24,6 +24,7 @@ const requiredIds = [
   'source','pos','search','board','roster','equity-bar','roster-equity','profile',
   'intelligence-status','strategy-playbook','weight-summary','room-status','picks',
   'player-modal-backdrop','player-modal-title','close-player-modal','player-blurb','player-scheme','player-compare'
+  ,'session-status','provider-sync-status','provider-sync'
 ];
 for (const id of requiredIds) {
   assert.match(room, new RegExp(`id=["']${id}["']`), `redesigned room must preserve engine DOM contract #${id}`);
