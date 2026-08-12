@@ -35,6 +35,8 @@ The draft assistant currently supports:
 - Transparent Draft Fit weights and weighted factor impacts
 - Local post-draft starter/bench grading, strategy review, and replay artifacts
 - Small-sample-guarded historical ADP and auction-manager calibration
+- Auction confidence ranges with leave-one-season-out pricing error
+- Archived mock comparisons by slot, format, and strategy
 
 Sleeper is the supported live read-only provider. Yahoo requires the separately deployed OAuth adapter and provider approval. ESPN is currently a secret-rejecting manual import foundation only; browser credentials/cookies are not accepted.
 

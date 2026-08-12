@@ -70,6 +70,8 @@ Implemented behavior includes:
 - expected clearing price distinct from intrinsic value
 - historical league price calibration by position/tier
 - manager-specific price tendencies after three or more matched purchases
+- sample-aware expected-price ranges with MAE/RMSE diagnostics
+- leave-one-season-out pricing error and bias by position, tier, and manager
 - roster-specific maximum bid
 - legal-bid reserve for every remaining roster slot
 - acquisition surplus
@@ -106,6 +108,7 @@ CI now runs:
 11. post-draft review/replay and calibration contracts
 12. provider normalization and sensitive-field rejection
 13. confirmed-only Sleeper live-draft browser reconciliation, reload, and conflict fail-closed checks
+14. archived-draft comparison filters and auction uncertainty browser flows
 
 The hardened benchmark helper compares top-N results by player identity, detects duplicate keys, handles tied ranks with average ranks, and excludes missing outcomes instead of coercing them to zero.
 

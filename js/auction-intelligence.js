@@ -16,6 +16,13 @@
     const middle = Math.floor(sorted.length / 2);
     return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
   };
+  const quantile = (values, probability) => {
+    const sorted = [...(values || [])].map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+    if (!sorted.length) return 0;
+    const index = (sorted.length - 1) * clamp(probability, 0, 1);
+    const lower = Math.floor(index), upper = Math.ceil(index);
+    return sorted[lower] + (sorted[upper] - sorted[lower]) * (index - lower);
+  };
 
   function auctionTier(playerOrRank) {
     if (playerOrRank && typeof playerOrRank === 'object') {
@@ -63,17 +70,32 @@
 
   function leagueModel(history, { budget = 200 } = {}) {
     const rows = normalizeHistory(history, budget);
-    const byPosition = {}, byTier = {}, byManager = {};
+    const byPosition = {}, byTier = {}, byManager = {}, matched = [];
     for (const row of rows) {
       if (!(row.generic_aav > 0) || !(row.price > 0)) continue;
       const ratio = row.price / row.generic_aav;
+      const observation = { ratio, error: row.price - row.generic_aav, absError: Math.abs(row.price - row.generic_aav) };
+      matched.push(observation);
       const position = String(row.position || '').toUpperCase();
-      if (position) (byPosition[position] ||= []).push(ratio);
-      if (position) (byTier[`${position}:${row.tier}`] ||= []).push(ratio);
-      if (row.manager) (byManager[row.manager] ||= []).push(ratio);
+      if (position) (byPosition[position] ||= []).push(observation);
+      if (position) (byTier[`${position}:${row.tier}`] ||= []).push(observation);
+      if (row.manager) (byManager[row.manager] ||= []).push(observation);
     }
-    const summarize = (groups) => Object.fromEntries(Object.entries(groups).map(([key, values]) => [key, { n: values.length, ratio: mean(values), median_ratio: median(values) }]));
-    return { rows: rows.length, position: summarize(byPosition), tier: summarize(byTier), manager: summarize(byManager) };
+    const summary = (values) => {
+      const ratios = values.map((item) => item.ratio);
+      return {
+        n: values.length,
+        ratio: mean(ratios),
+        median_ratio: median(ratios),
+        low_ratio: quantile(ratios, 0.2),
+        high_ratio: quantile(ratios, 0.8),
+        mae: mean(values.map((item) => item.absError)),
+        rmse: Math.sqrt(mean(values.map((item) => item.error ** 2))),
+        confidence: values.length >= 20 ? 'HIGH' : values.length >= 8 ? 'MEDIUM' : 'LOW',
+      };
+    };
+    const summarize = (groups) => Object.fromEntries(Object.entries(groups).map(([key, values]) => [key, summary(values)]));
+    return { rows: rows.length, matchedRows: matched.length, overall: summary(matched), position: summarize(byPosition), tier: summarize(byTier), manager: summarize(byManager) };
   }
 
   function shrink(observed, n, prior = 1, k = 8) {
@@ -252,6 +274,68 @@
     return Math.max(1, Math.round(baseline * ratio * clamp(currentInflation, 0.65, 1.55) * bidderPressure * 10) / 10);
   }
 
+  function expectedLeaguePriceRange(options = {}) {
+    const expected = expectedLeaguePrice(options);
+    const pos = String(options.position || '').toUpperCase();
+    const tierNo = numeric(options.tier, auctionTier(options.rank));
+    const groups = [options.model?.position?.[pos], options.model?.tier?.[`${pos}:${tierNo}`]].filter(Boolean);
+    const evidence = groups.reduce((sum, group) => sum + numeric(group.n, 0), 0);
+    if (!groups.length || evidence < 3) return { expected, low: expected, high: expected, confidence: 'UNMODELED', evidence, mae: null };
+    const weighted = (field, fallback) => groups.reduce((sum, group) => sum + numeric(group[field], fallback) * numeric(group.n, 0), 0) / evidence;
+    const center = weighted('median_ratio', 1);
+    const lowRatio = shrink(weighted('low_ratio', center), evidence, center, 10);
+    const highRatio = shrink(weighted('high_ratio', center), evidence, center, 10);
+    const scale = expected / Math.max(0.01, center);
+    const low = Math.max(1, Math.round(Math.min(lowRatio, highRatio) * scale * 10) / 10);
+    const high = Math.max(low, Math.round(Math.max(lowRatio, highRatio) * scale * 10) / 10);
+    return {
+      expected,
+      low: Math.min(expected, low),
+      high: Math.max(expected, high),
+      confidence: evidence >= 28 ? 'HIGH' : evidence >= 12 ? 'MEDIUM' : 'LOW',
+      evidence,
+      mae: Math.round(weighted('mae', 0) * 10) / 10,
+    };
+  }
+
+  function calibrationBacktest(history, { budget = 200 } = {}) {
+    const seasons = Array.isArray(history?.seasons) ? history.seasons : [];
+    const observations = [];
+    seasons.forEach((season, heldOutIndex) => {
+      const training = { ...history, seasons: seasons.filter((_item, index) => index !== heldOutIndex) };
+      const model = leagueModel(training, { budget });
+      if (!model.matchedRows) return;
+      normalizeHistory({ ...history, seasons: [season] }, budget).forEach((row) => {
+        if (!(row.generic_aav > 0) || !(row.price > 0)) return;
+        const predicted = expectedLeaguePrice({ intrinsicPrice: row.generic_aav, position: row.position, rank: row.rank, tier: row.tier, model });
+        observations.push({ ...row, predicted, error: predicted - row.price, absError: Math.abs(predicted - row.price) });
+      });
+    });
+    const metrics = (rows) => ({
+      n: rows.length,
+      mae: rows.length ? mean(rows.map((row) => row.absError)) : null,
+      rmse: rows.length ? Math.sqrt(mean(rows.map((row) => row.error ** 2))) : null,
+      bias: rows.length ? mean(rows.map((row) => row.error)) : null,
+    });
+    const group = (keyFn) => {
+      const groups = {};
+      observations.forEach((row) => {
+        const key = keyFn(row);
+        if (key) (groups[key] ||= []).push(row);
+      });
+      return Object.fromEntries(Object.entries(groups).map(([key, rows]) => [key, metrics(rows)]));
+    };
+    return {
+      method: 'leave-one-season-out',
+      seasons: seasons.length,
+      sufficient: seasons.length >= 2 && observations.length > 0,
+      overall: metrics(observations),
+      position: group((row) => String(row.position || '').toUpperCase()),
+      tier: group((row) => `${String(row.position || '').toUpperCase()}:${row.tier}`),
+      manager: group((row) => row.manager || ''),
+    };
+  }
+
   function maxBid({ intrinsicValue, intrinsicPrice, remainingBudget, slotsLeft, minBid = 1, need = 50, scarcity = 50, tierUrgency = 50, upside = 50, redundancy = 0 }) {
     const base = Math.max(1, numeric(intrinsicPrice ?? intrinsicValue, 1));
     const needMod = (clamp(need, 0, 100) - 50) / 50 * 0.08;
@@ -320,5 +404,5 @@
     return { player, intrinsicPrice, expectedPrice: clearingPrice, currentPrice: observedPrice, maxBid: bidCap, surplus, recommendation: recommendation({ currentPrice: observedPrice, expectedPrice: clearingPrice, maxBid: bidCap, intrinsicPrice, surplus }), nomination: nomination({ surplus, expectedPrice: clearingPrice, maxBid: bidCap, roomInflation: inflation, need, opponentsNeedingPosition, endgame: teamState.slotsLeft <= 3 }), need, scarcity, tierUrgency, inflation };
   }
 
-  return { clamp, auctionTier, rosterSlotCount, compileAuctionConfig, requiredPositionCounts, positionDemandMultiplier, normalizeHistory, leagueModel, maximumLegalBid, buildIntrinsicPrices, roomInflation, expectedLeaguePrice, maxBid, acquisitionSurplus, recommendation, nomination, capableBidderCount, applyPurchase, budgetHealth, evaluatePlayer };
+  return { clamp, quantile, auctionTier, rosterSlotCount, compileAuctionConfig, requiredPositionCounts, positionDemandMultiplier, normalizeHistory, leagueModel, calibrationBacktest, maximumLegalBid, buildIntrinsicPrices, roomInflation, expectedLeaguePrice, expectedLeaguePriceRange, maxBid, acquisitionSurplus, recommendation, nomination, capableBidderCount, applyPurchase, budgetHealth, evaluatePlayer };
 });

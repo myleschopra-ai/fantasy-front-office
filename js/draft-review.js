@@ -156,5 +156,63 @@
     return entry;
   }
 
-  return { ARCHIVE_KEY, analyze, analyzeAuction, archive, artifact, auctionArtifact, decisionReview, marketDelta, strategyShape };
+  function archiveRows(entries) {
+    return (Array.isArray(entries) ? entries : []).map((entry) => {
+      const artifact = entry?.artifact || {};
+      const review = artifact.review || {};
+      const config = artifact.configuration || {};
+      return {
+        id: entry.id,
+        savedAt: entry.savedAt || artifact.generatedAt || null,
+        slot: numeric(config.slot, numeric(review.teamSlot, 1)),
+        format: review.format || `${numeric(config.teams, 12)}-team`,
+        strategy: config.strategy || review.strategy?.selected || "adaptive",
+        observedStrategy: review.strategy?.observed || "unknown",
+        gradeScore: numeric(review.gradeScore),
+        totalValue: numeric(review.totalValue),
+        starterValue: numeric(review.starterValue),
+        benchValue: numeric(review.benchValue),
+        counterfactuals: Array.isArray(review.counterfactuals) ? review.counterfactuals.length : 0,
+      };
+    }).filter((row) => row.id && row.gradeScore > 0);
+  }
+
+  function archiveDimensions(entries) {
+    const rows = archiveRows(entries);
+    const unique = (key) => [...new Set(rows.map((row) => String(row[key])))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    return { slots: unique("slot"), formats: unique("format"), strategies: unique("strategy") };
+  }
+
+  function compareArchive(entries, filters = {}) {
+    const rows = archiveRows(entries).filter((row) =>
+      (!filters.slot || filters.slot === "all" || String(row.slot) === String(filters.slot)) &&
+      (!filters.format || filters.format === "all" || row.format === filters.format) &&
+      (!filters.strategy || filters.strategy === "all" || row.strategy === filters.strategy));
+    const average = (key) => rows.length ? round1(rows.reduce((sum, row) => sum + numeric(row[key]), 0) / rows.length) : 0;
+    const best = [...rows].sort((a, b) => b.gradeScore - a.gradeScore || b.totalValue - a.totalValue)[0] || null;
+    const byStrategy = {};
+    rows.forEach((row) => {
+      const group = byStrategy[row.strategy] ||= [];
+      group.push(row);
+    });
+    const strategySummary = Object.entries(byStrategy).map(([strategy, group]) => ({
+      strategy,
+      n: group.length,
+      gradeScore: round1(group.reduce((sum, row) => sum + row.gradeScore, 0) / group.length),
+      totalValue: round1(group.reduce((sum, row) => sum + row.totalValue, 0) / group.length),
+    })).sort((a, b) => b.gradeScore - a.gradeScore);
+    return {
+      n: rows.length,
+      rows: rows.sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt))),
+      averageGrade: average("gradeScore"),
+      averageValue: average("totalValue"),
+      averageStarterValue: average("starterValue"),
+      averageBenchValue: average("benchValue"),
+      averageCounterfactuals: average("counterfactuals"),
+      best,
+      strategySummary,
+    };
+  }
+
+  return { ARCHIVE_KEY, analyze, analyzeAuction, archive, archiveDimensions, archiveRows, artifact, auctionArtifact, compareArchive, decisionReview, marketDelta, strategyShape };
 });
