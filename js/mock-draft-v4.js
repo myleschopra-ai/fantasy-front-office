@@ -1548,8 +1548,13 @@
 
   document.addEventListener("ffo:league-changed", (event) => {
     stopProviderPolling();
-    const previousProvider = String(state.activeLeague?.provider || "").toLowerCase();
-    const previousLeagueId = providerLeagueId();
+    // The switcher initializes asynchronously after session restore. During
+    // that gap activeLeague can still be the default, so compare against the
+    // provider identity persisted in the restored payload as well.
+    const previousLeagueId = String(state.providerLeagueId || providerLeagueId());
+    const previousProvider = previousLeagueId
+      ? "sleeper"
+      : String(state.activeLeague?.provider || "").toLowerCase();
     state.activeLeague = event.detail || DEFAULT_LEAGUE;
     const nextProvider = String(state.activeLeague?.provider || "").toLowerCase();
     const nextLeagueId = providerLeagueId();
