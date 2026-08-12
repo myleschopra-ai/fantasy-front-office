@@ -6,6 +6,7 @@
   const SourceHealth = window.FFODraftSourceHealth;
   const ProviderSync = window.FFOProviderDraftSync;
   const SleeperDraft = window.FFOSleeperDraftClient;
+  const Calibration = window.FFODraftCalibration;
   const $ = (id) => document.getElementById(id);
   const LS = "ffo_mock_draft_v4";
   const POSITIONS = ["QB", "RB", "WR", "TE", "K", "DST"];
@@ -82,6 +83,28 @@
       ids.forEach((id) => { out[id] = player; });
     });
     return out;
+  }
+
+  function applyLocalCalibration(players) {
+    if (!Calibration) return { applied: 0, samples: 0 };
+    let archive = [];
+    try { archive = JSON.parse(localStorage.getItem("ffo_draft_archive_v1") || "[]"); } catch (_error) { archive = []; }
+    const drafts = archive.map((entry) => ({
+      ...(entry.artifact?.configuration || {}),
+      picks: entry.artifact?.picks || [],
+    })).filter((draft) => draft.picks.length);
+    const model = Calibration.snakeModel({ drafts });
+    let applied = 0;
+    players.forEach((player) => {
+      const result = Calibration.calibratedAdp(player, model);
+      if (result.applied) {
+        player.marketAdp = player.adp;
+        player.adp = result.adp;
+        player.calibration = { samples: result.n, shift: result.shift };
+        applied += 1;
+      }
+    });
+    return { applied, samples: drafts.length };
   }
 
   function updateProviderSyncUi(result = null) {
@@ -243,6 +266,7 @@
         health: state.sourceHealth?.level || null,
         ageHours: Number.isFinite(state.sourceHealth?.ageHours) ? Number(state.sourceHealth.ageHours.toFixed(2)) : null,
       },
+      leagueSnapshot: Session ? Session.sanitize(state.activeLeague || DEFAULT_LEAGUE) : (state.activeLeague || DEFAULT_LEAGUE),
       savedStatus: state.sessionStatus,
     };
   }
@@ -745,6 +769,17 @@
       .join(" · ");
   }
 
+  function weightedBreakdown(evaluation) {
+    const labels = { market: "Market", vbd: "VBD", tier: "Tier", need: "Roster need", availability: "Urgency", scheme: "Scheme", strategy: "Strategy", pedigree: "Pedigree", ageCurve: "Age curve" };
+    return Object.keys(evaluation.weights).map((key) => {
+      const raw = numeric(evaluation.components[key], 50);
+      const weight = numeric(evaluation.weights[key], 0);
+      const points = raw * weight;
+      const impact = (raw - 50) * weight;
+      return `<div class="factor"><span>${esc(labels[key] || key)} · ${Math.round(weight * 100)}% weight</span><strong>${raw.toFixed(0)} × ${(weight * 100).toFixed(1)}% = ${points.toFixed(1)} pts · ${impact >= 0 ? "+" : ""}${impact.toFixed(1)} vs neutral</strong></div>`;
+    }).join("");
+  }
+
   function rankIcons(player, evaluation) {
     const scarcity = tierScarcity(player);
     const cliff = player.tierEnd
@@ -773,9 +808,11 @@
       $("pick-label").textContent = "Draft complete";
       $("clock").textContent = "";
       $("best").textContent = `Lineup set · ${filled}/${total} starters · ${completed.lineup.bench.length} bench`;
-      $("why").textContent = completed.valid
-        ? "Optimized starting lineup is ready in My Team. Review starters, FLEX assignments and bench construction."
-        : `Roster review: ${completed.issues.join(" · ") || "check remaining starter gaps"}`;
+      const review = window.FFODraftReview?.analyze(sessionPayload(), D);
+      if (review) window.FFODraftReview.archive(localStorage, sessionPayload(), review);
+      $("why").innerHTML = `${completed.valid
+        ? "Optimized starting lineup is ready."
+        : `Roster review: ${esc(completed.issues.join(" · ") || "check remaining starter gaps")}.`} <a href="draft-review.html">Open post-draft review &amp; replay</a>`;
       return;
     }
     $("pick-label").textContent =
@@ -1045,6 +1082,8 @@
             ${metric("Pick Utility", evaluation.pickUtility)}
           </div>
           <div class="detail-line" style="margin-top:6px;">Player Grade = stable quality, never changes from your own roster. Pick Utility = should you draft him <em>right now</em>, given your roster and this moment.</div>
+          <div class="notice" style="margin-top:8px">Draft Fit ${evaluation.pickUtility}/100 is a weighted decision score—not projected points or win probability. Weighted points below sum to the score; “vs neutral” shows each factor's positive or negative impact.</div>
+          <div class="metric-grid" style="grid-template-columns:repeat(2,1fr);">${weightedBreakdown(evaluation)}</div>
           <div class="metricline" style="margin-top:8px;">confidence ${evaluation.confidence}%</div>
           <div class="metric-grid">
             ${metric("Market", Math.round(c.market))}
@@ -1313,14 +1352,28 @@
     if (!player || state.picks.some((pick) => pick.key === player.key)) return;
     const pick = state.picks.length + 1;
     const team = ownerForPick(pick);
-    state.picks.push(
-      createSelection(
+    const selection = createSelection(
         player,
         pick,
         team,
         team === state.slot ? "user" : "manual",
-      ),
-    );
+      );
+    if (team === state.slot) {
+      const ranked = recommendations();
+      const selected = equityFor(player);
+      const recommended = ranked[0] || selected;
+      selection.decision = {
+        capturedAt: new Date().toISOString(),
+        recommendedKey: recommended.key || player.key,
+        recommendedName: recommended.name || player.name,
+        recommendedUtility: numeric(recommended.pickUtility, recommended.score),
+        selectedUtility: numeric(selected.pickUtility, selected.score),
+        selectedComponents: selected.components,
+        selectedWeights: selected.weights,
+        context: { pick, round: selection.round, strategy: state.strategy, rosterBefore: teamPicks(state.slot).map((p) => p.key) },
+      };
+    }
+    state.picks.push(selection);
     state.selectedTeam = team;
     state.survivalCache.clear();
     save();
@@ -1465,6 +1518,7 @@
       state.intelProfile?.players || [],
       state.activeLeague || DEFAULT_LEAGUE,
     );
+    state.calibration = applyLocalCalibration(state.players);
     // Merge in draft-capital and age-curve scouting signals, matched by name.
     // Fails gracefully — if scouting_signals.json hasn't been generated yet,
     // scorePlayer's neutral (50) defaults apply and nothing breaks.

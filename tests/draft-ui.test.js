@@ -35,6 +35,8 @@ assert.match(room, /Expand board/, 'board must support compact/expanded modes');
 assert.match(room, /data-pos="FLEX"/, 'quick position filters must include FLEX');
 assert.match(room, /My Team/, 'roster must be a first-class navigation surface');
 assert.match(room, /js\/draft-intelligence\.js/, 'room must use validated valuation engine');
+assert.match(room, /js\/draft-review\.js/, 'room must load post-draft review and replay runtime');
+assert.match(room, /js\/draft-calibration\.js/, 'room must load bounded local history calibration');
 assert.match(room, /js\/mock-draft-v4\.js/, 'room must use validated draft-state engine');
 assert.match(room, /css\/draft-room-ios-v5\.css/, 'room must load the iOS-first responsive stylesheet');
 assert.match(room, /js\/draft-room-ios-v5\.js/, 'room must load the bounded iOS interaction helper');

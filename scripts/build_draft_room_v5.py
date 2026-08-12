@@ -4,6 +4,10 @@ src = Path('draft-room-v3.html')
 out = Path('draft-room-v5.html')
 html = src.read_text(encoding='utf-8')
 
+legacy_scripts = '<script src="js/league-switcher.js"></script><script src="js/draft-intelligence.js"></script><script src="js/draft-review.js"></script><script src="js/draft-calibration.js"></script><script src="js/mock-draft-v4.js"></script><script src="js/draft-room-polish.js"></script>'
+production_scripts = '<script src="js/league-switcher.js"></script><script src="js/draft-session.js"></script>\n<script src="js/draft-source-health.js"></script>\n<script src="js/draft-intelligence.js"></script><script src="js/draft-review.js"></script><script src="js/draft-calibration.js"></script><script src="js/provider-draft-sync.js"></script><script src="js/sleeper-draft-client.js"></script><script src="js/mock-draft-v4.js"></script><script src="js/draft-room-polish.js"></script>'
+html = html.replace(legacy_scripts, production_scripts)
+
 if 'css/draft-room-ios-v5.css' not in html:
     html = html.replace('</head>', '<link rel="stylesheet" href="css/draft-room-ios-v5.css?v=5" />\n<link rel="stylesheet" href="css/draft-room-ios-v5-layout-fix.css?v=5.1" />\n</head>')
 elif 'css/draft-room-ios-v5-layout-fix.css' not in html:

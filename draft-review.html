@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Post-Draft Review — Front Office</title>
+<style>
+:root{--bg:#070a10;--panel:#101722;--line:#253247;--text:#edf4ff;--muted:#94a3b8;--accent:#2dd4bf;--gold:#f5b942;--red:#f87171}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,-apple-system,sans-serif}header,main{max-width:980px;margin:auto;padding:18px}header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line)}a{color:var(--accent)}h1,h2{margin:.2rem 0}.muted{color:var(--muted);font-size:12px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}.metric strong{display:block;font-size:26px}.metric span,.eyebrow{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em}.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}.row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}button{border:0;border-radius:8px;background:var(--gold);color:#080b10;font-weight:800;padding:10px 14px;cursor:pointer}.empty{padding:36px;text-align:center}.tag{font:700 11px ui-monospace;color:var(--accent)}.negative{color:var(--red)}@media(max-width:700px){.grid{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr}}
+</style>
+</head>
+<body><header><div><div class="eyebrow">Decision audit</div><h1>Post-Draft Review</h1></div><a href="draft.html">Back to Draft Room</a></header><main id="app"></main>
+<script src="js/draft-session.js"></script><script src="js/draft-intelligence.js"></script><script src="js/draft-review.js"></script>
+<script>
+(function(){
+  const app=document.getElementById('app'),esc=(s)=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const loaded=FFODraftSession.safeLoad(localStorage,'ffo_mock_draft_v4','snake');
+  if(!loaded.ok||!loaded.payload||!loaded.payload.picks.length){app.innerHTML='<div class="card empty"><h2>No completed draft found</h2><p class="muted">Finish or restore a draft in the Draft Room first.</p><a href="draft.html">Open Draft Room</a></div>';return}
+  const payload=loaded.payload,review=FFODraftReview.analyze(payload,FFODraftIntelligence);FFODraftReview.archive(localStorage,payload,review);
+  const list=(items,empty,render)=>items.length?items.map(render).join(''):`<div class="muted">${empty}</div>`;
+  app.innerHTML=`<p class="muted">${esc(review.disclaimer)}</p><div class="grid">
+    <div class="card metric"><span>Draft Fit</span><strong>${review.grade} · ${review.gradeScore}</strong></div><div class="card metric"><span>Starter value</span><strong>${review.starterValue>0?'+':''}${review.starterValue}</strong></div><div class="card metric"><span>Bench value</span><strong>${review.benchValue>0?'+':''}${review.benchValue}</strong></div><div class="card metric"><span>Roster check</span><strong>${review.rosterValid?'Pass':'Review'}</strong></div></div>
+    <div class="two"><section class="card"><div class="eyebrow">Process</div><h2>${esc(review.strategy.selected)} → ${esc(review.strategy.observed)}</h2><p class="muted">Selected strategy compared with the shape of your first six picks.</p>${list(review.decisions,'Decision snapshots begin with picks made after this update.',d=>`<div class="row"><span>Pick ${d.pick}: ${esc(d.selected)}</span><span class="tag ${d.utilityGap?'negative':''}">${d.followedRecommendation?'followed':'gap '+d.utilityGap}</span></div>`)}</section>
+    <section class="card"><div class="eyebrow">Counterfactuals</div><h2>Reviewable alternatives</h2><p class="muted">Only alternatives with a Draft Fit gap of at least four points are shown.</p>${list(review.counterfactuals,'No material recommendation gaps captured.',d=>`<div class="row"><span>Pick ${d.pick}: ${esc(d.selected)}<br><span class="muted">Alternative: ${esc(d.recommendation)}</span></span><span class="tag negative">-${d.utilityGap}</span></div>`)}</section></div>
+    <div class="two" style="margin-top:12px"><section class="card"><div class="eyebrow">Value wins</div><h2>Steals</h2>${list(review.steals,'No picks eight or more spots after market rank.',p=>`<div class="row"><span>${esc(p.name)} · ${esc(p.position)}</span><span class="tag">+${p.marketDelta}</span></div>`)}</section><section class="card"><div class="eyebrow">Cost checks</div><h2>Reaches</h2>${list(review.reaches,'No picks eight or more spots before market rank.',p=>`<div class="row"><span>${esc(p.name)} · ${esc(p.position)}</span><span class="tag negative">${p.marketDelta}</span></div>`)}</section></div>
+    <section class="card" style="margin-top:12px"><div class="eyebrow">Replay artifact</div><h2>Export this decision record</h2><p class="muted">Includes league configuration, picks, captured recommendation context, and this review. It contains no provider credentials.</p><button id="export">Download JSON</button></section>`;
+  document.getElementById('export').onclick=()=>{const body=JSON.stringify(FFODraftReview.artifact(payload,review),null,2),url=URL.createObjectURL(new Blob([body],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=`front-office-draft-review-${Date.now()}.json`;a.click();URL.revokeObjectURL(url)};
+})();
+</script></body></html>
