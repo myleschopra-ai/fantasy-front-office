@@ -168,6 +168,11 @@
           state.queue = state.queue.filter((key) => !confirmed.has(String(key)));
           save();
           render();
+        } else {
+          // A reconnect may confirm an unchanged pick history. Persist the
+          // provider binding and retrieval metadata even when there is no new
+          // pick, otherwise a refresh can silently drop the attached draft.
+          save();
         }
       }
       updateProviderSyncUi(result);
@@ -1543,12 +1548,19 @@
 
   document.addEventListener("ffo:league-changed", (event) => {
     stopProviderPolling();
+    const previousProvider = String(state.activeLeague?.provider || "").toLowerCase();
+    const previousLeagueId = providerLeagueId();
     state.activeLeague = event.detail || DEFAULT_LEAGUE;
-    state.providerDraftId = null;
-    state.providerDraft = null;
-    state.providerRetrievedAt = null;
-    state.providerIssues = [];
-    state.providerSyncStatus = ProviderSync ? ProviderSync.STATUS.IDLE : "IDLE";
+    const nextProvider = String(state.activeLeague?.provider || "").toLowerCase();
+    const nextLeagueId = providerLeagueId();
+    const providerChanged = previousProvider !== nextProvider || previousLeagueId !== nextLeagueId;
+    if (providerChanged) {
+      state.providerDraftId = null;
+      state.providerDraft = null;
+      state.providerRetrievedAt = null;
+      state.providerIssues = [];
+      state.providerSyncStatus = ProviderSync ? ProviderSync.STATUS.IDLE : "IDLE";
+    }
     $("league-note").textContent =
       `Active league: ${state.activeLeague.name || "custom"} · ${numeric(state.activeLeague.scoring?.reception, 0)} PPR${isSuperflex() ? " · Superflex" : ""}`;
     state.survivalCache.clear();
@@ -1626,3 +1638,6 @@
     }
   }, 350);
 })();
+provider draft sync tests passed
+sleeper draft client tests passed
+draft session reliability tests passed
