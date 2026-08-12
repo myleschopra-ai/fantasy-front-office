@@ -1,0 +1,30 @@
+name: Fix snake session status
+on:
+  push:
+    branches: [agent/draft-session-reliability]
+    paths:
+      - 'scripts/fix_snake_session_status.py'
+      - '.github/workflows/fix-snake-session-status.yml'
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/draft-session-reliability
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: python3 scripts/fix_snake_session_status.py
+      - run: node tests/draft-session.test.js
+      - run: node tests/draft-intelligence.test.js
+      - run: |
+          if git diff --quiet -- js/mock-draft-v4.js; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/mock-draft-v4.js
+          git commit -m 'Fix draft session status after data restore'
+          git push origin HEAD:agent/draft-session-reliability

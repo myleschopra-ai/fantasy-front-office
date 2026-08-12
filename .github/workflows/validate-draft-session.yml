@@ -1,0 +1,122 @@
+# Full promotion gate for draft session reliability, recovery, and authoritative source-health rendering.
+name: Validate draft session reliability
+
+on:
+  push:
+    branches:
+      - agent/draft-session-reliability
+    paths:
+      - 'js/draft-session.js'
+      - 'js/draft-source-health.js'
+      - 'tests/draft-session.test.js'
+      - 'tests/draft-source-health.test.js'
+      - 'js/mock-draft-v4.js'
+      - 'auction.html'
+      - 'draft-room-v5.html'
+      - 'tests/draft-session-e2e.mjs'
+      - 'tests/draft-session-ios-e2e.mjs'
+      - 'tests/auction-session-e2e.mjs'
+      - '.github/workflows/validate-draft-session.yml'
+  pull_request:
+    paths:
+      - 'js/draft-session.js'
+      - 'js/draft-source-health.js'
+      - 'tests/draft-session.test.js'
+      - 'tests/draft-source-health.test.js'
+      - 'js/mock-draft-v4.js'
+      - 'auction.html'
+      - 'draft-room-v5.html'
+      - 'tests/draft-session-e2e.mjs'
+      - 'tests/draft-session-ios-e2e.mjs'
+      - 'tests/auction-session-e2e.mjs'
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tests/draft-source-health.test.js
+      - run: node tests/draft-session.test.js
+      - run: node tests/draft-intelligence.test.js
+      - run: node tests/auction-intelligence.test.js
+
+  snake-refresh-resume:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.54.2
+          npx playwright install --with-deps chromium
+      - name: Start static server
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/ffo-session-http.log 2>&1 &
+          for i in {1..20}; do
+            curl -fsS http://127.0.0.1:4173/draft.html >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/ffo-session-http.log
+          exit 1
+      - name: Run snake refresh/resume regression
+        env:
+          DRAFT_SESSION_E2E_URL: http://127.0.0.1:4173/draft.html
+        run: node tests/draft-session-e2e.mjs
+
+  snake-ios-refresh-resume:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright WebKit
+        run: |
+          npm install --no-save playwright@1.54.2
+          npx playwright install --with-deps webkit
+      - name: Start static server
+        run: |
+          python3 -m http.server 4175 --bind 127.0.0.1 > /tmp/ffo-session-ios-http.log 2>&1 &
+          for i in {1..20}; do
+            curl -fsS http://127.0.0.1:4175/draft.html >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/ffo-session-ios-http.log
+          exit 1
+      - name: Run iPhone and iPad refresh/resume regression
+        env:
+          DRAFT_SESSION_IOS_URL: http://127.0.0.1:4175/draft.html
+        run: node tests/draft-session-ios-e2e.mjs
+
+  auction-refresh-resume:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.54.2
+          npx playwright install --with-deps chromium
+      - name: Start static server
+        run: |
+          python3 -m http.server 4174 --bind 127.0.0.1 > /tmp/ffo-auction-session-http.log 2>&1 &
+          for i in {1..20}; do
+            curl -fsS http://127.0.0.1:4174/auction.html >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/ffo-auction-session-http.log
+          exit 1
+      - name: Run auction refresh/resume regression
+        env:
+          AUCTION_SESSION_E2E_URL: http://127.0.0.1:4174/auction.html
+        run: node tests/auction-session-e2e.mjs

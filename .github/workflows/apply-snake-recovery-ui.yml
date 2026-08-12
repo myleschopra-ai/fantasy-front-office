@@ -1,0 +1,30 @@
+name: Apply snake recovery UI
+on:
+  push:
+    branches: [agent/draft-session-reliability]
+    paths:
+      - 'scripts/apply_snake_recovery_ui.py'
+      - '.github/workflows/apply-snake-recovery-ui.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/draft-session-reliability
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: python3 scripts/apply_snake_recovery_ui.py
+      - run: node tests/draft-session.test.js
+      - run: node tests/draft-intelligence.test.js
+      - run: |
+          if git diff --quiet -- js/mock-draft-v4.js draft-room-v5.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/mock-draft-v4.js draft-room-v5.html
+          git commit -m 'Add draft recovery controls and lifecycle checkpoints'
+          git push origin HEAD:agent/draft-session-reliability

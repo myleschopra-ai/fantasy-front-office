@@ -2,6 +2,8 @@
   "use strict";
 
   const D = window.FFODraftIntelligence;
+  const Session = window.FFODraftSession;
+  const SourceHealth = window.FFODraftSourceHealth;
   const $ = (id) => document.getElementById(id);
   const LS = "ffo_mock_draft_v4";
   const POSITIONS = ["QB", "RB", "WR", "TE", "K", "DST"];
@@ -31,6 +33,10 @@
     restored: false,
     loadToken: 0,
     survivalCache: new Map(),
+    sessionStatus: Session ? Session.STATES.BOOTING : "BOOTING",
+    recoveryIssues: [],
+    recoveredSession: false,
+    sourceHealth: null,
   };
 
   const esc = (value) =>
@@ -51,40 +57,121 @@
     Math.max(min, Math.min(max, numeric(value)));
   const formatSigned = (value) => `${value > 0 ? "+" : ""}${Math.round(value)}`;
 
+  function showSessionRecovery(message, force = false) {
+    const panel = $("session-recovery");
+    const text = $("session-recovery-message");
+    if (!panel) return;
+    const show = force || state.sessionStatus === Session?.STATES.ERROR || state.sessionStatus === Session?.STATES.RECOVERING || state.recoveredSession;
+    panel.style.display = show ? "flex" : "none";
+    if (text && message) text.textContent = message;
+  }
+
+  function exportSnakeSession() {
+    if (!Session) return;
+    const payload = Session.diagnosticExport("snake", sessionPayload(), {
+      status: state.sessionStatus,
+      issues: state.recoveryIssues,
+      league: { id: state.activeLeague?.id || state.activeLeague?.league_id || null, name: state.activeLeague?.name || null },
+    });
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "fantasy-front-office-draft-session.json";
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function resetSnakeSession() {
+    try { localStorage.removeItem(LS); } catch (_error) {}
+    window.location.reload();
+  }
+
+  function sessionPayload() {
+    return {
+      version: Session ? Session.SCHEMA_VERSION : 4,
+      picks: state.picks,
+      teams: state.teams,
+      slot: state.slot,
+      rounds: state.rounds,
+      strategy: state.strategy,
+      mode: state.mode,
+      variance: state.variance,
+      profiles: state.profiles,
+      selectedTeam: state.selectedTeam,
+      activeDraftTab: state.activeDraftTab,
+      queue: state.queue,
+      leagueId: state.activeLeague?.id || state.activeLeague?.league_id || null,
+      profileId: state.intelProfile?.id || null,
+      sourceSnapshot: {
+        generated_at: state.intelligence?.generated_at || state.intelligence?.meta?.generated_at || null,
+        profile: state.intelProfile?.id || null,
+        health: state.sourceHealth?.level || null,
+        ageHours: Number.isFinite(state.sourceHealth?.ageHours) ? Number(state.sourceHealth.ageHours.toFixed(2)) : null,
+      },
+      savedStatus: state.sessionStatus,
+    };
+  }
+
+  function updateSessionStatus(status, issues = []) {
+    state.sessionStatus = status;
+    state.recoveryIssues = Array.isArray(issues) ? issues : [];
+    const el = $("session-status");
+    if (el) {
+      el.textContent = status;
+      el.dataset.state = status;
+      el.title = state.recoveryIssues.join(" · ");
+    }
+    if (status === Session?.STATES.ERROR) showSessionRecovery(state.recoveryIssues.join(" · ") || "Saved draft state needs attention.", true);
+  }
+
   function save() {
-    localStorage.setItem(
-      LS,
-      JSON.stringify({
-        version: 3,
-        picks: state.picks,
-        teams: state.teams,
-        slot: state.slot,
-        rounds: state.rounds,
-        strategy: state.strategy,
-        mode: state.mode,
-        variance: state.variance,
-        profiles: state.profiles,
-        selectedTeam: state.selectedTeam,
-        queue: state.queue,
-      }),
-    );
+    if (!Session) return;
+    const result = Session.safeSave(localStorage, LS, "snake", sessionPayload(), {
+      leagueName: state.activeLeague?.name || null,
+    });
+    if (!result.ok) updateSessionStatus(Session.STATES.ERROR, result.issues);
+    else if (state.picks.length >= state.teams * state.rounds) updateSessionStatus(Session.STATES.COMPLETE);
+    else if (state.picks.length) updateSessionStatus(Session.STATES.RUNNING);
+    else updateSessionStatus(Session.STATES.READY);
   }
 
   function restore() {
     if (state.restored) return;
     state.restored = true;
-    try {
-      const saved = JSON.parse(localStorage.getItem(LS) || "{}");
-      Object.assign(state, saved);
-      if (!D.STRATEGIES[state.strategy]) state.strategy = "adaptive";
-      state.picks = (state.picks || []).map((pick, index) =>
-        normalizePick(pick, index + 1),
-      );
-      state.selectedTeam = state.selectedTeam || state.slot;
-      state.queue = Array.isArray(state.queue) ? state.queue : [];
-    } catch (_error) {
+    if (!Session) {
       state.picks = [];
+      return;
     }
+    updateSessionStatus(Session.STATES.RECOVERING);
+    const result = Session.safeLoad(localStorage, LS, "snake");
+    if (!result.ok) {
+      state.picks = [];
+      state.recoveredSession = false;
+      updateSessionStatus(Session.STATES.ERROR, result.issues);
+      return;
+    }
+    if (!result.payload) {
+      updateSessionStatus(Session.STATES.READY);
+      return;
+    }
+    Object.assign(state, result.payload);
+    if (!D.STRATEGIES[state.strategy]) state.strategy = "adaptive";
+    state.picks = (state.picks || []).map((pick, index) => normalizePick(pick, index + 1));
+    state.selectedTeam = state.selectedTeam || state.slot;
+    state.queue = Array.isArray(state.queue) ? state.queue : [];
+    state.activeDraftTab = state.activeDraftTab || "board";
+    state.recoveredSession = state.picks.length > 0;
+    if (state.recoveredSession) showSessionRecovery(`Recovered ${state.picks.length} selections and ${state.queue.length} queued player${state.queue.length === 1 ? "" : "s"}.`, true);
+    updateSessionStatus(
+      state.picks.length >= state.teams * state.rounds
+        ? Session.STATES.COMPLETE
+        : state.picks.length
+          ? Session.STATES.RUNNING
+          : Session.STATES.READY,
+    );
+    // Rewrite a migrated v3 save immediately using the checksummed v4 envelope.
+    if (result.migrated) save();
   }
 
   function ownerForPick(pick) {
@@ -425,7 +512,17 @@
           picksUntilNextTurn,
         })
       : { opportunityCost: 0, bestAlternative: null, bestAlternativePosition: null, lineupImprovementForfeited: false };
-    return { ...model, eq: rosterEquity(projected), sv: survives, scarcity, waitRisk, opportunityCost };
+    const sourcePenalty = SourceHealth ? SourceHealth.confidencePenalty(state.sourceHealth) : 0;
+    return {
+      ...model,
+      confidence: Math.max(1, numeric(model.confidence, 50) - sourcePenalty),
+      sourcePenalty,
+      eq: rosterEquity(projected),
+      sv: survives,
+      scarcity,
+      waitRisk,
+      opportunityCost,
+    };
   }
 
   function actionFor(player, evaluation) {
@@ -1042,6 +1139,14 @@
         .join("") || '<div class="muted">No picks yet.</div>';
   }
 
+  function renderSourceHealth() {
+    if (!SourceHealth || !state.sourceHealth || !$("source")) return;
+    const healthLabel = SourceHealth.label(state.sourceHealth);
+    const profileLabel = state.intelProfile?.id || "no compatible profile";
+    $("source").textContent = `${healthLabel} · ${profileLabel} · ${state.players.length} players${state.marketLoaded ? " · live market" : " · cached consensus"}`;
+    $("source").title = state.sourceHealth.issues.join(" · ");
+  }
+
   function render() {
     if (!state.players.length) {
       renderIntelligence();
@@ -1058,6 +1163,7 @@
     if (state.activeDraftTab === "queue") renderQueue();
     if (state.activeDraftTab === "recommended") renderRecommended();
     bindPlayerLinks();
+    renderSourceHealth();
   }
 
   function draft(key) {
@@ -1163,6 +1269,7 @@
   }
 
   async function loadData() {
+    if (Session) updateSessionStatus(Session.STATES.LOADING_DATA);
     const token = ++state.loadToken;
     const league = state.activeLeague || DEFAULT_LEAGUE;
     const qbs = isSuperflex() ? 2 : 1;
@@ -1184,6 +1291,14 @@
       intelligenceResult.status === "fulfilled"
         ? intelligenceResult.value
         : null;
+    state.sourceHealth = SourceHealth
+      ? SourceHealth.assessRuntime({
+          intelligence: state.intelligence,
+          marketOk: marketResult.status === "fulfilled",
+          scoutingOk: scoutingResult.status === "fulfilled",
+          newsOk: fpResult.status === "fulfilled",
+        })
+      : null;
     state.intelProfile = D.selectProfile(state.intelligence, league);
     const live =
       marketResult.status === "fulfilled"
@@ -1254,11 +1369,18 @@
     state.survivalCache.clear();
     if (!state.players.length) {
       $("source").textContent =
-        "Ranking feeds unavailable. Reload to retry; saved picks were preserved.";
+        "Ranking feeds unavailable. Retry data; saved picks were preserved.";
       $("best").textContent = "Rankings unavailable";
+      if (Session) updateSessionStatus(Session.STATES.ERROR, [
+        intelligenceResult.status === "rejected" ? `Draft intelligence: ${intelligenceResult.reason}` : "Draft intelligence contained no usable players",
+        marketResult.status === "rejected" ? `Market feed: ${marketResult.reason}` : "Market feed unavailable or empty",
+      ]);
       renderIntelligence();
       return;
     }
+    // Data restoration is complete. Persist refreshed player/source metadata and
+    // leave the state machine in the truthful draft lifecycle state.
+    save();
     render();
   }
 
@@ -1287,6 +1409,12 @@
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closePlayer();
   });
+  if ($("session-resume")) $("session-resume").onclick = () => { state.recoveredSession = false; showSessionRecovery(); render(); };
+  if ($("session-retry")) $("session-retry").onclick = () => loadData();
+  if ($("session-export")) $("session-export").onclick = exportSnakeSession;
+  if ($("session-reset")) $("session-reset").onclick = resetSnakeSession;
+  window.addEventListener("pagehide", () => save());
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") save(); });
   $("start").onclick = start;
   $("advance").onclick = simulateToUser;
   $("undo").onclick = () => {

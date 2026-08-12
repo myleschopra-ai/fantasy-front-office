@@ -1,0 +1,42 @@
+name: Apply auction session reliability
+
+on:
+  push:
+    branches:
+      - agent/draft-session-reliability
+    paths:
+      - 'scripts/apply_auction_session_reliability.py'
+      - '.github/workflows/apply-auction-session-reliability.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/draft-session-reliability
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply auction session integration
+        run: python3 scripts/apply_auction_session_reliability.py
+      - name: Run session reliability tests
+        run: node tests/draft-session.test.js
+      - name: Run auction intelligence tests
+        run: node tests/auction-intelligence.test.js
+      - name: Commit integrated auction runtime
+        run: |
+          if git diff --quiet -- auction.html; then
+            echo 'No auction session changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add auction.html
+          git commit -m 'Add versioned auction draft session recovery'
+          git push origin HEAD:agent/draft-session-reliability
