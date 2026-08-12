@@ -26,4 +26,8 @@ assert.equal(JSON.parse(storage.getItem(Review.ARCHIVE_KEY)).length, 1, "archive
 storage.setItem(Review.ARCHIVE_KEY, "not json");
 assert.doesNotThrow(() => Review.archive(storage, payload, review), "corrupt archive must recover safely");
 assert.equal(Review.artifact(payload, review).kind, "draft-review");
+const auction = Review.analyzeAuction({ initialBudget: 200, remainingBudget: 95, minBid: 1, leagueSnapshot: { roster: { RB: 1 } }, myRoster: [{ key: 'ar', name: 'Auction RB', position: 'RB', price: 45, expectedPrice: 50, surplus: 5 }] }, D);
+assert.equal(auction.spend, 45);
+assert.equal(auction.totalSurplus, 5);
+assert.equal(Review.auctionArtifact({}, auction).kind, 'auction-review');
 console.log("draft review tests passed");

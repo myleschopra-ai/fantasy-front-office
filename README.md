@@ -8,6 +8,7 @@ A local-first Sleeper fantasy football dashboard deployed with GitHub Pages.
 - `draft.html` — production Draft Room v5 for mock drafts and confirmed-only Sleeper live sync
 - `draft-review.html` — local post-draft review, counterfactual audit, and replay export
 - `auction.html` — finite-budget auction engine with historical room and manager calibration
+- `auction-review.html` — auction spend, surplus, starter/bench, and unused-capital review
 
 The draft assistant is available at:
 

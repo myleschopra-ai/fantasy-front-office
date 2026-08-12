@@ -106,6 +106,41 @@
     };
   }
 
+  function analyzeAuction(payload, intelligence) {
+    const roster = Array.isArray(payload?.myRoster) ? payload.myRoster : [];
+    const league = payload?.leagueSnapshot || {};
+    const validation = intelligence?.validateCompletedRoster
+      ? intelligence.validateCompletedRoster(roster, league)
+      : { valid: true, issues: [], lineup: { starters: [], bench: roster } };
+    const starters = new Set((validation.lineup?.starters || []).filter((entry) => entry.player).map((entry) => String(entry.player.key)));
+    const purchases = roster.map((player) => {
+      const paid = numeric(player.price);
+      const expected = numeric(player.expectedPrice, numeric(player.intrinsicPrice, paid));
+      return { ...player, paid, expected, surplus: round1(numeric(player.surplus, expected - paid)), starter: starters.has(String(player.key)) };
+    });
+    const spend = round1(purchases.reduce((sum, player) => sum + player.paid, 0));
+    const surplus = round1(purchases.reduce((sum, player) => sum + player.surplus, 0));
+    const remaining = round1(numeric(payload?.remainingBudget, Math.max(0, numeric(payload?.initialBudget, 200) - spend)));
+    const efficiency = spend ? round1((surplus / spend) * 100) : 0;
+    const gradeScore = Math.max(0, Math.min(100, Math.round(75 + efficiency * 1.2 - Math.max(0, remaining - numeric(payload?.minBid, 1)) * .35 - (validation.issues || []).length * 8)));
+    return {
+      schemaVersion: 1, kind: "auction-review", generatedAt: new Date().toISOString(),
+      grade: gradeScore >= 90 ? "A" : gradeScore >= 80 ? "B" : gradeScore >= 70 ? "C" : gradeScore >= 60 ? "D" : "F",
+      gradeScore, spend, remaining, totalSurplus: surplus, efficiency,
+      rosterValid: validation.valid, issues: validation.issues || [], lineup: validation.lineup,
+      starterSurplus: round1(purchases.filter((p) => p.starter).reduce((sum, p) => sum + p.surplus, 0)),
+      benchSurplus: round1(purchases.filter((p) => !p.starter).reduce((sum, p) => sum + p.surplus, 0)),
+      values: purchases.filter((p) => p.surplus >= 3).sort((a, b) => b.surplus - a.surplus),
+      overpays: purchases.filter((p) => p.surplus <= -3).sort((a, b) => a.surplus - b.surplus),
+      purchases,
+      disclaimer: "Auction Draft Fit grades acquisition process and budget use. It is not projected points, win probability, or a guarantee of results.",
+    };
+  }
+
+  function auctionArtifact(payload, review) {
+    return { schemaVersion: 1, kind: "auction-review", generatedAt: review.generatedAt, configuration: { initialBudget: payload.initialBudget, minBid: payload.minBid, league: payload.leagueSnapshot || null }, purchases: payload.myRoster || [], sold: payload.sold || [], review };
+  }
+
   function archive(storage, payload, review) {
     let current = [];
     try {
@@ -121,5 +156,5 @@
     return entry;
   }
 
-  return { ARCHIVE_KEY, analyze, archive, artifact, decisionReview, marketDelta, strategyShape };
+  return { ARCHIVE_KEY, analyze, analyzeAuction, archive, artifact, auctionArtifact, decisionReview, marketDelta, strategyShape };
 });

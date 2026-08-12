@@ -141,6 +141,7 @@
       selectedKey: payload.selectedKey || null,
       nomination: payload.nomination || null,
       sourceSnapshot: payload.sourceSnapshot || null,
+      leagueSnapshot: payload.leagueSnapshot || payload.league_snapshot || null,
     };
   }
 
