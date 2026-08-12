@@ -1,0 +1,44 @@
+name: Apply Sleeper live draft sync
+
+on:
+  push:
+    branches:
+      - agent/sleeper-live-draft-sync
+    paths:
+      - 'scripts/apply_sleeper_live_sync.py'
+      - 'js/provider-draft-sync.js'
+      - 'js/sleeper-draft-client.js'
+      - '.github/workflows/apply-sleeper-live-sync.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/sleeper-live-draft-sync
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply live-provider integration
+        run: python3 scripts/apply_sleeper_live_sync.py
+      - run: node tests/provider-draft-sync.test.js
+      - run: node tests/sleeper-draft-client.test.js
+      - run: node tests/draft-session.test.js
+      - run: node tests/draft-intelligence.test.js
+      - name: Commit integrated runtime
+        run: |
+          if git diff --quiet -- draft-room-v5.html js/mock-draft-v4.js js/draft-session.js; then
+            echo 'No runtime changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add draft-room-v5.html js/mock-draft-v4.js js/draft-session.js
+          git commit -m 'Integrate Sleeper confirmed-pick live draft mode'
+          git push origin HEAD:agent/sleeper-live-draft-sync

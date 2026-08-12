@@ -1,0 +1,36 @@
+name: Fix Sleeper poll cadence
+
+on:
+  push:
+    branches:
+      - agent/sleeper-live-draft-sync
+    paths:
+      - 'scripts/fix_sleeper_poll_cadence.py'
+      - 'js/sleeper-draft-client.js'
+      - '.github/workflows/fix-sleeper-poll-cadence.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/sleeper-live-draft-sync
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: python3 scripts/fix_sleeper_poll_cadence.py
+      - run: node tests/sleeper-draft-client.test.js
+      - run: node tests/provider-draft-sync.test.js
+      - name: Commit runtime cadence fix
+        run: |
+          if git diff --quiet -- js/mock-draft-v4.js; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/mock-draft-v4.js
+          git commit -m 'Avoid redundant immediate Sleeper live sync'
+          git push origin HEAD:agent/sleeper-live-draft-sync
