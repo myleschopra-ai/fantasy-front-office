@@ -4,12 +4,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const route = fs.readFileSync(path.join(__dirname, '..', 'draft.html'), 'utf8');
-const room = fs.readFileSync(path.join(__dirname, '..', 'draft-room-v3.html'), 'utf8');
-const polish = fs.readFileSync(path.join(__dirname, '..', 'js', 'draft-room-polish.js'), 'utf8');
+const room = fs.readFileSync(path.join(__dirname, '..', 'draft-room-v5.html'), 'utf8');
+const iosRuntime = fs.readFileSync(path.join(__dirname, '..', 'js', 'draft-room-ios-v5.js'), 'utf8');
 const runtime = fs.readFileSync(path.join(__dirname, '..', 'js', 'mock-draft-v4.js'), 'utf8');
 const leagueSwitcher = fs.readFileSync(path.join(__dirname, '..', 'js', 'league-switcher.js'), 'utf8');
 
-assert.match(route, /draft-room-v3\.html/, 'candidate snake/mock route must open redesigned room');
+assert.match(route, /draft-room-v5\.html/, 'candidate snake/mock route must open promoted iOS-first room');
 assert.match(route, /auction\.html/, 'auction mode must continue to open the validated auction engine');
 assert.doesNotMatch(route, /<iframe/i, 'draft route must not create nested iframe layers');
 assert.doesNotMatch(route, /document\.write/i, 'draft route must not rewrite its own document');
@@ -36,11 +36,11 @@ assert.match(room, /data-pos="FLEX"/, 'quick position filters must include FLEX'
 assert.match(room, /My Team/, 'roster must be a first-class navigation surface');
 assert.match(room, /js\/draft-intelligence\.js/, 'room must use validated valuation engine');
 assert.match(room, /js\/mock-draft-v4\.js/, 'room must use validated draft-state engine');
-assert.match(room, /js\/draft-room-polish\.js/, 'room must load the bounded redesign helper');
+assert.match(room, /css\/draft-room-ios-v5\.css/, 'room must load the iOS-first responsive stylesheet');
+assert.match(room, /js\/draft-room-ios-v5\.js/, 'room must load the bounded iOS interaction helper');
 assert.doesNotMatch(room, /<iframe/i, 'room must not introduce nested iframes');
 
-assert.doesNotMatch(polish, /MutationObserver/, 'redesign helper must not use recursive DOM observation');
-assert.match(polish, /requestAnimationFrame\(refresh\)/, 'redesign helper must refresh only after bounded actions');
+assert.doesNotMatch(iosRuntime, /MutationObserver/, 'iOS helper must not use recursive DOM observation');
 assert.match(runtime, /function approximateSurvival\(/, 'live board must use a cheap survival estimate');
 assert.match(runtime, /function survival\(player, runs = 5\)/, 'full Monte Carlo survival must be bounded');
 assert.match(runtime, /equityFor\(player, false\)/, 'scrolling player board must avoid full Monte Carlo for every row');
