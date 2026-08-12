@@ -1,0 +1,40 @@
+name: Apply advisor need states
+
+on:
+  push:
+    branches:
+      - agent/draft-advisor-roster-logic
+    paths:
+      - 'scripts/apply_advisor_need_states.py'
+      - '.github/workflows/apply-advisor-need-states.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/draft-advisor-roster-logic
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply advisor roster-state patch
+        run: python3 scripts/apply_advisor_need_states.py
+      - name: Run draft intelligence regression suite
+        run: node tests/draft-intelligence.test.js
+      - name: Commit advisor integration
+        run: |
+          if git diff --quiet -- js/draft-intelligence.js js/mock-draft-v4.js tests/draft-intelligence.test.js; then
+            echo 'No advisor changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/draft-intelligence.js js/mock-draft-v4.js tests/draft-intelligence.test.js
+          git commit -m 'Add starter need states and optimized roster view'
+          git push origin HEAD:agent/draft-advisor-roster-logic

@@ -1,0 +1,38 @@
+name: Apply roster logic integration
+
+on:
+  push:
+    branches:
+      - agent/draft-advisor-roster-logic
+    paths:
+      - 'scripts/apply_roster_logic_integration.py'
+      - '.github/workflows/apply-roster-logic-integration.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply roster integration patch
+        run: python3 scripts/apply_roster_logic_integration.py
+      - name: Run draft intelligence tests
+        run: node tests/draft-intelligence.test.js
+      - name: Commit integrated runtime
+        run: |
+          if git diff --quiet -- js/draft-intelligence.js js/mock-draft-v4.js; then
+            echo 'No roster integration changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/draft-intelligence.js js/mock-draft-v4.js
+          git commit -m 'Integrate K DST and starter-aware roster logic'
+          git push origin HEAD:agent/draft-advisor-roster-logic

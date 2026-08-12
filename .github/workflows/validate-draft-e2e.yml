@@ -5,11 +5,16 @@ on:
     branches:
       - main
       - agent/draft-room-v4-stable
+      - agent/draft-advisor-roster-logic
     paths:
       - 'draft.html'
       - 'draft-room-v2.html'
       - 'draft-room-v3.html'
       - 'draft-room-v4.html'
+      - 'draft-room-v5.html'
+      - 'css/draft-room-ios-v5.css'
+      - 'css/draft-room-ios-v5-layout-fix.css'
+      - 'js/draft-room-ios-v5.js'
       - 'js/draft-room-polish.js'
       - 'js/league-switcher.js'
       - 'js/mock-draft-v4.js'
@@ -22,6 +27,10 @@ on:
       - 'draft-room-v2.html'
       - 'draft-room-v3.html'
       - 'draft-room-v4.html'
+      - 'draft-room-v5.html'
+      - 'css/draft-room-ios-v5.css'
+      - 'css/draft-room-ios-v5-layout-fix.css'
+      - 'js/draft-room-ios-v5.js'
       - 'js/draft-room-polish.js'
       - 'js/league-switcher.js'
       - 'js/mock-draft-v4.js'

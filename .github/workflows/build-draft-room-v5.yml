@@ -1,0 +1,66 @@
+name: Build Draft Room v5 iOS
+
+on:
+  push:
+    branches:
+      - agent/draft-advisor-roster-logic
+    paths:
+      - 'css/draft-room-ios-v5.css'
+      - 'js/draft-room-ios-v5.js'
+      - 'scripts/build_draft_room_v5.py'
+      - 'tests/draft-room-ios-e2e.mjs'
+      - '.github/workflows/build-draft-room-v5.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/draft-advisor-roster-logic
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build v5 room
+        run: python3 scripts/build_draft_room_v5.py
+      - name: Validate draft intelligence
+        run: node tests/draft-intelligence.test.js
+      - name: Install Playwright WebKit
+        run: |
+          npm install --no-save playwright@1.54.2
+          npx playwright install --with-deps webkit
+      - name: Start static server
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/ffo-v5-http.log 2>&1 &
+          echo $! > /tmp/ffo-v5-http.pid
+          for i in {1..20}; do
+            curl -fsS http://127.0.0.1:4173/draft.html >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/ffo-v5-http.log
+          exit 1
+      - name: Run iPhone and iPad WebKit regression
+        env:
+          DRAFT_E2E_URL: http://127.0.0.1:4173/draft.html
+        run: node tests/draft-room-ios-e2e.mjs
+      - name: Validate v5 contracts
+        run: |
+          grep -q 'draft-room-v5.html' draft.html
+          grep -q 'css/draft-room-ios-v5.css' draft-room-v5.html
+          grep -q 'js/draft-room-ios-v5.js' draft-room-v5.html
+          ! grep -q 'MutationObserver' js/draft-room-ios-v5.js
+      - name: Commit generated v5 room
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add draft-room-v5.html draft.html
+          if git diff --cached --quiet; then
+            echo 'No generated changes to commit.'
+          else
+            git commit -m 'Build iOS-first Draft Room v5'
+            git push origin HEAD:agent/draft-advisor-roster-logic
+          fi

@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const POSITIONS = ["QB", "RB", "WR", "TE"];
+  const POSITIONS = ["QB", "RB", "WR", "TE", "K", "DST"];
   const STRATEGIES = {
     adaptive: {
       label: "Adaptive VBD",
@@ -624,6 +624,21 @@
   function needScore(player, context) {
     const league = context.league || {};
     const picks = context.picks || [];
+    const counts = context.counts || rosterCounts(picks);
+    const have = numeric(counts[player.position], 0);
+    const configuredTargets = context.targets || starterTargets(league);
+    const starterTarget = numeric(configuredTargets[player.position], 0);
+    const round = numeric(context.round, 1);
+    const totalRounds = Math.max(1, numeric(context.totalRounds, 16));
+
+    // K/DST are roster-completion positions in conventional redraft formats:
+    // do not let an empty special-teams slot outrank meaningful RB/WR/QB/TE
+    // value early, and never recommend a redundant second K/DST once filled.
+    if (player.position === "K" || player.position === "DST") {
+      if (starterTarget <= 0 || have >= starterTarget) return 1;
+      if (round < Math.max(1, totalRounds - 2)) return 5;
+    }
+
     const startsIfAdded = wouldStart(player, picks, league);
 
     if (startsIfAdded) {
@@ -646,8 +661,6 @@
     // not the core starter-determination mechanism (which is fully
     // generic above), so light position-awareness here is intentional
     // and spec-sanctioned, not a special case for any named player.
-    const counts = context.counts || rosterCounts(picks);
-    const have = numeric(counts[player.position], 0);
     if (player.position === "QB" && !context.superflex && have >= 1) {
       return numeric(player.posRank, 99) <= 3 ? 22 : 4;
     }
@@ -659,6 +672,59 @@
       return 14;
     }
     return clamp(40 - have * 4);
+  }
+
+  function rosterNeedState(player, context = {}) {
+    const league = context.league || {};
+    const picks = context.picks || [];
+    const roster = league.roster || {};
+    const currentLineup = optimalLineup(picks, league);
+    const eligibleSlots = currentLineup.starters.filter((slot) => {
+      const eligible = SLOT_ELIGIBILITY[slot.slot] || [slot.slot];
+      return eligible.includes(player.position);
+    });
+    const unfilledEligible = eligibleSlots.find((slot) => !slot.player);
+    const withCandidate = optimalLineup([...picks, player], league);
+    const candidateSlot = withCandidate.starters.find((slot) => slot.player === player);
+
+    if (unfilledEligible && candidateSlot) {
+      const flexLike = /FLEX/.test(unfilledEligible.slot);
+      return {
+        state: flexLike ? 'flex_need' : 'starter_need',
+        label: flexLike ? 'FLEX NEED' : 'STARTER NEED',
+        slot: unfilledEligible.slot,
+        starts: true,
+        urgency: flexLike ? 86 : 94,
+      };
+    }
+    if (candidateSlot) {
+      return {
+        state: 'starter_upgrade',
+        label: 'STARTER UPGRADE',
+        slot: candidateSlot.slot,
+        starts: true,
+        urgency: 74,
+      };
+    }
+
+    const counts = context.counts || rosterCounts(picks);
+    const have = numeric(counts[player.position], 0);
+    const target = numeric(starterTargets(league)[player.position], 0);
+    const superflex = numeric(roster.SUPER_FLEX || roster.SF, 0) > 0 || numeric(roster.QB, 1) > 1;
+
+    if ((player.position === 'K' || player.position === 'DST') && target > 0 && have >= target) {
+      return { state: 'saturated', label: 'SATURATED', slot: null, starts: false, urgency: 4 };
+    }
+    if (player.position === 'QB' && !superflex && have >= 1) {
+      return { state: 'luxury', label: 'LUXURY', slot: null, starts: false, urgency: 10 };
+    }
+    if (player.position === 'TE' && have >= Math.max(1, target)) {
+      return { state: 'depth', label: 'DEPTH', slot: null, starts: false, urgency: 24 };
+    }
+    if (player.position === 'RB' || player.position === 'WR') {
+      return { state: 'depth_upside', label: 'DEPTH UPSIDE', slot: null, starts: false, urgency: 42 };
+    }
+    return { state: 'depth', label: 'DEPTH', slot: null, starts: false, urgency: 30 };
   }
 
   function tierScore(player) {
@@ -878,7 +944,7 @@
 
     const overallFlags = flagDeviations(boards.consensus.slice(0, 50), "overall_top50");
     const byPosition = {};
-    ["QB", "RB", "WR", "TE"].forEach((position) => {
+    ["QB", "RB", "WR", "TE", "K", "DST"].forEach((position) => {
       const positionList = boards.consensus.filter((e) => e.player.position === position).slice(0, 10);
       byPosition[position] = flagDeviations(positionList, `top10_${position}`);
     });
@@ -1515,6 +1581,7 @@
     playerKey,
     roundAdjustedWeights,
     rosterCounts,
+    rosterNeedState,
     runBacktest,
     scarcityScore,
     seededRandom,
