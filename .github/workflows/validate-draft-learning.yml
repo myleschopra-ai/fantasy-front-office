@@ -5,19 +5,25 @@ on:
     paths:
       - 'js/draft-review.js'
       - 'js/draft-calibration.js'
+      - 'js/auction-intelligence.js'
       - 'js/provider-contract.js'
       - 'js/draft-session.js'
       - 'scripts/import_draft_history.py'
       - 'schemas/draft_history.schema.json'
       - 'tests/draft-review.test.js'
       - 'tests/draft-calibration.test.js'
+      - 'tests/auction-intelligence.test.js'
+      - 'tests/draft-learning-e2e.mjs'
       - 'tests/provider-contract.test.js'
+      - 'draft-review.html'
+      - 'auction.html'
       - '.github/workflows/validate-draft-learning.yml'
   push:
     branches: [main]
     paths:
       - 'js/draft-review.js'
       - 'js/draft-calibration.js'
+      - 'js/auction-intelligence.js'
       - 'js/provider-contract.js'
       - 'js/draft-session.js'
       - 'scripts/import_draft_history.py'
@@ -42,6 +48,7 @@ jobs:
         run: |
           node tests/draft-review.test.js
           node tests/draft-calibration.test.js
+          node tests/auction-intelligence.test.js
           node tests/provider-contract.test.js
           node tests/draft-session.test.js
       - name: Validate history importer
@@ -56,3 +63,29 @@ jobs:
           python3 scripts/build_draft_room_v5.py
           diff -u /tmp/draft-room-v5.before draft-room-v5.html
           node tests/draft-ui.test.js
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.54.2
+          npx playwright install --with-deps chromium
+      - name: Start static server
+        run: |
+          python3 -m http.server 4190 --bind 127.0.0.1 > /tmp/ffo-learning-http.log 2>&1 &
+          for i in {1..20}; do
+            curl -fsS http://127.0.0.1:4190/draft-review.html >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/ffo-learning-http.log
+          exit 1
+      - name: Validate archive comparison and auction uncertainty flows
+        env:
+          DRAFT_LEARNING_E2E_URL: http://127.0.0.1:4190
+        run: node tests/draft-learning-e2e.mjs

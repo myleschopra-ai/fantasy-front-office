@@ -23,6 +23,14 @@ const storage = { getItem: (key) => memory.get(key) || null, setItem: (key, valu
 Review.archive(storage, payload, review);
 Review.archive(storage, payload, review);
 assert.equal(JSON.parse(storage.getItem(Review.ARCHIVE_KEY)).length, 1, "archive must be idempotent");
+const secondPayload = { ...payload, slot: 4, strategy: 'hero-rb', picks: picks.map((pick, index) => ({ ...pick, team: 4, mine: true, key: `${pick.key}-second`, pick: pick.pick + index })) };
+const secondReview = { ...Review.analyze(secondPayload, D), gradeScore: 88, totalValue: 6 };
+Review.archive(storage, secondPayload, secondReview);
+const archived = JSON.parse(storage.getItem(Review.ARCHIVE_KEY));
+assert.deepEqual(Review.archiveDimensions(archived).slots, ['2', '4']);
+assert.equal(Review.compareArchive(archived).n, 2);
+assert.equal(Review.compareArchive(archived, { slot: '4' }).best.strategy, 'hero-rb');
+assert.equal(Review.compareArchive(archived, { strategy: 'balanced' }).n, 1);
 storage.setItem(Review.ARCHIVE_KEY, "not json");
 assert.doesNotThrow(() => Review.archive(storage, payload, review), "corrupt archive must recover safely");
 assert.equal(Review.artifact(payload, review).kind, "draft-review");

@@ -33,6 +33,21 @@ const model=A.leagueModel(history,{budget:200});
 const rbExpected=A.expectedLeaguePrice({intrinsicPrice:50,position:'RB',rank:10,model,currentInflation:1});
 const wrExpected=A.expectedLeaguePrice({intrinsicPrice:50,position:'WR',rank:10,model,currentInflation:1});
 assert.ok(rbExpected>wrExpected,'history should preserve position-specific price tendencies');
+assert.equal(model.overall.n,3);
+assert.ok(model.overall.mae>0,'calibration must report held-in absolute pricing error');
+assert.equal(model.position.RB.confidence,'LOW');
+const rbRange=A.expectedLeaguePriceRange({intrinsicPrice:50,position:'RB',rank:10,model,currentInflation:1});
+assert.ok(rbRange.low<=rbRange.expected&&rbRange.high>=rbRange.expected,'uncertainty interval must contain expected price');
+assert.equal(rbRange.evidence,3,'position and tier evidence should both contribute');
+assert.equal(A.expectedLeaguePriceRange({intrinsicPrice:50,position:'TE',rank:10,model}).confidence,'UNMODELED');
+const walkForward=A.calibrationBacktest({seasons:[
+  {season:2024,purchases:[{name:'RB 24',position:'RB',rank:10,price:55,generic_aav:50,manager:'M'}]},
+  {season:2025,purchases:[{name:'RB 25',position:'RB',rank:10,price:60,generic_aav:50,manager:'M'}]},
+]});
+assert.equal(walkForward.sufficient,true);
+assert.equal(walkForward.overall.n,2);
+assert.ok(walkForward.overall.mae>=0&&walkForward.position.RB.n===2,'walk-forward error must report by position');
+assert.equal(A.calibrationBacktest(history).sufficient,false,'one season cannot claim held-out validation');
 
 const strongBid=A.maxBid({intrinsicPrice:50,remainingBudget:80,slotsLeft:5,minBid:1,need:90,scarcity:85,tierUrgency:80,upside:70,redundancy:0});
 const redundantBid=A.maxBid({intrinsicPrice:50,remainingBudget:80,slotsLeft:5,minBid:1,need:10,scarcity:85,tierUrgency:80,upside:70,redundancy:80});
