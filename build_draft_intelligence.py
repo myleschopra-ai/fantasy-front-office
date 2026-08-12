@@ -22,6 +22,7 @@ import urllib.parse
 import urllib.request
 from collections import defaultdict
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -404,6 +405,62 @@ POSITION_ROLE_TERMS = {
 }
 
 
+class _StaffCardParser(HTMLParser):
+    """Small stdlib fallback for official NFL staff cards.
+
+    BeautifulSoup remains the preferred parser in the scheduled data workflow,
+    but draft intelligence should still validate in a minimal/offline runtime.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.depth = 0
+        self.body_depth: int | None = None
+        self.capture: str | None = None
+        self.capture_depth: int | None = None
+        self.buffer: list[str] = []
+        self.card: dict[str, str] = {}
+        self.cards: list[tuple[str, str, int]] = []
+
+    @staticmethod
+    def _classes(attrs: list[tuple[str, str | None]]) -> set[str]:
+        value = next((value or "" for key, value in attrs if key == "class"), "")
+        return set(value.split())
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.depth += 1
+        classes = self._classes(attrs)
+        if self.body_depth is None and "d3-o-media-object__body" in classes:
+            self.body_depth = self.depth
+            self.card = {}
+        if self.body_depth is not None:
+            if "d3-o-media-object__roofline" in classes:
+                self.capture = "role"
+            elif "d3-o-media-object__title" in classes:
+                self.capture = "name"
+            if self.capture:
+                self.capture_depth = self.depth
+                self.buffer = []
+
+    def handle_data(self, data: str) -> None:
+        if self.capture:
+            self.buffer.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if self.capture and self.capture_depth == self.depth:
+            self.card[self.capture] = re.sub(r"\s+", " ", " ".join(self.buffer)).strip()
+            self.capture = None
+            self.capture_depth = None
+            self.buffer = []
+        if self.body_depth == self.depth:
+            role, name = self.card.get("role", ""), self.card.get("name", "")
+            if role and looks_like_name(name):
+                self.cards.append((role, name, len(self.cards)))
+            self.body_depth = None
+            self.card = {}
+        self.depth = max(0, self.depth - 1)
+
+
 def parse_staff_html(html: str, seed: dict[str, Any] | None = None) -> dict[str, Any]:
     result: dict[str, Any] = dict(seed or {})
     result.setdefault("position_coaches", {})
@@ -413,17 +470,18 @@ def parse_staff_html(html: str, seed: dict[str, Any] | None = None) -> dict[str,
 
         soup = BeautifulSoup(html, "html.parser")
     except ImportError:
-        result["parsed_fields"] = []
-        return result
-
-    cards: list[tuple[str, str, int]] = []
-    for index, role_node in enumerate(soup.select(".d3-o-media-object__roofline")):
-        body = role_node.find_parent(class_=lambda value: value and "d3-o-media-object__body" in value)
-        title = body.select_one(".d3-o-media-object__title") if body else None
-        role = re.sub(r"\s+", " ", role_node.get_text(" ", strip=True)).strip()
-        name = re.sub(r"\s+", " ", title.get_text(" ", strip=True)).strip() if title else ""
-        if role and looks_like_name(name):
-            cards.append((role, name, index))
+        fallback = _StaffCardParser()
+        fallback.feed(html)
+        cards = fallback.cards
+    else:
+        cards: list[tuple[str, str, int]] = []
+        for index, role_node in enumerate(soup.select(".d3-o-media-object__roofline")):
+            body = role_node.find_parent(class_=lambda value: value and "d3-o-media-object__body" in value)
+            title = body.select_one(".d3-o-media-object__title") if body else None
+            role = re.sub(r"\s+", " ", role_node.get_text(" ", strip=True)).strip()
+            name = re.sub(r"\s+", " ", title.get_text(" ", strip=True)).strip() if title else ""
+            if role and looks_like_name(name):
+                cards.append((role, name, index))
 
     def choose(key: str) -> str | None:
         matches: list[tuple[int, int, str]] = []
