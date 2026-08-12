@@ -1638,6 +1638,3 @@
     }
   }, 350);
 })();
-provider draft sync tests passed
-sleeper draft client tests passed
-draft session reliability tests passed
