@@ -1,12 +1,13 @@
 # Draft Engine Status
 
-Status date: 2026-08-11
+Status date: 2026-08-12
 
 ## Production verdict
 
-- Snake draft decision engine: **PASS WITH LIMITATIONS**
-- Auction draft decision engine: **PASS WITH LIMITATIONS**
-- Merge status: feature branch / draft PR only; not merged to `main`
+- Snake draft decision engine: **PRODUCTION — READ ONLY**
+- Auction draft decision engine: **PRODUCTION — MANUAL ROOM INPUT**
+- Draft Room v5: **PROMOTED TO `main`**
+- Session restore and confirmed Sleeper pick reconciliation: **BROWSER-TESTED**
 
 The limitation is data-source access, not a failing ranking or auction-economy gate: the configured direct FantasyPros API feed is legacy/sample-limited. Full-board validation therefore uses the repository's live aggregate path (`nflreadpy` FantasyPros ECR + FantasyCalc + configured sources).
 
@@ -38,7 +39,10 @@ Validated behavior includes:
 - K and DST support
 - three-board model: Consensus / Model / Draft Now
 - structured explainability
+- explicit raw score, weight, weighted points, and impact-vs-neutral breakdown
 - completed-roster validation
+- local post-draft starter/bench review, strategy audit, counterfactuals, archive, and replay JSON
+- bounded local-history calibration after three or more observations
 
 Fresh 2026 acceptance results:
 
@@ -65,6 +69,7 @@ Implemented behavior includes:
 - room inflation/deflation
 - expected clearing price distinct from intrinsic value
 - historical league price calibration by position/tier
+- manager-specific price tendencies after three or more matched purchases
 - roster-specific maximum bid
 - legal-bid reserve for every remaining roster slot
 - acquisition surplus
@@ -98,21 +103,32 @@ CI now runs:
 8. real-data snake validation
 9. real-data auction validation
 10. existing no-lookahead 2025 manager replay
+11. post-draft review/replay and calibration contracts
+12. provider normalization and sensitive-field rejection
+13. confirmed-only Sleeper live-draft browser reconciliation, reload, and conflict fail-closed checks
 
 The hardened benchmark helper compares top-N results by player identity, detects duplicate keys, handles tied ranks with average ranks, and excludes missing outcomes instead of coercing them to zero.
 
 ## Known limitations / next production gates
 
 - Full direct FantasyPros production API access is not configured; the aggregate source path remains the validated source of truth.
-- League-specific auction clearing-price calibration improves when actual historical auction purchases are supplied; without them, intrinsic values and room-state economics are validated but manager-specific price tendencies remain generic.
-- Platform-specific live auction ingestion depends on the relevant provider integration. Yahoo-specific production behavior remains subject to Yahoo API approval/availability.
-- User-facing pages should receive final visual/mobile acceptance before the draft PR is merged.
+- League-specific auction clearing-price calibration improves when actual historical purchases are supplied; without them, manager-specific price tendencies remain generic.
+- Sleeper live sync is read-only and never submits selections. Live auction ingestion is not implemented.
+- Yahoo production activation remains subject to application approval, HTTPS deployment, and durable server-side sessions.
+- ESPN is limited to the safe normalized import boundary. Authenticated live sync is not labeled supported because this deployment has no supported public ESPN fantasy OAuth/API contract.
+- Draft Fit is a decision-process score, not projected points, win probability, or a guarantee.
 
 ## Canonical files
 
 - `js/draft-intelligence.js`
 - `js/mock-draft-v4.js`
 - `js/auction-intelligence.js`
+- `js/draft-review.js`
+- `js/draft-calibration.js`
+- `js/provider-contract.js`
+- `draft-review.html`
+- `scripts/import_draft_history.py`
+- `schemas/draft_history.schema.json`
 - `js/backtest-intelligence.js`
 - `auction.html`
 - `scripts/validate_live_draft_board_v2.js`
@@ -121,3 +137,4 @@ The hardened benchmark helper compares top-N results by player identity, detects
 - `tests/auction-intelligence.test.js`
 - `tests/backtest-intelligence.test.js`
 - `.github/workflows/validate-live-draft-intelligence.yml`
+- `.github/workflows/validate-draft-learning.yml`

@@ -1,0 +1,58 @@
+name: Validate draft learning and provider contracts
+
+on:
+  pull_request:
+    paths:
+      - 'js/draft-review.js'
+      - 'js/draft-calibration.js'
+      - 'js/provider-contract.js'
+      - 'js/draft-session.js'
+      - 'scripts/import_draft_history.py'
+      - 'schemas/draft_history.schema.json'
+      - 'tests/draft-review.test.js'
+      - 'tests/draft-calibration.test.js'
+      - 'tests/provider-contract.test.js'
+      - '.github/workflows/validate-draft-learning.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/draft-review.js'
+      - 'js/draft-calibration.js'
+      - 'js/provider-contract.js'
+      - 'js/draft-session.js'
+      - 'scripts/import_draft_history.py'
+      - 'schemas/draft_history.schema.json'
+      - 'tests/**'
+  schedule:
+    - cron: '23 10 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate review, calibration, and provider boundaries
+        run: |
+          node tests/draft-review.test.js
+          node tests/draft-calibration.test.js
+          node tests/provider-contract.test.js
+          node tests/draft-session.test.js
+      - name: Validate history importer
+        run: |
+          python3 -m py_compile scripts/import_draft_history.py
+          sample="$(mktemp --suffix=.csv)"
+          printf 'pick,name,position,player_id\n1,Test Player,RB,1\n' > "$sample"
+          python3 scripts/import_draft_history.py "$sample" --kind snake | python3 -m json.tool >/dev/null
+      - name: Verify Draft Room builder is idempotent
+        run: |
+          cp draft-room-v5.html /tmp/draft-room-v5.before
+          python3 scripts/build_draft_room_v5.py
+          diff -u /tmp/draft-room-v5.before draft-room-v5.html
+          node tests/draft-ui.test.js

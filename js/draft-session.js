@@ -102,6 +102,7 @@
       selectedTeam: payload.selectedTeam || payload.selected_team || null,
       activeDraftTab: payload.activeDraftTab || payload.active_draft_tab || 'board',
       sourceSnapshot: payload.sourceSnapshot || payload.source_snapshot || null,
+      leagueSnapshot: payload.leagueSnapshot || payload.league_snapshot || null,
       savedStatus: payload.savedStatus || payload.saved_status || null,
     };
   }
@@ -140,6 +141,7 @@
       selectedKey: payload.selectedKey || null,
       nomination: payload.nomination || null,
       sourceSnapshot: payload.sourceSnapshot || null,
+      leagueSnapshot: payload.leagueSnapshot || payload.league_snapshot || null,
     };
   }
 

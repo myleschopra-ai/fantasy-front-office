@@ -5,14 +5,16 @@ A local-first Sleeper fantasy football dashboard deployed with GitHub Pages.
 ## Pages
 
 - `index.html` — existing front-office dashboard
-- `draft.html` — live Sleeper draft assistant MVP
-- `mock-draft.html` — consensus mock simulator with format-aware tiers, VBD, strategy guardrails, and bounded scheme fit
+- `draft.html` — production Draft Room v5 for mock drafts and confirmed-only Sleeper live sync
+- `draft-review.html` — local post-draft review, counterfactual audit, and replay export
+- `auction.html` — finite-budget auction engine with historical room and manager calibration
+- `auction-review.html` — auction spend, surplus, starter/bench, and unused-capital review
 
-After this branch is merged, the draft assistant will be available at:
+The draft assistant is available at:
 
 `https://myleschopra-ai.github.io/fantasy-front-office/draft.html`
 
-## Draft Assistant MVP
+## Draft Assistant
 
 The draft assistant currently supports:
 
@@ -29,6 +31,12 @@ The draft assistant currently supports:
 - Manual recommendation logging
 - Automatic refresh every 30 seconds while a draft is active
 - Read-only operation; it does not submit picks
+- Checksummed session restore and conflict-safe provider reconciliation
+- Transparent Draft Fit weights and weighted factor impacts
+- Local post-draft starter/bench grading, strategy review, and replay artifacts
+- Small-sample-guarded historical ADP and auction-manager calibration
+
+Sleeper is the supported live read-only provider. Yahoo requires the separately deployed OAuth adapter and provider approval. ESPN is currently a secret-rejecting manual import foundation only; browser credentials/cookies are not accepted.
 
 See `DRAFT_MVP.md` for the scope, calculation notes, limitations, and verification checklist.
 
