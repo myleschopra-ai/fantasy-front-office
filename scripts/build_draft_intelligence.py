@@ -43,6 +43,14 @@ SOURCE_WEIGHTS = {
     "fantasy_football_calculator": 0.25,
     "repository_positional_snapshot": 0.15,
 }
+DRAFTABLE_PROJECTION_MINIMUMS = {
+    "QB": 32,
+    "RB": 72,
+    "WR": 84,
+    "TE": 32,
+    "K": 20,
+    "DST": 20,
+}
 
 
 def utc_now() -> str:
@@ -209,6 +217,91 @@ def load_repository_positional_snapshot(path: Path) -> list[dict[str, Any]]:
             if record:
                 records.append(record)
     return records
+
+
+def load_repository_projections(path: Path) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    if not path.exists():
+        return {}, {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    result: dict[str, dict[str, Any]] = {}
+    for position, rows in (payload.get("projections") or {}).items():
+        normalized_position = normalize_position(position)
+        for row in rows or []:
+            name = str(row.get("name") or row.get("player_name") or "").strip()
+            player_position = normalize_position(row.get("position") or normalized_position)
+            if not name or player_position not in POSITIONS:
+                continue
+            result[f"{normalize_name(name)}|{player_position}"] = {
+                **row,
+                "name": name,
+                "position": player_position,
+            }
+    return result, payload
+
+
+def attach_projections(
+    players: list[dict[str, Any]],
+    projections: dict[str, dict[str, Any]],
+    snapshot: dict[str, Any],
+    spec: dict[str, Any],
+) -> None:
+    requested_ppr = float(spec.get("ppr", 0.5))
+    requested_field = "points_ppr" if requested_ppr >= 0.75 else "points" if requested_ppr <= 0.25 else "points_half"
+    snapshot_scoring = str(snapshot.get("scoring") or "").upper()
+    compatible_fallback = (
+        requested_ppr >= 0.75 and snapshot_scoring == "PPR"
+    ) or (
+        requested_ppr <= 0.25 and snapshot_scoring in {"STD", "STANDARD"}
+    ) or (0.25 < requested_ppr < 0.75 and snapshot_scoring in {"", "HALF", "HALF_PPR"})
+    for player in players:
+        row = projections.get(f"{normalize_name(player['name'])}|{player['position']}")
+        if not row:
+            continue
+        points = finite(row.get(requested_field))
+        if points is None and compatible_fallback:
+            points = finite(row.get("projected_points"))
+        if points is None:
+            continue
+        player["projected_points"] = round(points, 1)
+        player["projection_source"] = "fantasypros_api"
+        player["projection_confidence"] = 95
+        if isinstance(row.get("stats"), dict):
+            player["projection_stats"] = row["stats"]
+
+
+def projection_coverage(players: list[dict[str, Any]]) -> dict[str, Any]:
+    direct = [player for player in players if finite(player.get("projected_points")) is not None]
+    by_position: dict[str, Any] = {}
+    complete = len(players) >= 240
+    for position, minimum in DRAFTABLE_PROJECTION_MINIMUMS.items():
+        pool_count = sum(1 for player in players if player.get("position") == position)
+        direct_count = sum(1 for player in direct if player.get("position") == position)
+        position_complete = pool_count >= minimum and direct_count >= minimum
+        complete = complete and position_complete
+        by_position[position] = {
+            "pool": pool_count,
+            "direct": direct_count,
+            "required": minimum,
+            "complete": position_complete,
+        }
+    bands = {}
+    for label, low, high in (("top_50", 1, 50), ("middle_51_120", 51, 120), ("late_121_200", 121, 200), ("deep_201_plus", 201, 10_000)):
+        rows = [player for player in players if low <= int(player.get("overall_rank") or 10_000) <= high]
+        projected = sum(1 for player in rows if finite(player.get("projected_points")) is not None)
+        bands[label] = {
+            "players": len(rows),
+            "direct": projected,
+            "coverage": round(projected / len(rows), 3) if rows else 0,
+        }
+    return {
+        "status": "complete" if complete else "incomplete",
+        "pool_players": len(players),
+        "direct_players": len(direct),
+        "direct_rate": round(len(direct) / len(players), 3) if players else 0,
+        "by_position": by_position,
+        "depth_bands": bands,
+        "activation_rule": "Every positional minimum must have direct season projections; top-50-only samples remain inactive.",
+    }
 
 
 def select_fantasypros_rows(rows: list[dict[str, Any]], profile_family: str) -> list[dict[str, Any]]:
@@ -884,6 +977,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     generated_at = utc_now()
     sources: dict[str, dict[str, Any]] = {}
     repository_snapshot = load_repository_positional_snapshot(args.repository_snapshot)
+    repository_projections, projection_snapshot = load_repository_projections(args.repository_snapshot)
     if repository_snapshot:
         sources["repository_positional_snapshot"] = source_meta(
             "repository_positional_snapshot",
@@ -892,6 +986,15 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "ok",
             len(repository_snapshot),
         )
+    projection_count = len(repository_projections)
+    sources["fantasypros_projection_snapshot"] = source_meta(
+        "fantasypros_projection_snapshot",
+        "FantasyPros season projections",
+        "https://www.fantasypros.com/api-data/",
+        "ok" if projection_count >= sum(DRAFTABLE_PROJECTION_MINIMUMS.values()) else "incomplete",
+        projection_count,
+        None if projection_count else "No usable season projections in repository snapshot",
+    )
 
     try:
         ecr_sets = load_fantasypros_ecr_sets()
@@ -968,12 +1071,16 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
                     error=str(error),
                 )
         players = merge_rankings(sets) if sets else []
+        attach_projections(players, repository_projections, projection_snapshot, spec)
         attach_scheme_fit(players, team_profiles, usage_profiles)
+        players = players[: args.max_players]
         profiles[profile_id] = {
             "generated_at": generated_at,
             "format": {"teams": args.teams, **spec},
             "source_ids": sorted(set(profile_sources)),
-            "players": players[: args.max_players],
+            "projection_source_ids": ["fantasypros_projection_snapshot"] if repository_projections else [],
+            "projection_coverage": projection_coverage(players),
+            "players": players,
         }
         time.sleep(0.25)
 
@@ -992,6 +1099,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "scheme_fit": "82% team position environment and 18% player-archetype compatibility; recommendation influence is capped in the browser model.",
             "coaching_attribution": "Official staff context is displayed, but team play-calling metrics are not asserted as individual-coach causation.",
             "strategy_weights": "Strategy presets alter a bounded component; VBD, tier cliffs, market value, and roster needs remain primary.",
+            "projection_activation": "Projected-point VORP activates only when direct season projections reach every draftable positional minimum; otherwise the format-specific League Value fallback remains explicit.",
         },
         "limitations": [
             "Preseason coaching changes reduce scheme-fit confidence because current-season play-call evidence does not yet exist.",

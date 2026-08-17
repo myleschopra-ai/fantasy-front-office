@@ -9,7 +9,7 @@
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[char]));
   const money = (value) => `$${Math.max(0, Math.round(Number(value) || 0))}`;
   const numeric = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
-  const state = { intelligence:null, sourceHealth:null, league:null, profile:null, players:[], priceRows:new Map(), auction:null, selectedKey:null, history:null, model:null, pendingRestore:null };
+  const state = { intelligence:null, sourceHealth:null, projectionCoverage:null, league:null, profile:null, players:[], priceRows:new Map(), auction:null, selectedKey:null, history:null, model:null, pendingRestore:null };
 
   function defaultLeague() {
     return { name:'12-team Half-PPR Auction', league_type:'redraft', teams:12, scoring:{ reception:.5, te_premium:0 }, roster:{ QB:1,RB:2,WR:2,TE:1,FLEX:2,SUPER_FLEX:0,K:1,DST:1,BENCH:6 }, draft:{ format:'auction',budget:200,minimum_bid:1 } };
@@ -36,7 +36,7 @@
   }
 
   function contextFor(roster = [], league = leagueFromInputs(), poolSize = state.players.length) {
-    return { strategy:'adaptive',league,teams:league.teams,round:roster.length+1,totalRounds:A.rosterSlotCount(league),picks:roster,counts:D.rosterCounts(roster),targets:D.starterTargets(league),superflex:numeric(league.roster?.SUPER_FLEX,0)>0,poolSize:Math.max(1,poolSize),survival:50 };
+    return { strategy:'adaptive',league,teams:league.teams,round:roster.length+1,totalRounds:A.rosterSlotCount(league),picks:roster,counts:D.rosterCounts(roster),targets:D.starterTargets(league),superflex:numeric(league.roster?.SUPER_FLEX,0)>0,poolSize:Math.max(1,poolSize),survival:50,players:state.players,projectionCoverage:state.projectionCoverage };
   }
 
   function preparePlayers(league) {
@@ -50,11 +50,17 @@
       .flatMap((candidateProfile) => candidateProfile?.players || []);
     players = D.mergeSupplementalPositions(players, supplementalPlayers, league);
     const context = contextFor([], league, players.length);
-    const vbd = D.computeVBDPercentiles(players, context);
+    state.projectionCoverage = D.projectionCoverageContract(players, context);
+    context.projectionCoverage = state.projectionCoverage;
+    const vbd = state.projectionCoverage.complete ? D.computeVBDPercentiles(players, context) : {};
     players.forEach((player) => {
       if (vbd[player.key] != null) player.vbdPercentileScore = vbd[player.key];
       player.leagueValue = D.leagueValueScore(player, context);
       player.projectedPoints = numeric(player.projectedPoints ?? player.projected_points, null);
+      const late = D.lateRoundValueScore(player, context);
+      player.diamondScore = late.score;
+      player.diamondConfidence = late.confidence;
+      player.diamondLabel = late.label;
     });
     const pricing = A.buildIntrinsicPrices(players, { league,teams:league.teams,budget:league.draft.budget,minBid:league.draft.minimum_bid,valueField:'leagueValue' });
     state.profile = profile; state.players = players; state.priceRows = new Map(pricing.rows.map((row) => [M.keyOf(row.player), row]));
@@ -89,7 +95,7 @@
   function newAuction({ preserveSelection = false } = {}) {
     const league = leagueFromInputs(), prepared = preparePlayers(league), userTeamId = String(Math.max(1,Math.min(league.teams,Math.round(inputNumber('userTeam',7)))));
     state.league = league;
-    state.auction = M.createState({ league,players:prepared.players,userTeamId,seed:29,priceMap:prepared.pricing.prices,leagueModel:state.model });
+    state.auction = M.createState({ league,players:prepared.players,userTeamId,seed:29,priceMap:prepared.pricing.prices,leagueModel:state.model,projectionCoverage:state.projectionCoverage });
     if (!preserveSelection) state.selectedKey = null;
     refreshExpectedPrices(); syncCompatibilityFields(); save(); render();
   }
@@ -117,7 +123,7 @@
   function restoreSaved(payload) {
     if (!payload?.mockState) return false;
     state.league = payload.leagueSnapshot || state.league || defaultLeague(); applyLeagueInputs(state.league);
-    const prepared = preparePlayers(state.league), base = M.createState({ league:state.league,players:prepared.players,userTeamId:payload.mockState.userTeamId,seed:payload.mockState.seed,priceMap:prepared.pricing.prices,leagueModel:state.model });
+    const prepared = preparePlayers(state.league), base = M.createState({ league:state.league,players:prepared.players,userTeamId:payload.mockState.userTeamId,seed:payload.mockState.seed,priceMap:prepared.pricing.prices,leagueModel:state.model,projectionCoverage:state.projectionCoverage });
     state.auction = { ...base,...payload.mockState,league:state.league,config:base.config,players:base.players,priceMap:base.priceMap,expectedPriceMap:base.expectedPriceMap,leagueModel:state.model };
     state.selectedKey = payload.selectedKey || null; refreshExpectedPrices(); syncCompatibilityFields(); return true;
   }
@@ -181,7 +187,7 @@
   }
 
   function renderTendencies(){if(!state.model?.rows){$('tendencies').textContent='Need historical purchases before local price effects can be estimated.';return}const bits=Object.entries(state.model.position).map(([position,value])=>`${position}: ${Math.round((value.median_ratio-1)*100)}% vs baseline · ${value.confidence.toLowerCase()} confidence (${value.n})`),backtest=state.model.backtest,bias=backtest?.overall?.bias||0,biasLabel=`${bias>=0?'+':'-'}${money(Math.abs(bias))}`,validation=backtest?.sufficient?`<br><br><strong>Leave-one-season-out validation</strong><br>MAE ${money(backtest.overall.mae)} · RMSE ${money(backtest.overall.rmse)} · bias ${biasLabel} across ${backtest.overall.n} held-out sales.`:'<br><br><strong>Validation pending</strong><br>At least two seasons with matched baseline prices are required for held-out error.';$('tendencies').innerHTML=`<strong>${state.model.matchedRows} matched purchases · MAE ${money(state.model.overall.mae)}</strong><br>${bits.join('<br>')}${validation}`;}
-  function render(){if(!state.auction)return;clearError();syncCompatibilityFields();$('infl').textContent=`${roomInflation().toFixed(2)}×`;$('source').textContent=`${state.sourceHealth&&SourceHealth?`${SourceHealth.label(state.sourceHealth)} · `:''}${state.profile?.id||'profile'} · ${state.players.length} players · ${formatLabel(state.auction.league)}`;renderLot();renderBoard();renderValuation();renderRosterAndTeams();renderTendencies();save();}
+  function render(){if(!state.auction)return;clearError();syncCompatibilityFields();$('infl').textContent=`${roomInflation().toFixed(2)}×`;const projectionLabel=state.projectionCoverage?.complete?`projected-points mode (${state.projectionCoverage.directPlayers})`:`format-value fallback (${state.projectionCoverage?.directPlayers||0}/${state.projectionCoverage?.poolPlayers||state.players.length} projections)`;$('source').textContent=`${state.sourceHealth&&SourceHealth?`${SourceHealth.label(state.sourceHealth)} · `:''}${state.profile?.id||'profile'} · ${state.players.length} players · ${projectionLabel} · ${formatLabel(state.auction.league)}`;renderLot();renderBoard();renderValuation();renderRosterAndTeams();renderTendencies();save();}
 
   function advanceToDecision(maxSales=1){if(!state.auction)return;let before=state.auction.purchases.length,guard=0;while(state.auction.status!=='COMPLETE'&&guard<500){state.auction=M.step(state.auction,{autoUser:false});guard+=1;if(['AWAITING_USER','AWAITING_NOMINATION'].includes(state.auction.status))break;if(state.auction.purchases.length-before>=maxSales)break;}refreshExpectedPrices();render();}
   function autoSales(count){if(!state.auction)return;let target=state.auction.purchases.length+count,guard=0;while(state.auction.status!=='COMPLETE'&&state.auction.purchases.length<target&&guard<1000){state.auction=M.step(state.auction,{autoUser:true});guard+=1;}refreshExpectedPrices();render();}

@@ -126,7 +126,7 @@
     { id: 'scarcity', aggression: 1.02, stars: 1.02, value: 1.02 },
   ];
 
-  function createState({ league = {}, players = [], userTeamId = '1', seed = 17, priceMap = {}, expectedPriceMap = {}, leagueModel = null } = {}) {
+  function createState({ league = {}, players = [], userTeamId = '1', seed = 17, priceMap = {}, expectedPriceMap = {}, leagueModel = null, projectionCoverage = null } = {}) {
     if (!Auction) throw new Error('FFOAuction is required before FFOAuctionMock.');
     const config = Auction.compileAuctionConfig({ league });
     const required = { QB:0, RB:0, WR:0, TE:0, K:0, DST:0 };
@@ -157,6 +157,7 @@
       priceMap: { ...priceMap },
       expectedPriceMap: { ...expectedPriceMap },
       leagueModel,
+      projectionCoverage,
       userTeamId: String(userTeamId),
       teams,
       draftedKeys: [],
@@ -195,11 +196,22 @@
     const elite = base >= state.config.budget * .18 ? strategy.stars : 1;
     const valueEdge = base > expected ? strategy.value : 1;
     const needMultiplier = .76 + (need / 100) * .30;
-    const marginalMultiplier = 1 + Math.min(.08, marginal / 1000);
+    const directProjectionMode = Boolean(state.projectionCoverage?.complete);
+    const marginalShare = marginal / Math.max(1, projectedPoints(player));
+    const marginalMultiplier = directProjectionMode
+      ? .90 + Math.min(.18, Math.max(0, marginalShare) * .18)
+      : 1 + Math.min(.08, marginal / 1000);
+    const pointsPerDollar = marginal / Math.max(state.config.minBid, expected);
+    const efficiencyMultiplier = directProjectionMode
+      ? 1 + Math.min(.08, Math.max(0, pointsPerDollar) / 100)
+      : 1;
+    const diamondMultiplier = team.slotsLeft <= Math.ceil(state.config.slotsPerTeam * .55) && numeric(player.diamondScore, 0) >= 72 && numeric(player.diamondConfidence, 0) >= 58
+      ? 1 + Math.min(.06, (numeric(player.diamondScore) - 70) / 500)
+      : 1;
     const endgame = team.slotsLeft <= 3 ? 1.08 : 1;
     const pace = team.remainingBudget / Math.max(1, team.slotsLeft);
     const releaseBudget = pace > expected * 1.7 ? 1.05 : 1;
-    const raw = base * strategy.aggression * elite * valueEdge * needMultiplier * marginalMultiplier * endgame * releaseBudget;
+    const raw = base * strategy.aggression * elite * valueEdge * needMultiplier * marginalMultiplier * efficiencyMultiplier * diamondMultiplier * endgame * releaseBudget;
     return Math.max(state.config.minBid, Math.min(legal, Math.round(raw)));
   }
 

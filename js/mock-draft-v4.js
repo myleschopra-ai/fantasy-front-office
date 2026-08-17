@@ -40,6 +40,7 @@
     recoveryIssues: [],
     recoveredSession: false,
     sourceHealth: null,
+    projectionCoverage: null,
     providerSyncStatus: ProviderSync ? ProviderSync.STATUS.IDLE : "IDLE",
     providerDraftId: null,
     providerDraft: null,
@@ -536,6 +537,8 @@
       superflex: isSuperflex(),
       poolSize: Math.max(1, state.players.length),
       survival,
+      players: state.players,
+      projectionCoverage: state.projectionCoverage,
     };
   }
 
@@ -552,8 +555,9 @@
     const baseAmplitude =
       state.variance === "low" ? 2 : state.variance === "high" ? 9 : 5;
     const pool = available(picks);
+    const round = Math.floor(picks.length / state.teams) + 1;
     const candidates = pool
-      .slice(0, 50)
+      .slice(0, round >= 7 ? 100 : round >= 5 ? 72 : 50)
       .map((player) => {
         // Scale randomness by real cross-source agreement (already computed
         // from actual rank spread across FantasyPros/FantasyCalc/FFC/etc in
@@ -1251,7 +1255,13 @@
       const newsNote = news && news.headline
         ? `<div class="detail-line" style="color:#94a3b8; margin-top:2px;">📰 ${esc(news.headline)}</div>`
         : "";
-      sleeperBlock = valueNote + newsNote;
+      const diamond = evaluation.lateRound;
+      const diamondNote = diamond?.label === "DIAMOND"
+        ? `<div class="detail-line" style="color:#fbbf24;">◆ Diamond ${diamond.score}/100 · ${diamond.confidence}% confidence</div>`
+        : diamond?.label === "WATCH"
+          ? `<div class="detail-line" style="color:#67e8f9;">Late watch ${diamond.score}/100 · ${diamond.confidence}% confidence</div>`
+          : "";
+      sleeperBlock = diamondNote + valueNote + newsNote;
     }
     const overallRank = numeric(player.overallRank, player.rank);
     const adp = numeric(player.adp, overallRank).toFixed(1);
@@ -1339,8 +1349,16 @@
     if (!SourceHealth || !state.sourceHealth || !$("source")) return;
     const healthLabel = SourceHealth.label(state.sourceHealth);
     const profileLabel = state.intelProfile?.id || "no compatible profile";
-    $("source").textContent = `${healthLabel} · ${profileLabel} · ${state.players.length} players${state.marketLoaded ? " · live market" : " · cached consensus"}`;
-    $("source").title = state.sourceHealth.issues.join(" · ");
+    const projectionLabel = state.projectionCoverage?.complete
+      ? `complete projections (${state.projectionCoverage.directPlayers})`
+      : `projection fallback (${state.projectionCoverage?.directPlayers || 0}/${state.projectionCoverage?.poolPlayers || state.players.length})`;
+    $("source").textContent = `${healthLabel} · ${profileLabel} · ${state.players.length} players · ${projectionLabel}${state.marketLoaded ? " · live market" : " · cached consensus"}`;
+    const projectionIssues = state.projectionCoverage?.complete
+      ? []
+      : Object.entries(state.projectionCoverage?.byPosition || {})
+          .filter(([, row]) => !row.complete)
+          .map(([position, row]) => `${position} projections ${row.direct}/${row.required}`);
+    $("source").title = [...state.sourceHealth.issues, ...projectionIssues].join(" · ");
   }
 
   function render() {
@@ -1564,34 +1582,45 @@
         if (item.name && !state.newsByName[item.name]) state.newsByName[item.name] = item;
       });
     }
-    // Merge real projected points (fantasypros.json's projections, already
-    // fetched above) into player objects, then compute pool-wide VORP once.
-    // Falls back gracefully to the rank-based proxy in vbdScore() for any
-    // player without a matched projection — never crashes, never blocks.
+    // Merge direct season projections, then activate projected-point VORP
+    // only if the complete draftable-player contract passes. A top-10 sample
+    // is useful evidence for those players but is never allowed to masquerade
+    // as a complete cross-position valuation feed.
     if (fpResult.status === "fulfilled" && fpResult.value?.projections) {
       const projByName = {};
-      Object.values(fpResult.value.projections).forEach((list) => {
+      Object.entries(fpResult.value.projections).forEach(([position, list]) => {
         if (Array.isArray(list)) {
           list.forEach((row) => {
-            if (row.name) projByName[row.name] = row.projected_points ?? row.points_half;
+            if (row.name) projByName[`${D.normalizeName(row.name)}|${String(row.position || position).toUpperCase()}`] = row;
           });
         }
       });
       state.players.forEach((player) => {
-        const points = projByName[player.name];
-        if (points != null) player.projectedPoints = points;
+        const row = projByName[`${D.normalizeName(player.name)}|${player.position}`];
+        const points = row?.projected_points ?? row?.points_half;
+        if (points != null) {
+          player.projectedPoints = points;
+          player.projectionSource = "fantasypros_api";
+          player.projectionConfidence = 95;
+          player.projectionStats = row.stats || null;
+        }
       });
-      const vbdContext = {
-        teams: state.teams,
-        league: state.activeLeague || DEFAULT_LEAGUE,
-        targets: targets(),
-      };
+    }
+    const vbdContext = {
+      teams: state.teams,
+      league: state.activeLeague || DEFAULT_LEAGUE,
+      targets: targets(),
+    };
+    state.projectionCoverage = D.projectionCoverageContract(state.players, vbdContext);
+    if (state.projectionCoverage.complete) {
       const vbdPercentiles = D.computeVBDPercentiles(state.players, vbdContext);
       state.players.forEach((player) => {
         if (vbdPercentiles[player.key] != null) {
           player.vbdPercentileScore = vbdPercentiles[player.key];
         }
       });
+    } else {
+      state.players.forEach((player) => { delete player.vbdPercentileScore; });
     }
     rehydratePicks();
     state.survivalCache.clear();

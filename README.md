@@ -41,6 +41,8 @@ The draft assistant currently supports:
 - Roster-aware maximum bids that preserve future minimum bids and prevent CPU overpayment beyond its calculated ceiling
 - Archived mock comparisons by slot, format, and strategy
 - Sleeper-inspired responsive draftboard, player table, persistent desktop queue/roster rail, and mobile draft-room navigation
+- Draftable-player projection coverage gates across every enabled position and the middle/late-round board; shallow top-player samples cannot activate projected-point VORP
+- Confidence-weighted late-round Diamond targets with a bounded influence that grows only after the early rounds
 
 Sleeper is the supported live read-only provider. Yahoo requires the separately deployed OAuth adapter and provider approval. ESPN is currently a secret-rejecting manual import foundation only; browser credentials/cookies are not accepted.
 

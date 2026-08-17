@@ -53,6 +53,41 @@ class FantasyProsRefreshTests(unittest.TestCase):
                 {"schema_version": 2, "ready": True},
             )
 
+    def test_projection_validation_rejects_top_ten_sample(self):
+        rankings = {
+            key: [
+                {"name": f"{key} Player {index}", "rank": index + 1}
+                for index in range(minimum)
+            ]
+            for key, minimum in refresh.MINIMUM_RANKINGS.items()
+        }
+        snapshot = {
+            "season": refresh.SEASON,
+            "scoring": refresh.SCORING,
+            "rankings": rankings,
+            "projections": {
+                key: [
+                    {"name": f"{key} Projection {index}", "projected_points": 100 - index}
+                    for index in range(10)
+                ]
+                for key in refresh.MINIMUM_PROJECTIONS
+            },
+        }
+        with self.assertRaisesRegex(ValueError, "draftable-player minimum"):
+            refresh.validate_snapshot(snapshot)
+
+    def test_compact_projection_preserves_scoring_variants_and_stats(self):
+        row = refresh.compact_projection(
+            {
+                "name": "Example Receiver",
+                "position_id": "WR",
+                "stats": [{"points": 120, "points_half": 150, "points_ppr": 180, "rec": 60}],
+            },
+            "WR",
+        )
+        self.assertEqual(row["points_half"], 150)
+        self.assertEqual(row["stats"]["rec"], 60)
+
 
 if __name__ == "__main__":
     unittest.main()

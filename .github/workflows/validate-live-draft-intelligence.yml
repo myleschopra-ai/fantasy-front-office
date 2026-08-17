@@ -83,7 +83,8 @@ jobs:
         if: steps.fantasypros_refresh.outcome != 'success'
         run: |
           echo 'Direct FantasyPros refresh did not produce a production-complete snapshot.'
-          echo 'Continuing with the full live aggregate path (nflreadpy FantasyPros ECR + FantasyCalc + configured sources).'
+          echo 'Ranking aggregation will continue, but projected-point mode must remain disabled until every positional depth minimum passes.'
+          echo 'A top-player sample is not accepted as coverage for middle- and late-round valuation.'
 
       - name: Build fresh full draft intelligence
         run: python scripts/build_draft_intelligence.py --season "$NFL_SEASON" --teams 12

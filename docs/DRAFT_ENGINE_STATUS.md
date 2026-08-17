@@ -123,14 +123,16 @@ CI now runs:
 15. desktop/mobile draft-room layout, canonical queue synchronization, and horizontal-overflow checks
 16. complete multi-format auction simulations with CPU bid-ceiling audits
 17. desktop/iPhone/iPad auction interaction, completion, touch-target, and overflow checks
+18. draftable-player projection contracts by position and depth band, including an explicit rejection of top-50-only samples
+19. bounded late-round Diamond scoring using market discount, source evidence, projections, team environment, pedigree, and age curve
 
 The hardened benchmark helper compares top-N results by player identity, detects duplicate keys, handles tied ranks with average ranks, and excludes missing outcomes instead of coercing them to zero.
 
 ## Known limitations / next production gates
 
-- Full direct FantasyPros production API access is not configured; the aggregate source path remains the validated source of truth.
+- The configured FantasyPros key currently returns sample-depth data rather than a production-complete player projection set. Projected-point mode now requires at least QB 32, RB 72, WR 84, TE 32, K 20, and DST 20 direct season projections, with at least 95% direct coverage through ranks 51–200. The UI and CPU engine stay on the labeled format-value fallback until every enabled-position gate passes.
 - League-specific auction clearing-price calibration improves when actual historical purchases are supplied; without them, manager-specific price tendencies remain generic.
-- The current snapshot has incomplete season-projection coverage. Until a complete projection feed is added, CPU roster optimization uses calibrated format-specific League Value as the starter-success proxy; the UI labels this honestly as starter value.
+- The current snapshot has incomplete season-projection coverage. Until production API access provides the required depth, CPU roster optimization uses calibrated format-specific League Value as the starter-success proxy. Late-round Diamond signals remain confidence-capped without a direct projection and can add no more than six Draft Fit points at the end of the draft.
 - Sleeper live sync is read-only and never submits selections. Live auction ingestion is not implemented.
 - Yahoo production activation remains subject to application approval, HTTPS deployment, and durable server-side sessions.
 - ESPN is limited to the safe normalized import boundary. Authenticated live sync is not labeled supported because this deployment has no supported public ESPN fantasy OAuth/API contract.
