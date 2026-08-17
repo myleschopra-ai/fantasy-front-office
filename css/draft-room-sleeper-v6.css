@@ -14,7 +14,6 @@ html, body { background: var(--room-bg) !important; width: 100%; max-width: 100%
 .app > .ffo-league-switcher, .app > .ffo-provider-strip { display: none !important; }
 .topbar { background: #0c1220 !important; border-color: #202c42 !important; }
 .topbar .controls .session-status { display: none; }
-.topbar .controls #provider-sync { display: none !important; }
 .topbar .controls #advance::after { content: '↠'; font-size: 16px; }
 .live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #42d996; box-shadow: 0 0 8px rgba(66,217,150,.65); margin-right: 3px; }
 .boardline { background: #101827 !important; }
