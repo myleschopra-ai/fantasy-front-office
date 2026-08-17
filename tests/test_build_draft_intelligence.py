@@ -133,6 +133,7 @@ class DraftIntelligenceBuilderTests(unittest.TestCase):
         players = [{"name": "Example Receiver", "position": "WR"}]
         builder.attach_projections(players, projections, {"scoring": "HALF"}, {"ppr": 1.0})
         self.assertEqual(players[0]["projected_points"], 180)
+        self.assertEqual(players[0]["projection_ppr"], 1.0)
         self.assertEqual(players[0]["projection_source"], "fantasypros_api")
 
 

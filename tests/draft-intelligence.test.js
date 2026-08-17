@@ -300,6 +300,21 @@ const lateDiamondScore = D.scorePlayer(lateDiamond, {
 assert.ok(lateDiamondScore.diamondBonus > earlyDiamondScore.diamondBonus, 'diamond influence must rise late instead of causing an early reach');
 assert.ok(lateDiamondScore.diamondBonus <= 6, 'diamond influence must remain bounded');
 
+const teProjection = {
+  name: 'Volume TE', position: 'TE', projectedPoints: 180, rawProjectedPoints: 180,
+  projectionPpr: 0.5, projectionStats: { rec: 80 },
+};
+assert.equal(
+  D.leagueAdjustedProjectedPoints(teProjection, { scoring: { reception: 1, te_premium: 0.5 } }),
+  260,
+  'custom PPR and TE premium must be applied from the projection stat line',
+);
+assert.equal(
+  D.leagueAdjustedProjectedPoints(teProjection, { scoring: { reception: 0, te_premium: 0 } }),
+  140,
+  'standard scoring must remove the half-PPR reception component from the source projection',
+);
+
 // Complete projection fixture: raw points-over-replacement must be comparable
 // ACROSS positions, not re-normalized so every positional No. 1 equals 100.
 const completeVorpPool = [];

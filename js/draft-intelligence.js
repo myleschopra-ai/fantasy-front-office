@@ -316,6 +316,10 @@
           ),
           projectionStats:
             found.projection_stats || player.projectionStats || null,
+          projectionPpr: numeric(
+            found.projection_ppr ?? player.projectionPpr,
+            null,
+          ),
         };
       })
       .filter((player) => POSITIONS.includes(player.position));
@@ -613,6 +617,35 @@
       directPlayers: Object.values(byPosition).reduce((sum, row) => sum + row.direct, 0),
       poolPlayers: (players || []).length,
     };
+  }
+
+  function leagueAdjustedProjectedPoints(player, league = {}) {
+    const base = numeric(
+      player.rawProjectedPoints ?? player.projectedPoints ?? player.projected_points,
+      null,
+    );
+    if (base == null) return null;
+    const stats = player.projectionStats || player.projection_stats || {};
+    const receptions = numeric(
+      stats.rec ?? stats.receptions ?? stats.receiving_receptions,
+      null,
+    );
+    const sourcePpr = numeric(player.projectionPpr ?? player.projection_ppr, null);
+    const leaguePpr = numeric(league.scoring?.reception, sourcePpr);
+    let adjusted = base;
+    if (receptions != null && sourcePpr != null && leaguePpr != null) {
+      adjusted += receptions * (leaguePpr - sourcePpr);
+    }
+    if (String(player.position || "").toUpperCase() === "TE" && receptions != null) {
+      adjusted += receptions * Math.max(
+        0,
+        numeric(
+          league.scoring?.te_premium ?? league.scoring?.tePremium ?? league.scoring?.bonus_rec_te,
+          0,
+        ),
+      );
+    }
+    return Math.round(Math.max(0, adjusted) * 10) / 10;
   }
 
   function lateRoundValueScore(player, context = {}) {
@@ -1740,6 +1773,7 @@
     explainPick,
     leagueValueScore,
     lateRoundValueScore,
+    leagueAdjustedProjectedPoints,
     marketValueScore,
     mergeSupplementalPositions,
     normalizeName,

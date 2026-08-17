@@ -49,6 +49,11 @@
     const supplementalPlayers = Object.values(state.intelligence.profiles || {})
       .flatMap((candidateProfile) => candidateProfile?.players || []);
     players = D.mergeSupplementalPositions(players, supplementalPlayers, league);
+    players.forEach((player) => {
+      if (numeric(player.projectedPoints ?? player.projected_points, null) == null) return;
+      player.rawProjectedPoints = numeric(player.rawProjectedPoints, player.projectedPoints ?? player.projected_points);
+      player.projectedPoints = D.leagueAdjustedProjectedPoints(player, league);
+    });
     const context = contextFor([], league, players.length);
     state.projectionCoverage = D.projectionCoverageContract(players, context);
     context.projectionCoverage = state.projectionCoverage;

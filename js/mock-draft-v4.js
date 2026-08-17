@@ -1603,9 +1603,19 @@
           player.projectionSource = "fantasypros_api";
           player.projectionConfidence = 95;
           player.projectionStats = row.stats || null;
+          const snapshotScoring = String(fpResult.value.scoring || "HALF").toUpperCase();
+          player.projectionPpr = snapshotScoring === "PPR" ? 1 : snapshotScoring === "HALF" ? 0.5 : 0;
         }
       });
     }
+    state.players.forEach((player) => {
+      if (numeric(player.projectedPoints, null) == null) return;
+      player.rawProjectedPoints = numeric(player.rawProjectedPoints, player.projectedPoints);
+      player.projectedPoints = D.leagueAdjustedProjectedPoints(
+        player,
+        state.activeLeague || DEFAULT_LEAGUE,
+      );
+    });
     const vbdContext = {
       teams: state.teams,
       league: state.activeLeague || DEFAULT_LEAGUE,

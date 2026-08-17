@@ -263,6 +263,7 @@ def attach_projections(
         if points is None:
             continue
         player["projected_points"] = round(points, 1)
+        player["projection_ppr"] = requested_ppr
         player["projection_source"] = "fantasypros_api"
         player["projection_confidence"] = 95
         if isinstance(row.get("stats"), dict):
