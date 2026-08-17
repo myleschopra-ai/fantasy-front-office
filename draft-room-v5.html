@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>Front Office — Draftboard</title>
+<title>Fantasy Front Office — Draft Room</title>
 <meta name="theme-color" content="#0b1020" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -24,17 +24,17 @@
 .session-recovery{padding:9px 11px;border:1px solid rgba(255,197,87,.35);border-radius:12px;background:rgba(18,24,38,.98);display:flex;gap:10px;align-items:center;justify-content:space-between}.session-recovery-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.session-recovery .muted{font-size:8px;margin-top:2px}@media(max-width:760px){.session-recovery{align-items:flex-start;flex-direction:column}.session-recovery-actions{width:100%;justify-content:flex-start}.session-recovery-actions .btn{min-height:34px}}</style>
 <link rel="stylesheet" href="css/draft-room-ios-v5.css?v=5" />
 <link rel="stylesheet" href="css/draft-room-ios-v5-layout-fix.css?v=5.1" />
+<link rel="stylesheet" href="css/draft-room-sleeper-v6.css?v=6" />
 </head>
 <body>
 <div class="app">
 <header class="topbar">
-  <div class="brand"><div class="mark">FFO</div><div><strong>Draft Room</strong><small>Consensus-calibrated live draft intelligence</small></div></div>
-  <div class="turn"><div class="label">Current selection</div><div id="pick-label">Pick —</div><div id="clock"></div></div>
-  <div id="session-status" class="session-status" data-state="BOOTING">BOOTING</div><div id="provider-sync-status" class="session-status" data-state="IDLE" style="display:none">SLEEPER IDLE</div><button id="provider-sync" class="btn ghost" style="display:none">Sync Sleeper</button>
-<div class="controls"><button id="start" class="btn primary">Start / Reset</button><button id="advance" class="btn">To My Pick</button><button id="undo" class="btn ghost">Undo</button><button id="settings-open" class="btn" aria-label="Draft settings">⚙</button></div>
+  <div class="brand"><div class="mark">FFO</div><div><strong>Fantasy Front Office</strong><small><span class="live-dot"></span> Draft Room · Read-only companion</small></div></div>
+  <div class="turn"><div class="label">On the clock</div><div id="pick-label">Pick —</div><div id="clock"></div></div>
+  <div class="controls"><div id="session-status" class="session-status" data-state="BOOTING">BOOTING</div><div id="provider-sync-status" class="session-status" data-state="IDLE" style="display:none">SLEEPER IDLE</div><button id="provider-sync" class="btn ghost" style="display:none">Sync Sleeper</button><button id="start" class="btn primary">Start / Reset</button><button id="advance" class="btn">To My Pick</button><button id="undo" class="btn ghost">Undo</button><button id="settings-open" class="btn" aria-label="Draft settings">⚙</button></div>
 </header>
 <section id="board-shell" class="board-shell">
-  <div class="boardline"><strong>Draft context</strong><span id="board-summary">Selections update every roster immediately.</span><div class="board-actions"><button id="board-expand" class="board-toggle">Expand board</button></div></div>
+  <div class="boardline"><strong>Draftboard</strong><span id="board-summary">Selections update every roster immediately.</span><div class="board-legend" aria-label="Position colors"><i class="qb"></i>QB <i class="rb"></i>RB <i class="wr"></i>WR <i class="te"></i>TE</div><div class="board-actions"><button id="board-expand" class="board-toggle">Expand board</button></div></div>
   <div id="draft-grid-view"><div id="draft-grid" class="draft-grid-wrap"></div></div>
 </section>
 <main class="main">
@@ -43,24 +43,26 @@
       <div><strong>Draft session recovery</strong><div id="session-recovery-message" class="muted">A saved draft session was found.</div></div>
       <div class="session-recovery-actions"><button id="session-resume" class="btn primary">Resume</button><button id="session-retry" class="btn">Retry Data</button><button id="session-export" class="btn">Export Session</button><button id="session-reset" class="btn ghost">Reset</button></div>
     </section>
-    <section class="decision">
+    <section class="decision" aria-label="Front Office recommendation">
       <div class="decision-main"><div><div class="eyebrow">Front Office recommendation</div><h2 id="best">Loading draft board…</h2><div id="why" class="why">Ranking market, roster fit, tier pressure and next-pick availability.</div></div><div class="decision-score"><div id="equity">—</div><div class="scorelabel">Draft Now</div></div></div>
       <div class="quickmetrics"><div class="metric"><span>Value vs ADP</span><strong id="delta">—</strong></div><div class="metric"><span>Tier</span><strong id="ceiling">—</strong></div><div class="metric"><span>Rank agreement</span><strong id="breakout">—</strong></div><div class="metric"><span>Confidence</span><strong id="bust">—</strong></div><div class="metric"><span>Survives turn</span><strong id="survive">—</strong></div></div>
       <div id="alts" class="alts"></div>
     </section>
     <section class="players">
-      <div class="players-head"><div class="search"><input id="search" placeholder="Search available players" autocomplete="off" /></div><select id="pos" aria-label="Position"><option>ALL</option><option>QB</option><option>RB</option><option>WR</option><option>TE</option><option>FLEX</option><option>SUPER_FLEX</option><option>K</option><option>DST</option></select></div>
+      <div class="players-head"><div class="search"><input id="search" placeholder="Search players" autocomplete="off" /></div><select id="pos" aria-label="Position"><option>ALL</option><option>QB</option><option>RB</option><option>WR</option><option>TE</option><option>FLEX</option><option>SUPER_FLEX</option><option>K</option><option>DST</option></select></div>
       <div id="quick-filters" class="quick-filters"><button class="filter-chip active" data-pos="ALL">ALL</button><button class="filter-chip" data-pos="QB">QB</button><button class="filter-chip" data-pos="RB">RB</button><button class="filter-chip" data-pos="WR">WR</button><button class="filter-chip" data-pos="TE">TE</button><button class="filter-chip" data-pos="FLEX">FLEX</button><button class="filter-chip" data-pos="K">K</button><button class="filter-chip" data-pos="DST">DST</button></div>
       <div id="source" class="source">Loading verified player market…</div>
+      <div class="player-columns" aria-hidden="true"><span></span><span>Player</span><span>Rank</span><span>ADP</span><span>Tier</span><span>Survives</span><span></span></div>
       <div id="board" class="board"></div>
     </section>
   </div>
-  <aside class="side">
-    <section class="sidecard"><div class="sidehead"><strong>My Team</strong><span id="roster-equity">0</span></div><div id="roster" class="roster"></div><div class="equitybar"><i id="equity-bar" style="width:0%"></i></div><div id="profile" class="profile" style="margin-top:7px"></div></section>
-    <section class="sidecard roomlog"><div class="sidehead"><strong>Recent Picks</strong><span id="room-status"></span></div><div id="picks" class="picks"></div><details class="advanced"><summary>Advanced model detail</summary><div class="advanced-body"><div class="advanced-block"><div id="intelligence-status"></div></div><div class="advanced-block"><div id="strategy-playbook" class="strategy-card"></div></div><div class="advanced-block"><div id="weight-summary" class="intel-strip"></div></div></div></details></section>
+  <aside class="side" aria-label="Draft room sidebar">
+    <section class="sidecard queue-card"><div class="sidehead"><strong>Queue</strong><span id="queue-count">0 players</span></div><div id="desktop-queue" class="desktop-queue"><div class="queue-empty">Star a player to build your queue.</div></div></section>
+    <section class="sidecard roster-card"><div class="sidehead"><strong>My Team</strong><span id="roster-equity">0</span></div><div id="roster" class="roster"></div><div class="equitybar"><i id="equity-bar" style="width:0%"></i></div><div id="profile" class="profile" style="margin-top:7px"></div></section>
+    <section class="sidecard roomlog"><div class="sidehead"><strong>Recent Picks</strong><span id="room-status"></span></div><div id="picks" class="picks"></div><details class="advanced"><summary>Front Office model detail</summary><div class="advanced-body"><div class="advanced-block"><div id="intelligence-status"></div></div><div class="advanced-block"><div id="strategy-playbook" class="strategy-card"></div></div><div class="advanced-block"><div id="weight-summary" class="intel-strip"></div></div></div></details></section>
   </aside>
 </main>
-<nav class="tabbar"><button class="nav-btn active" data-nav="players">Players</button><button class="nav-btn" data-nav="queue">Queue</button><button class="nav-btn" data-nav="team">My Team</button><button class="nav-btn" data-nav="board">Board</button><button class="nav-btn" data-nav="picks">Picks</button></nav>
+<nav class="tabbar" aria-label="Draft room views"><button class="nav-btn active" data-nav="players"><span class="nav-icon">⌕</span>Players</button><button class="nav-btn" data-nav="queue"><span class="nav-icon">★</span>Queue</button><button class="nav-btn" data-nav="team"><span class="nav-icon">♟</span>My Team</button><button class="nav-btn" data-nav="board"><span class="nav-icon">▦</span>Board</button><button class="nav-btn" data-nav="picks"><span class="nav-icon">☷</span>Picks</button></nav>
 </div>
 <div class="legacy-tabs"><button id="tab-board">Board</button><button id="tab-team">Team roster</button><button id="tab-selections">Selections</button><button id="tab-queue">Queue</button><button id="tab-recommended">Recommended</button></div>
 <div id="overlay" class="overlay"><div class="overlay-panel"><div class="overlay-title"><strong id="overlay-title">Draft view</strong><button id="overlay-close" class="btn ghost">Close</button></div><div id="team-roster-view" style="display:none"></div><div id="selections-view" style="display:none"></div><div id="queue-view" style="display:none"></div><div id="recommended-view" style="display:none"></div></div></div>
@@ -70,5 +72,6 @@
 <script src="js/draft-source-health.js"></script>
 <script src="js/draft-intelligence.js"></script><script src="js/draft-review.js"></script><script src="js/draft-calibration.js"></script><script src="js/provider-draft-sync.js"></script><script src="js/sleeper-draft-client.js"></script><script src="js/mock-draft-v4.js"></script><script src="js/draft-room-polish.js"></script>
 <script src="js/draft-room-ios-v5.js?v=5"></script>
+<script src="js/draft-room-sleeper-v6.js?v=6"></script>
 </body>
 </html>

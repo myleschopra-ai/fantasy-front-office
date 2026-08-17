@@ -6,6 +6,8 @@ on:
     paths:
       - 'auction.html'
       - 'js/auction-intelligence.js'
+      - 'js/auction-mock-engine.js'
+      - 'js/auction-room.js'
       - 'js/backtest-intelligence.js'
       - 'js/draft-intelligence.js'
       - 'js/mock-draft-v4.js'
@@ -15,8 +17,10 @@ on:
       - 'scripts/validate_live_draft_board.js'
       - 'scripts/validate_live_draft_board_v2.js'
       - 'scripts/validate_live_auction_board.js'
+      - 'scripts/validate_auction_mock_formats.js'
       - 'tests/draft-intelligence.test.js'
       - 'tests/auction-intelligence.test.js'
+      - 'tests/auction-mock-engine.test.js'
       - 'tests/backtest-intelligence.test.js'
       - '.github/workflows/validate-live-draft-intelligence.yml'
   workflow_dispatch:
@@ -51,6 +55,9 @@ jobs:
 
       - name: Run auction draft engine regression tests
         run: node tests/auction-intelligence.test.js
+
+      - name: Run league-wide auction mock regression tests
+        run: node tests/auction-mock-engine.test.js
 
       - name: Run hardened backtest metric tests
         run: node tests/backtest-intelligence.test.js
@@ -90,11 +97,15 @@ jobs:
       - name: Run real-data auction economy and behavior gates
         run: node scripts/validate_live_auction_board.js --strict --output-dir=reports
 
+      - name: Run complete multi-format auction simulations
+        run: node scripts/validate_auction_mock_formats.js --strict --output-dir=reports
+
       - name: Show human-readable validation reports
         if: always()
         run: |
           if [ -f reports/draft_validation_current.md ]; then cat reports/draft_validation_current.md; fi
           if [ -f reports/auction_validation_current.md ]; then cat reports/auction_validation_current.md; fi
+          if [ -f reports/auction_mock_validation.md ]; then cat reports/auction_mock_validation.md; fi
 
       - name: Upload live validation evidence
         if: always()
@@ -106,6 +117,8 @@ jobs:
             reports/draft_validation_current.md
             reports/auction_validation_current.json
             reports/auction_validation_current.md
+            reports/auction_mock_validation.json
+            reports/auction_mock_validation.md
             fantasypros.json
             data/draft_intelligence.json
           if-no-files-found: warn

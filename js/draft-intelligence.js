@@ -1328,6 +1328,23 @@
       ),
     );
     let value = consensus * 0.60 + grade * 0.20 + vbd * 0.20;
+    // TE premium is a league rule, not an intrinsic player-grade change.
+    // Apply it only in League Value and scale it toward the scarce top of
+    // the position so replacement-level tight ends do not receive the same
+    // bonus as high-volume starters.
+    if (player.position === "TE") {
+      const scoring = context.league?.scoring || {};
+      const premium = Math.max(
+        0,
+        numeric(
+          scoring.te_premium ?? scoring.tePremium ?? scoring.bonus_rec_te,
+          0,
+        ),
+      );
+      const positionRank = numeric(player.posRank, 30);
+      const scarcityShare = clamp((30 - positionRank) / 29, 0, 1);
+      value += premium * (3 + scarcityShare * 9);
+    }
     // K/DST remain draftable and ranked within their positions, but their
     // high replacement availability means they should not enter early-round
     // cross-position Model territory in standard formats.

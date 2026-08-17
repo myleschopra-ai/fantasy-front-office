@@ -18,6 +18,10 @@ assert.ok(Math.abs(prices.totalAssigned-2400)<0.2,`budget must conserve, got ${p
 assert.ok(prices.rows.every(r=>r.intrinsicPrice>=1));
 assert.ok(prices.rows[0].intrinsicPrice>prices.rows[100].intrinsicPrice);
 assert.ok(prices.rows[0].intrinsicPrice<=80.1);
+const tePremiumLeague={...league,scoring:{reception:1,te_premium:.5}};
+const tePremiumPrices=A.buildIntrinsicPrices(players,{league:tePremiumLeague,teams:12});
+const topTe=(result)=>result.rows.filter(row=>row.player.position==='TE').slice(0,10).reduce((sum,row)=>sum+row.intrinsicPrice,0)/10;
+assert.ok(topTe(tePremiumPrices)>topTe(prices),'TE premium must raise top-TE auction prices');
 
 const cheapRoom=A.roomInflation({remainingDollars:1800,remainingBaselineValue:1600,remainingSlots:100,minBid:1});
 const expensiveRoom=A.roomInflation({remainingDollars:1400,remainingBaselineValue:1600,remainingSlots:100,minBid:1});

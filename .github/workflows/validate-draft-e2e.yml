@@ -14,12 +14,20 @@ on:
       - 'draft-room-v5.html'
       - 'css/draft-room-ios-v5.css'
       - 'css/draft-room-ios-v5-layout-fix.css'
+      - 'css/draft-room-sleeper-v6.css'
       - 'js/draft-room-ios-v5.js'
+      - 'js/draft-room-sleeper-v6.js'
       - 'js/draft-room-polish.js'
       - 'js/league-switcher.js'
       - 'js/mock-draft-v4.js'
       - 'js/draft-intelligence.js'
       - 'tests/draft-room-e2e.mjs'
+      - 'tests/draft-room-v6-e2e.mjs'
+      - 'auction.html'
+      - 'css/auction-room-v2.css'
+      - 'js/auction-room.js'
+      - 'js/auction-mock-engine.js'
+      - 'tests/auction-mock-e2e.mjs'
       - '.github/workflows/validate-draft-e2e.yml'
   pull_request:
     paths:
@@ -30,12 +38,20 @@ on:
       - 'draft-room-v5.html'
       - 'css/draft-room-ios-v5.css'
       - 'css/draft-room-ios-v5-layout-fix.css'
+      - 'css/draft-room-sleeper-v6.css'
       - 'js/draft-room-ios-v5.js'
+      - 'js/draft-room-sleeper-v6.js'
       - 'js/draft-room-polish.js'
       - 'js/league-switcher.js'
       - 'js/mock-draft-v4.js'
       - 'js/draft-intelligence.js'
       - 'tests/draft-room-e2e.mjs'
+      - 'tests/draft-room-v6-e2e.mjs'
+      - 'auction.html'
+      - 'css/auction-room-v2.css'
+      - 'js/auction-room.js'
+      - 'js/auction-mock-engine.js'
+      - 'tests/auction-mock-e2e.mjs'
       - '.github/workflows/validate-draft-e2e.yml'
 
 jobs:
@@ -65,3 +81,11 @@ jobs:
         env:
           DRAFT_E2E_URL: http://127.0.0.1:4173/draft.html
         run: node tests/draft-room-e2e.mjs
+      - name: Run responsive draft-room regression
+        env:
+          DRAFT_ROOM_V6_URL: http://127.0.0.1:4173/draft.html
+        run: node tests/draft-room-v6-e2e.mjs
+      - name: Run complete responsive auction-room regression
+        env:
+          AUCTION_MOCK_E2E_URL: http://127.0.0.1:4173/auction.html
+        run: node tests/auction-mock-e2e.mjs

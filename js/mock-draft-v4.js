@@ -1216,6 +1216,7 @@
     if (state.activeDraftTab === "board") renderBoard();
     if (state.activeDraftTab === "queue") renderQueue();
     if (state.activeDraftTab === "recommended") renderRecommended();
+    renderDesktopQueue();
   }
 
   function actionClass(actionText) {
@@ -1252,21 +1253,42 @@
         : "";
       sleeperBlock = valueNote + newsNote;
     }
-    return `<div class="row compact-rec">
-      <button class="icon" data-queue-k="${esc(player.key)}" style="background:none;border:none;cursor:pointer;font-size:15px;color:${queued ? "#f5b942" : "#64748b"};" title="Toggle queue">★</button>
-      <div class="player-link" data-player="${esc(player.key)}" tabindex="0">
-        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-          <span class="action-badge ${actionClass(action)}">${action}</span>
-          <span class="action-badge ${needStateClass(needState)}">${esc(needState.label)}</span>
+    const overallRank = numeric(player.overallRank, player.rank);
+    const adp = numeric(player.adp, overallRank).toFixed(1);
+    const tier = numeric(player.tier, 99);
+    return `<div class="row compact-rec player-row pos-${String(player.position).toLowerCase()}">
+      <button class="icon queue-toggle ${queued ? "queued" : ""}" data-queue-k="${esc(player.key)}" title="${queued ? "Remove from" : "Add to"} queue" aria-label="${queued ? "Remove" : "Add"} ${esc(player.name)} ${queued ? "from" : "to"} queue" aria-pressed="${queued}">★</button>
+      <div class="player-link player-main" data-player="${esc(player.key)}" tabindex="0">
+        <div class="player-primary">
+          <span class="pos-pill pos-${String(player.position).toLowerCase()}">${esc(player.position)}</span>
           <span class="name">${esc(player.name)}</span>
-          <span class="meta">${player.position}${player.nflTeam ? ` · ${esc(player.nflTeam)}` : ""}</span>
+          <span class="meta">${player.nflTeam ? esc(player.nflTeam) : "FA"}</span>
         </div>
-        <div class="identity-line">Overall #${numeric(player.overallRank, player.rank)} · Pos #${numeric(player.posRank, 999)} · Tier ${numeric(player.tier, 99)} · ${evaluation.sv <= 35 ? "🔒 locked" : "⏳"} ${evaluation.sv}% survives</div>
-        <div class="detail-line">Score ${evaluation.score} · VBD ${Math.round(evaluation.components.vbd)} · Scheme ${Math.round(evaluation.components.scheme)} · Confidence ${evaluation.confidence}% · ${scarcity.sameTier} left in tier${cliff}</div>
+        <div class="player-signals"><span class="action-badge ${actionClass(action)}">${action}</span><span class="action-badge ${needStateClass(needState)}">${esc(needState.label)}</span><span class="detail-line">Score ${evaluation.score} · VBD ${Math.round(evaluation.components.vbd)} · ${scarcity.sameTier} left${cliff}</span></div>
         ${sleeperBlock}
       </div>
-      <button class="btn secondary" data-k="${esc(player.key)}">Draft</button>
+      <span class="player-stat"><small>Rank</small>${overallRank}</span>
+      <span class="player-stat"><small>ADP</small>${adp}</span>
+      <span class="player-stat"><small>Tier</small>${tier}</span>
+      <span class="player-stat"><small>Survives</small>${evaluation.sv}%</span>
+      <button class="btn secondary draft-player" data-k="${esc(player.key)}">Draft</button>
     </div>`;
+  }
+
+  function renderDesktopQueue() {
+    const target = $("desktop-queue");
+    const count = $("queue-count");
+    if (!target) return;
+    const entries = state.queue
+      .map((key) => state.players.find((player) => player.key === key))
+      .filter(Boolean)
+      .filter((player) => !state.picks.some((pick) => pick.key === player.key));
+    if (count) count.textContent = `${entries.length} player${entries.length === 1 ? "" : "s"}`;
+    target.innerHTML = entries.length
+      ? entries.map((player, index) => `<div class="queue-rail-row"><span class="queue-rail-rank">${index + 1}</span><div><div class="queue-rail-name player-link" data-player="${esc(player.key)}" tabindex="0">${esc(player.name)}</div><div class="queue-rail-meta">${esc(player.position)}${player.nflTeam ? ` · ${esc(player.nflTeam)}` : ""} · ADP ${numeric(player.adp, player.overallRank).toFixed(1)}</div></div><button class="queue-remove" data-queue-k="${esc(player.key)}" aria-label="Remove ${esc(player.name)} from queue" title="Remove from queue">★</button></div>`).join("")
+      : '<div class="queue-empty">Star a player to build your queue.</div>';
+    target.querySelectorAll("[data-queue-k]").forEach((button) => { button.onclick = () => toggleQueue(button.dataset.queueK); });
+    bindPlayerLinks();
   }
 
   function renderQueue() {
@@ -1331,6 +1353,7 @@
     renderRoster();
     renderIntelligence();
     renderPicks();
+    renderDesktopQueue();
     renderDraftGrid();
     if (state.activeDraftTab === "team") renderTeamRoster();
     if (state.activeDraftTab === "selections") renderSelections();

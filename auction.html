@@ -2,26 +2,31 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Front Office — Auction Draft Engine</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0c1220">
+<title>Fantasy Front Office — Auction Draft Room</title>
 <style>
 :root{--bg:#020617;--s:#0f172a;--s2:#1e293b;--b:#334155;--t:#f1f5f9;--m:#94a3b8;--g:#f59e0b;--ok:#34d399;--r:#f87171;--teal:#2dd4bf}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}header{position:sticky;top:0;z-index:20;background:rgba(2,6,23,.96);border-bottom:1px solid var(--b);padding:14px 18px;display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}main{max-width:1320px;margin:auto;padding:16px}.panel{background:var(--s);border:1px solid var(--b);border-radius:10px;padding:14px}.grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(340px,.95fr);gap:14px}.stack{display:grid;gap:14px}.toolbar{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}.fields{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.metricgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.metric,.row{background:var(--bg);border-radius:8px;padding:9px}.row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:6px 0;cursor:pointer}.row:hover{outline:1px solid var(--b)}.muted,.meta{color:var(--m);font-size:11px}.score{color:var(--g);font-weight:900}.good{color:var(--ok)}.risk{color:var(--r)}.teal{color:var(--teal)}label{font-size:10px;color:var(--m);display:grid;gap:4px}input,select,textarea{width:100%;background:var(--bg);color:var(--t);border:1px solid var(--b);border-radius:7px;padding:9px}textarea{min-height:130px}.btn{border:0;border-radius:7px;padding:9px 12px;font-weight:800;background:var(--g);color:var(--bg);cursor:pointer}.btn.secondary{background:var(--s2);color:var(--t)}.btn.danger{background:rgba(248,113,113,.16);color:var(--r)}.board{max-height:720px;overflow:auto}.tag{display:inline-block;border:1px solid var(--b);border-radius:5px;padding:2px 5px;font-size:10px;margin:2px}.notice{font-size:11px;color:#fde68a;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);padding:9px;border-radius:7px}.buybox{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.roster{max-height:220px;overflow:auto}.roster .row{cursor:default}.status{padding:3px 7px;border-radius:5px;font-size:10px;font-weight:800;background:var(--s2)}@media(max-width:980px){.grid{grid-template-columns:1fr}.fields{grid-template-columns:repeat(3,1fr)}}@media(max-width:620px){main{padding:10px}.fields,.metricgrid,.buybox{grid-template-columns:repeat(2,1fr)}.row{align-items:flex-start}.row>div:last-child{text-align:right}}@media(max-width:420px){.fields{grid-template-columns:1fr 1fr}.metricgrid{grid-template-columns:1fr 1fr}}
 </style>
+<link rel="stylesheet" href="css/auction-room-v2.css?v=2">
 </head>
 <body>
-<header><div><strong>Auction Draft Engine</strong><div class="muted">calibrated League Value → intrinsic dollars → room price → max bid</div></div><div><button class="btn secondary" onclick="location.href='auction-review.html'">Post-Draft Review</button> <button class="btn secondary" onclick="location.href='draft.html'">Snake Draft</button> <button class="btn secondary" onclick="location.href='index.html'">Dashboard</button></div></header>
+<header><div><strong>Fantasy Front Office · Auction Room</strong><div class="muted">format value → room price → roster-specific max bid</div></div><div class="header-actions"><button class="btn secondary" onclick="location.href='auction-review.html'">Review</button><button class="btn secondary" onclick="location.href='draft.html'">Snake</button><button class="btn secondary" onclick="location.href='index.html'">Dashboard</button></div></header>
 <main>
-<section class="panel">
+<section class="panel setup-panel">
   <div class="fields">
+    <label>Preset<select id="formatPreset"><option value="standard">1QB · 2WR</option><option value="threewr">1QB · 3WR</option><option value="superflex">Superflex</option><option value="tep">TE Premium</option><option value="custom">Custom</option></select></label>
+    <label>Teams<input id="teamCount" type="number" value="12" min="4" max="20"></label>
+    <label>My team<input id="userTeam" type="number" value="7" min="1" max="12"></label>
     <label>Budget/team<input id="budget" type="number" value="200" min="1"></label>
-    <label>My remaining $<input id="remaining" type="number" value="200" min="0"></label>
-    <label>My slots left<input id="slots" type="number" value="16" min="1"></label>
-    <label>League remaining $<input id="leagueRemaining" type="number" value="2400" min="0"></label>
-    <label>League slots left<input id="leagueSlots" type="number" value="192" min="1"></label>
     <label>Minimum bid<input id="minbid" type="number" value="1" min="1"></label>
+    <label>Mode<select id="auctionMode"><option value="mock">CPU Mock</option><option value="manual">Manual Companion</option></select></label>
   </div>
+  <details id="formatDetails"><summary>Starting lineup and bench</summary><div class="format-fields"><label>QB<input id="rosterQB" type="number" value="1" min="0" max="4"></label><label>RB<input id="rosterRB" type="number" value="2" min="0" max="6"></label><label>WR<input id="rosterWR" type="number" value="2" min="0" max="8"></label><label>TE<input id="rosterTE" type="number" value="1" min="0" max="4"></label><label>FLEX<input id="rosterFLEX" type="number" value="2" min="0" max="6"></label><label>Superflex<input id="rosterSF" type="number" value="0" min="0" max="3"></label><label>K<input id="rosterK" type="number" value="1" min="0" max="2"></label><label>DST<input id="rosterDST" type="number" value="1" min="0" max="2"></label><label>Bench<input id="rosterBench" type="number" value="6" min="0" max="12"></label><label>Reception PPR<input id="scoringPpr" type="number" value="0.5" min="0" max="2" step="0.5"></label><label>TE premium<input id="tePremium" type="number" value="0" min="0" max="2" step="0.5"></label></div></details>
+  <div class="hidden-compat" aria-hidden="true"><input id="remaining" value="200"><input id="slots" value="16"><input id="leagueRemaining" value="2400"><input id="leagueSlots" value="192"></div>
   <div class="toolbar" style="margin-top:10px"><div id="league-note" class="muted">Default: 12-team half-PPR auction. Active league settings override this when available.</div><div style="display:flex;gap:7px"><select id="pos" style="width:100px"><option>ALL</option><option>QB</option><option>RB</option><option>WR</option><option>TE</option><option>K</option><option>DST</option></select><input id="search" placeholder="Search player" style="width:180px"></div></div>
+  <div class="toolbar setup-actions"><div><button id="startMock" class="btn">Start New Auction</button><button id="advanceMock" class="btn secondary">Advance to Decision</button><button id="autoTen" class="btn secondary">Auto 10 Sales</button><button id="finishMock" class="btn danger">Finish CPU Simulation</button></div><span id="mockStatus" class="status">READY</span></div>
 </section>
 <section id="auction-recovery" class="panel" style="display:none;margin-top:10px;border-color:rgba(248,113,113,.45)">
   <div class="toolbar"><div><strong>Draft session recovery</strong><div id="auction-recovery-message" class="muted">Saved auction state needs attention.</div></div><span id="auction-session-status" class="status">BOOTING</span></div>
@@ -29,21 +34,28 @@
 </section>
 <div class="grid" style="margin-top:14px">
 <div class="stack">
+<section id="lotPanel" class="panel lot-panel">
+  <div class="toolbar"><div><span class="eyebrow">CURRENT NOMINATION</span><h2 id="lotPlayer">Waiting to start</h2><div id="lotMeta" class="muted">Start a new auction to enter the room.</div></div><div class="lot-price"><span>Current bid</span><strong id="lotBid">—</strong><small id="lotLeader"></small></div></div>
+  <div class="lot-actions"><button id="nominateSelected" class="btn">Nominate Selected</button><button id="bidLot" class="btn good-btn">Bid</button><button id="passLot" class="btn danger">Pass</button></div>
+</section>
 <section class="panel">
-  <div class="toolbar"><div><strong>Live auction board</strong><div id="source" class="muted">Loading calibrated draft intelligence…</div></div><div><span class="meta">Room inflation</span> <span id="infl" class="score">1.00×</span></div></div>
+  <div class="toolbar"><div><strong>Available players</strong><div id="source" class="muted">Loading calibrated draft intelligence…</div></div><div><span class="meta">Room inflation</span> <span id="infl" class="score">1.00×</span></div></div>
   <div class="notice" style="margin:10px 0">Intrinsic price is derived from league-adjusted player value and the finite auction budget. Expected price is what this room may charge. Max bid is what this player is worth to <em>your current roster</em> while preserving minimum bids for every remaining slot.</div>
+  <div class="auction-columns"><span>Player</span><span>Format</span><span>Expected</span><span>Max</span><span>Action</span></div>
   <div id="board" class="board"></div>
 </section>
+<section class="panel"><div class="toolbar"><strong>All-team draft board</strong><span id="purchaseCount" class="muted">0 purchases</span></div><div id="teamBoard" class="team-board"></div></section>
 </div>
 <aside class="stack">
 <section class="panel">
-  <strong>Selected player</strong><div id="selected" class="muted" style="margin-top:8px">Select a player from the board.</div>
-  <div class="metricgrid" style="margin-top:10px"><div class="metric"><span class="meta">Intrinsic</span><strong id="intrinsic">—</strong></div><div class="metric"><span class="meta">Expected</span><strong id="leagueprice">—</strong></div><div class="metric"><span class="meta">Max bid</span><strong id="maxbid">—</strong></div><div class="metric"><span class="meta">Surplus</span><strong id="surplus">—</strong></div></div>
+  <strong>Live valuation</strong><div id="selected" class="muted" style="margin-top:8px">Select a player from the board.</div>
+  <div class="metricgrid valuation-grid" style="margin-top:10px"><div class="metric"><span class="meta">Format value</span><strong id="intrinsic">—</strong></div><div class="metric"><span class="meta">Expected</span><strong id="leagueprice">—</strong></div><div class="metric"><span class="meta">Current bid</span><strong id="currentbid">—</strong></div><div class="metric"><span class="meta">My max</span><strong id="maxbid">—</strong></div><div class="metric"><span class="meta">Surplus</span><strong id="surplus">—</strong></div><div class="metric"><span class="meta">Starter gain</span><strong id="pointgain">—</strong></div></div>
   <div id="decision" class="score" style="margin-top:10px"></div><div id="nomination" class="teal" style="margin-top:4px;font-weight:800"></div><div id="why" class="muted" style="margin-top:8px"></div>
-  <div class="buybox"><label>Current/final price<input id="currentPrice" type="number" min="1" value="1"></label><label>Winner<select id="winner"><option value="me">My team</option><option value="room">Opponent</option></select></label></div>
+  <div class="buybox manual-controls"><label>Manual final price<input id="currentPrice" type="number" min="1" value="1"></label><label>Manual winner<select id="winner"><option value="me">My team</option><option value="room">Opponent</option></select></label></div>
   <div class="toolbar" style="margin-top:8px"><button id="record" class="btn">Record Sale</button><button id="resetCurrent" class="btn secondary">Use Expected Price</button></div>
 </section>
 <section class="panel"><div class="toolbar"><strong>My roster</strong><span id="budgetHealth" class="status">ON PACE</span></div><div id="roster" class="roster muted" style="margin-top:8px">No purchases recorded.</div></section>
+<section class="panel"><div class="toolbar"><strong>Recent sales</strong><span id="roomSummary" class="muted"></span></div><div id="salesLog" class="sales-log muted">No sales yet.</div></section>
 <section class="panel"><strong>Historical league prices</strong><div class="muted" style="margin:6px 0 8px">Optional. Paste prior auction purchases to learn your league's positional/tier premiums. Stored only in this browser.</div><textarea id="history" placeholder='{"version":1,"budget":200,"seasons":[{"season":2025,"purchases":[{"name":"Player","position":"RB","rank":10,"price":55,"generic_aav":48}]}]}'></textarea><div class="toolbar" style="margin-top:8px"><button id="apply" class="btn">Apply History</button><button id="clear" class="btn secondary">Clear</button></div><div id="history-status" class="muted" style="margin-top:8px">No league history loaded.</div></section>
 <section class="panel"><strong>Learned tendencies</strong><div id="tendencies" class="muted" style="margin-top:8px">Need historical purchases before local price effects can be estimated.</div></section>
 </aside>
@@ -53,9 +65,11 @@
 <script src="js/draft-source-health.js"></script>
 <script src="js/draft-intelligence.js"></script>
 <script src="js/auction-intelligence.js"></script>
+<script src="js/auction-mock-engine.js"></script>
+<script src="js/auction-room.js"></script>
 <script src="js/league-switcher.js"></script>
 <script>
-(()=>{'use strict';
+(()=>{'use strict';if(window.FFOAuctionRoomV2)return;
 const $=id=>document.getElementById(id), LS='ffo_auction_history_v2', SESSION_LS='ffo_auction_session_v4', Session=window.FFODraftSession, SourceHealth=window.FFODraftSourceHealth;
 const S={intelligence:null,league:window.FFO_ACTIVE_LEAGUE||null,players:[],available:[],priceRows:new Map(),history:null,model:null,selected:null,myRoster:[],sold:[],sessionStatus:Session?Session.STATES.BOOTING:'BOOTING',recoveryIssues:[],sourceHealth:null};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

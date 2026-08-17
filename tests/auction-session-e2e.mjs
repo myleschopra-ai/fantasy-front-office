@@ -63,7 +63,7 @@ try {
 
   if (errors.length) throw new Error(`auction browser errors: ${errors.join(' | ')}`);
   if (!after.envelope) throw new Error('auction session disappeared after reload');
-  if (after.envelope.payload.sold.length !== before.envelope.payload.sold.length) throw new Error('sold history changed on reload');
+  if (after.envelope.payload.sold.length !== before.envelope.payload.sold.length) throw new Error(`sold history changed on reload (${before.envelope.payload.sold.length} -> ${after.envelope.payload.sold.length}; status ${after.envelope.payload.mockState?.status || 'unknown'})`);
   if (after.envelope.payload.myRoster.length !== 1) throw new Error('my roster did not restore');
   if (after.remaining !== before.remaining || after.slots !== before.slots || after.leagueRemaining !== before.leagueRemaining) {
     throw new Error(`auction budget/slot state drifted (${before.remaining}/${before.slots}/${before.leagueRemaining} -> ${after.remaining}/${after.slots}/${after.leagueRemaining})`);
