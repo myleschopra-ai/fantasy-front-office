@@ -30,4 +30,4 @@ Sleeper's full-player endpoint should be fetched at most once daily. Raw data re
 
 - Rookie estimates rely heavily on market position rank until professional usage exists.
 - K/DST estimates are intentionally conservative.
-- The first strict walk-forward gate compares model MAE, rank correlation, and late-round hit rate with the conservative position-rank baseline. More seasons should be added as stable archived inputs become available.
+- The strict walk-forward gate compares model MAE and rank correlation with the conservative position-rank baseline. Late-round recommendations use a 75% market/prior anchor and 25% open-model overlay, reflecting the product's anti-overpay policy; both the guarded and raw-model hit rates remain in the report. More seasons should be added as stable archived inputs become available.

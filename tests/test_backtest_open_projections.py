@@ -23,6 +23,8 @@ class OpenProjectionBacktestTests(unittest.TestCase):
         self.assertEqual(result["players"], 160)
         self.assertEqual(result["late_players"], 40)
         self.assertGreater(result["spearman"], 0.8)
+        self.assertEqual(result["late_policy"], "75% position-rank prior + 25% open model")
+        self.assertIn("raw_model_late_hit_rate", result)
         self.assertGreaterEqual(result["late_hit_rate"], 0)
         self.assertLessEqual(result["late_hit_rate"], 1)
 

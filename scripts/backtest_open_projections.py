@@ -68,11 +68,13 @@ def evaluate(rows: list[dict], target: int, signals: dict[str, list[dict]]) -> d
         baselines.append(prior_standard + prior_rec * 0.5)
         actuals.append(actual_half(actual_by_key[key]))
         if player["overall_rank"] > 120:
-            late.append((item["points_half"], baselines[-1], actuals[-1]))
-    threshold = statistics.quantiles([row[2] for row in late], n=4)[2] if len(late) >= 8 else float("inf")
+            guarded = baselines[-1] * 0.75 + item["points_half"] * 0.25
+            late.append((guarded, item["points_half"], baselines[-1], actuals[-1]))
+    threshold = statistics.quantiles([row[3] for row in late], n=4)[2] if len(late) >= 8 else float("inf")
     sample = min(30, len(late))
     model_late = sorted(late, key=lambda row: row[0], reverse=True)[:sample]
-    baseline_late = sorted(late, key=lambda row: row[1], reverse=True)[:sample]
+    raw_model_late = sorted(late, key=lambda row: row[1], reverse=True)[:sample]
+    baseline_late = sorted(late, key=lambda row: row[2], reverse=True)[:sample]
     return {
         "season": target,
         "players": len(players),
@@ -81,8 +83,10 @@ def evaluate(rows: list[dict], target: int, signals: dict[str, list[dict]]) -> d
         "spearman": round(spearman(predictions, actuals), 4),
         "baseline_spearman": round(spearman(baselines, actuals), 4),
         "late_players": len(late),
-        "late_hit_rate": round(sum(row[2] >= threshold for row in model_late) / sample, 4) if sample else 0,
-        "baseline_late_hit_rate": round(sum(row[2] >= threshold for row in baseline_late) / sample, 4) if sample else 0,
+        "late_policy": "75% position-rank prior + 25% open model",
+        "late_hit_rate": round(sum(row[3] >= threshold for row in model_late) / sample, 4) if sample else 0,
+        "raw_model_late_hit_rate": round(sum(row[3] >= threshold for row in raw_model_late) / sample, 4) if sample else 0,
+        "baseline_late_hit_rate": round(sum(row[3] >= threshold for row in baseline_late) / sample, 4) if sample else 0,
     }
 
 
