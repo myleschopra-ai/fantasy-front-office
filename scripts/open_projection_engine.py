@@ -83,17 +83,120 @@ def _season_lines(rows: list[dict[str, Any]]) -> list[dict[str, float]]:
     return sorted(result, key=lambda item: item["season"], reverse=True)
 
 
-def index_history(rows: list[dict[str, Any]]) -> dict[tuple[str, str], list[dict[str, Any]]]:
+def index_history(rows: list[dict[str, Any]], target_season: int | None = None) -> dict[tuple[str, str], list[dict[str, Any]]]:
     result: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         name = value(row, "player_display_name", "player_name", "name")
         position = str(value(row, "position", "position_group", default="") or "").upper()
-        if name and position in SKILL_POSITIONS:
+        season = finite(value(row, "season"), None)
+        if name and position in SKILL_POSITIONS and (target_season is None or season is None or int(season) < target_season):
             result[(normalize_name(name), position)].append(row)
     return result
 
 
-def project_player(player: dict[str, Any], history: dict[tuple[str, str], list[dict[str, Any]]], season: int) -> dict[str, Any]:
+def _row_position(row: dict[str, Any]) -> str:
+    raw = str(value(row, "position", "position_group", "pos_abb", "pos", default="") or "").upper()
+    aliases = {"HB": "RB", "FB": "RB"}
+    return aliases.get(raw, raw)
+
+
+def _row_name(row: dict[str, Any]) -> str:
+    return str(value(row, "player_display_name", "player_name", "full_name", "player", "name", default="") or "").strip()
+
+
+def _before_target(row: dict[str, Any], target_season: int) -> bool:
+    season = finite(value(row, "season"), None)
+    if season is not None:
+        return int(season) < target_season
+    stamp = str(value(row, "dt", "date", "timestamp", default="") or "")
+    return bool(stamp[:4].isdigit() and int(stamp[:4]) < target_season)
+
+
+def index_signal_rows(rows: list[dict[str, Any]], target_season: int) -> dict[tuple[str, str], list[dict[str, Any]]]:
+    result: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        name, position = _row_name(row), _row_position(row)
+        if name and position in SKILL_POSITIONS and _before_target(row, target_season):
+            result[(normalize_name(name), position)].append(row)
+    return result
+
+
+def _ordered_values(rows: list[dict[str, Any]], fields: tuple[str, ...]) -> list[float]:
+    ordered = sorted(
+        rows,
+        key=lambda row: (
+            finite(value(row, "season"), 0) or 0,
+            finite(value(row, "week"), 0) or 0,
+            str(value(row, "dt", "date", default="") or ""),
+        ),
+    )
+    result = []
+    for row in ordered:
+        number = finite(value(row, *fields), None)
+        if number is not None:
+            result.append(number)
+    return result
+
+
+def _window_delta(values: list[float], window: int = 6) -> float | None:
+    if len(values) < 4:
+        return None
+    split = min(window, len(values) // 2)
+    recent, previous = values[-split:], values[-2 * split:-split]
+    prior = sum(previous) / len(previous) if previous else 0
+    if prior <= 0:
+        return None
+    current = sum(recent) / len(recent)
+    return max(-0.25, min(0.25, current / prior - 1))
+
+
+def role_signals(
+    player: dict[str, Any],
+    indexes: dict[str, dict[tuple[str, str], list[dict[str, Any]]]],
+) -> dict[str, Any]:
+    key = (normalize_name(player.get("name")), str(player.get("position") or "").upper())
+    opportunity = _window_delta(_ordered_values(indexes.get("opportunity", {}).get(key, []), (
+        "fantasy_points_exp", "expected_fantasy_points", "total_fantasy_points_exp", "x_fp", "xfp", "expected_points",
+    )))
+    snap = _window_delta(_ordered_values(indexes.get("snaps", {}).get(key, []), (
+        "offense_pct", "off_pct", "offense_snap_pct", "offense_snaps_pct", "offensive_snap_pct",
+    )))
+    depth_rows = indexes.get("depth", {}).get(key, [])
+    depth_values = _ordered_values(depth_rows, ("pos_rank", "depth_rank", "position_rank"))
+    depth_rank = int(depth_values[-1]) if depth_values else None
+    injury_rows = sorted(
+        indexes.get("injuries", {}).get(key, []),
+        key=lambda row: (finite(value(row, "season"), 0) or 0, finite(value(row, "week"), 0) or 0),
+    )
+    injury_status = str(value(injury_rows[-1], "report_status", "injury_status", "status", default="") or "").upper() if injury_rows else ""
+    depth_adjustment = 0.04 if depth_rank == 1 else 0 if depth_rank in (None, 2) else -0.03
+    injury_adjustment = -0.12 if any(term in injury_status for term in ("OUT", "RESERVE", "PUP", "IR")) else -0.08 if "DOUBTFUL" in injury_status else -0.03 if "QUESTIONABLE" in injury_status else 0
+    adjustment = max(-0.15, min(0.15, (opportunity or 0) * 0.28 + (snap or 0) * 0.12 + depth_adjustment + injury_adjustment))
+    evidence = []
+    if opportunity is not None:
+        evidence.append(f"expected-opportunity trend {opportunity:+.0%}")
+    if snap is not None:
+        evidence.append(f"offensive-snap trend {snap:+.0%}")
+    if depth_rank is not None:
+        evidence.append(f"latest historical depth rank {depth_rank}")
+    if injury_status:
+        evidence.append(f"latest historical injury status {injury_status}")
+    return {
+        "adjustment": round(adjustment, 4),
+        "opportunity_delta": round(opportunity, 4) if opportunity is not None else None,
+        "snap_delta": round(snap, 4) if snap is not None else None,
+        "depth_rank": depth_rank,
+        "injury_status": injury_status or None,
+        "evidence": evidence,
+    }
+
+
+def project_player(
+    player: dict[str, Any],
+    history: dict[tuple[str, str], list[dict[str, Any]]],
+    season: int,
+    signal_indexes: dict[str, dict[tuple[str, str], list[dict[str, Any]]]] | None = None,
+) -> dict[str, Any]:
     position = str(player.get("position") or "").upper()
     pos_rank = int(finite(player.get("position_rank"), 99) or 99)
     prior_points, prior_rec = position_prior(position, pos_rank)
@@ -119,6 +222,10 @@ def project_player(player: dict[str, Any], history: dict[tuple[str, str], list[d
         confidence = min(84, round(50 + sample_games * 0.8 + (8 if len(lines) >= 2 else 0)))
         evidence = "recency-weighted NFL production, bounded trend, and regressed position prior"
         seasons = [int(line["season"]) for line in lines]
+    signals = role_signals(player, signal_indexes or {})
+    standard *= 1 + signals["adjustment"]
+    receptions *= 1 + signals["adjustment"]
+    confidence = min(88, confidence + min(8, len(signals["evidence"]) * 2))
     return {
         "name": player.get("name"),
         "position": position,
@@ -131,15 +238,26 @@ def project_player(player: dict[str, Any], history: dict[tuple[str, str], list[d
         "projection_confidence": confidence,
         "model_version": MODEL_VERSION,
         "evidence": evidence,
+        "role_signal_evidence": signals["evidence"],
+        "role_signals": {key: item for key, item in signals.items() if key != "evidence"},
         "evidence_seasons": seasons,
         "target_season": season,
     }
 
 
-def build_for_players(players: list[dict[str, Any]], historical_rows: list[dict[str, Any]], season: int) -> dict[str, dict[str, Any]]:
-    history = index_history(historical_rows)
+def build_for_players(
+    players: list[dict[str, Any]],
+    historical_rows: list[dict[str, Any]],
+    season: int,
+    signal_rows: dict[str, list[dict[str, Any]]] | None = None,
+) -> dict[str, dict[str, Any]]:
+    history = index_history(historical_rows, season)
+    signal_indexes = {
+        name: index_signal_rows(rows, season)
+        for name, rows in (signal_rows or {}).items()
+    }
     return {
-        f"{normalize_name(player.get('name'))}|{str(player.get('position') or '').upper()}": project_player(player, history, season)
+        f"{normalize_name(player.get('name'))}|{str(player.get('position') or '').upper()}": project_player(player, history, season, signal_indexes)
         for player in players
         if player.get("name") and player.get("position")
     }

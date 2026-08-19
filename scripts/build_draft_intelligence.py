@@ -282,6 +282,10 @@ def attach_projections(
             player["projection_evidence"] = row["evidence"]
         if row.get("evidence_seasons") is not None:
             player["projection_evidence_seasons"] = row["evidence_seasons"]
+        if row.get("role_signals") is not None:
+            player["projection_role_signals"] = row["role_signals"]
+        if row.get("role_signal_evidence") is not None:
+            player["projection_role_signal_evidence"] = row["role_signal_evidence"]
         if isinstance(row.get("stats"), dict):
             player["projection_stats"] = row["stats"]
 
@@ -327,6 +331,89 @@ def projection_coverage(players: list[dict[str, Any]]) -> dict[str, Any]:
         "depth_bands": bands,
         "activation_rule": "Every positional minimum must have an explicitly sourced direct or open-model season projection; top-50-only samples remain inactive.",
     }
+
+
+def load_sleeper_candidates(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    candidates = []
+    for sleeper_id, row in (payload.items() if isinstance(payload, dict) else []):
+        position = normalize_position("DST" if str(row.get("position") or "").upper() == "DEF" else row.get("position"))
+        if position not in POSITIONS or row.get("active") is not True:
+            continue
+        name = str(row.get("full_name") or f"{row.get('first_name') or ''} {row.get('last_name') or ''}").strip()
+        if position == "DST":
+            name = name or str(row.get("team") or sleeper_id)
+        if not name:
+            continue
+        candidates.append({
+            "name": name,
+            "position": position,
+            "team": normalize_team(row.get("team")),
+            "sleeper_id": str(sleeper_id),
+            "search_rank": int(finite(row.get("search_rank"), 99_999) or 99_999),
+            "injury_status": row.get("injury_status"),
+        })
+    return sorted(candidates, key=lambda row: (row["search_rank"], row["name"]))
+
+
+def ensure_draftable_depth(players: list[dict[str, Any]], candidates: list[dict[str, Any]]) -> None:
+    existing = {(normalize_name(row.get("name")), row.get("position")) for row in players}
+    counts = defaultdict(int)
+    for row in players:
+        counts[row["position"]] += 1
+    for position, minimum in DRAFTABLE_PROJECTION_MINIMUMS.items():
+        for candidate in (row for row in candidates if row["position"] == position):
+            if counts[position] >= minimum:
+                break
+            key = (normalize_name(candidate["name"]), position)
+            if key in existing:
+                continue
+            counts[position] += 1
+            position_rank = counts[position]
+            players.append({
+                **candidate,
+                "market_value": None,
+                "adp": len(players) + 1,
+                "source_ranks": {},
+                "source_position_ranks": {"sleeper_player_universe": position_rank},
+                "source_count": 1,
+                "rank_range": None,
+                "agreement": 35,
+                "confidence": 32,
+                "consensus_score": max(2, 22 - position_rank * 0.25),
+                "position_score": max(2, 25 - position_rank * 0.25),
+                "overall_rank": len(players) + 1,
+                "position_rank": position_rank,
+                "overall_tier": 99,
+                "position_tier": max(8, math.ceil(position_rank / 6)),
+                "tier_gap_after": 0,
+                "tier_end": False,
+            })
+            existing.add(key)
+
+
+def select_draftable_pool(players: list[dict[str, Any]], maximum: int) -> list[dict[str, Any]]:
+    mandatory = set()
+    for position, minimum in DRAFTABLE_PROJECTION_MINIMUMS.items():
+        rows = sorted((row for row in players if row["position"] == position), key=lambda row: row.get("position_rank", 99_999))
+        mandatory.update((normalize_name(row["name"]), row["position"]) for row in rows[:minimum])
+    selected = [row for row in players if (normalize_name(row["name"]), row["position"]) in mandatory]
+    selected_keys = {(normalize_name(row["name"]), row["position"]) for row in selected}
+    for row in sorted(players, key=lambda item: item.get("overall_rank", 99_999)):
+        if len(selected) >= maximum:
+            break
+        key = (normalize_name(row["name"]), row["position"])
+        if key not in selected_keys:
+            selected.append(row)
+            selected_keys.add(key)
+    selected.sort(key=lambda item: item.get("overall_rank", 99_999))
+    for rank, row in enumerate(selected, 1):
+        row["overall_rank"] = rank
+        if row.get("adp") is None:
+            row["adp"] = rank
+    return selected
 
 
 def select_fantasypros_rows(rows: list[dict[str, Any]], profile_family: str) -> list[dict[str, Any]]:
@@ -1003,6 +1090,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     sources: dict[str, dict[str, Any]] = {}
     repository_snapshot = load_repository_positional_snapshot(args.repository_snapshot)
     repository_projections, projection_snapshot = load_repository_projections(args.repository_snapshot)
+    sleeper_candidates = load_sleeper_candidates(args.sleeper_players)
     seasonal_stats_path = args.nflverse_dir / "seasonal_stats.parquet"
     try:
         open_projection_rows = load_parquet_rows(seasonal_stats_path)
@@ -1010,6 +1098,19 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     except Exception as error:
         open_projection_rows = []
         open_projection_error = str(error)
+    open_signal_rows: dict[str, list[dict[str, Any]]] = {}
+    for signal_name, filename in {
+        "opportunity": "ff_opportunity.parquet",
+        "snaps": "snap_counts.parquet",
+        "depth": "depth_charts.parquet",
+        "injuries": "injuries.parquet",
+    }.items():
+        try:
+            rows = load_parquet_rows(args.nflverse_dir / filename)
+            if rows:
+                open_signal_rows[signal_name] = rows
+        except Exception:
+            continue
     if repository_snapshot:
         sources["repository_positional_snapshot"] = source_meta(
             "repository_positional_snapshot",
@@ -1034,6 +1135,14 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
         "ok" if open_projection_rows else "unavailable",
         len(open_projection_rows),
         open_projection_error or (None if open_projection_rows else f"Missing {seasonal_stats_path}"),
+    )
+    sources["sleeper_player_universe"] = source_meta(
+        "sleeper_player_universe",
+        "Sleeper active NFL player universe",
+        "https://docs.sleeper.com/",
+        "ok" if sleeper_candidates else "unavailable",
+        len(sleeper_candidates),
+        None if sleeper_candidates else f"Missing or empty {args.sleeper_players}",
     )
 
     try:
@@ -1111,12 +1220,13 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
                     error=str(error),
                 )
         players = merge_rankings(sets) if sets else []
+        ensure_draftable_depth(players, sleeper_candidates)
         attach_projections(players, repository_projections, projection_snapshot, spec)
-        open_projections = build_for_players(players, open_projection_rows, args.season) if open_projection_rows else {}
+        open_projections = build_for_players(players, open_projection_rows, args.season, open_signal_rows) if open_projection_rows else {}
         if open_projections:
             attach_projections(players, open_projections, {"scoring": "HALF"}, spec, only_missing=True)
         attach_scheme_fit(players, team_profiles, usage_profiles)
-        players = players[: args.max_players]
+        players = select_draftable_pool(players, args.max_players)
         profiles[profile_id] = {
             "generated_at": generated_at,
             "format": {"teams": args.teams, **spec},
@@ -1146,6 +1256,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "coaching_attribution": "Official staff context is displayed, but team play-calling metrics are not asserted as individual-coach causation.",
             "strategy_weights": "Strategy presets alter a bounded component; VBD, tier cliffs, market value, and roster needs remain primary.",
             "projection_activation": "Projected-point VORP activates only when explicitly labeled direct or open-model projections reach every draftable positional minimum; otherwise the format-specific League Value fallback remains explicit.",
+            "open_role_adjustment": "Expected-opportunity, offensive-snap, depth-rank, and injury evidence combine into a bounded +/-15% projection adjustment; only rows before the target season are eligible.",
         },
         "limitations": [
             "Preseason coaching changes reduce scheme-fit confidence because current-season play-call evidence does not yet exist.",
@@ -1166,6 +1277,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--coaching-config", type=Path, default=Path("config/coaching_sources.json"))
     parser.add_argument("--repository-snapshot", type=Path, default=Path("fantasypros.json"))
     parser.add_argument("--nflverse-dir", type=Path, default=Path("data/raw/nflverse"))
+    parser.add_argument("--sleeper-players", type=Path, default=Path("data/raw/sleeper/players.json"))
     return parser.parse_args()
 
 

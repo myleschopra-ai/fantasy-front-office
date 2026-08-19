@@ -14,6 +14,7 @@ on:
       - 'scripts/refresh_fantasypros.py'
       - 'scripts/build_draft_intelligence.py'
       - 'scripts/open_projection_engine.py'
+      - 'scripts/backtest_open_projections.py'
       - 'scripts/collectors/nflverse.py'
       - 'scripts/collectors/sleeper_players.py'
       - 'scripts/validate_draft_intelligence.py'
@@ -100,6 +101,9 @@ jobs:
       - name: Validate draft-intelligence snapshot
         run: python scripts/validate_draft_intelligence.py data/draft_intelligence.json
 
+      - name: Run no-lookahead open projection backtest
+        run: python scripts/backtest_open_projections.py --strict
+
       - name: Run real-data snake ranking and behavior gates
         run: node scripts/validate_live_draft_board_v2.js --strict --output-dir=reports
 
@@ -128,6 +132,7 @@ jobs:
             reports/auction_validation_current.md
             reports/auction_mock_validation.json
             reports/auction_mock_validation.md
+            reports/open_projection_backtest.json
             fantasypros.json
             data/draft_intelligence.json
             data/raw/nflverse/manifest.json

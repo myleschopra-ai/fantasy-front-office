@@ -27,6 +27,30 @@ class OpenProjectionEngineTests(unittest.TestCase):
         self.assertIn("no usable NFL history", result["evidence"])
         self.assertGreater(result["points_ppr"], result["points"])
 
+    def test_role_signals_are_bounded_and_exclude_target_season(self):
+        player = {"name": "Signal Receiver", "position": "WR", "position_rank": 40}
+        history = [{"player_display_name": "Signal Receiver", "position": "WR", "season": 2024, "games": 16, "fantasy_points": 120, "receptions": 50}]
+        opportunity = [
+            {"player_display_name": "Signal Receiver", "position": "WR", "season": 2024, "week": week, "expected_fantasy_points": 5 if week <= 6 else 10}
+            for week in range(1, 13)
+        ] + [
+            {"player_display_name": "Signal Receiver", "position": "WR", "season": 2025, "week": 18, "expected_fantasy_points": 1000}
+        ]
+        result = engine.build_for_players([player], history, 2025, {"opportunity": opportunity})["signal receiver|WR"]
+        self.assertEqual(result["role_signals"]["opportunity_delta"], 0.25)
+        self.assertLessEqual(abs(result["role_signals"]["adjustment"]), 0.15)
+        self.assertTrue(any("expected-opportunity" in item for item in result["role_signal_evidence"]))
+
+    def test_future_production_never_enters_walk_forward_projection(self):
+        player = {"name": "No Lookahead", "position": "RB", "position_rank": 20}
+        rows = [
+            {"player_display_name": "No Lookahead", "position": "RB", "season": 2024, "games": 16, "fantasy_points": 100, "receptions": 20},
+            {"player_display_name": "No Lookahead", "position": "RB", "season": 2025, "games": 16, "fantasy_points": 500, "receptions": 100},
+        ]
+        with_future = engine.build_for_players([player], rows, 2025)["no lookahead|RB"]
+        without_future = engine.build_for_players([player], rows[:1], 2025)["no lookahead|RB"]
+        self.assertEqual(with_future["points_half"], without_future["points_half"])
+
 
 if __name__ == "__main__":
     unittest.main()

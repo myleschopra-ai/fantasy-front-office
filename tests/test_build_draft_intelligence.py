@@ -155,6 +155,22 @@ class DraftIntelligenceBuilderTests(unittest.TestCase):
         self.assertEqual(coverage["direct_players"], 0)
         self.assertEqual(coverage["open_model_players"], len(players))
 
+    def test_sleeper_candidates_fill_and_survive_positional_pool_floor(self):
+        players = []
+        candidates = []
+        for position, minimum in builder.DRAFTABLE_PROJECTION_MINIMUMS.items():
+            for index in range(minimum):
+                candidates.append({
+                    "name": f"{position} Candidate {index}", "position": position,
+                    "team": "", "sleeper_id": f"{position}-{index}",
+                    "search_rank": index, "injury_status": None,
+                })
+        builder.ensure_draftable_depth(players, candidates)
+        selected = builder.select_draftable_pool(players, 320)
+        for position, minimum in builder.DRAFTABLE_PROJECTION_MINIMUMS.items():
+            self.assertGreaterEqual(sum(row["position"] == position for row in selected), minimum)
+        self.assertEqual([row["overall_rank"] for row in selected], list(range(1, len(selected) + 1)))
+
 
 if __name__ == "__main__":
     unittest.main()
