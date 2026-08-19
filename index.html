@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Front Office — Fantasy Dashboard</title>
+<link rel="stylesheet" href="css/dashboard-quality.css" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Front Office" />
@@ -271,7 +272,7 @@
     <div>
       <h1 class="display">Front Office</h1>
       <p id="header-sub" class="mono">Not connected</p>
-      <p class="mono" style="font-size:9px; color:var(--text-dim); margin:2px 0 0;">build 2026-08-05.1</p>
+      <p class="mono" style="font-size:9px; color:var(--text-dim); margin:2px 0 0;">quality build 2026-08-19</p>
     </div>
   </div>
   <div class="pills" id="header-pills"></div>
@@ -280,15 +281,16 @@
 <div style="max-width:960px;margin:10px auto 0;padding:0 20px"><a href="league-config.html" style="display:block;text-decoration:none;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px 12px;color:#fbbf24;font-size:12px;font-weight:700">League Formats & Draft Settings → Sleeper dynasty, Yahoo snake, and Yahoo auction</a></div>
 
 <div id="freshness-bar" style="display:none; padding:6px 20px; background:var(--surface); border-bottom:1px solid var(--border); font-size:11px; color:var(--text-dim);" class="mono"></div>
+<section id="quality-strip" class="quality-strip" aria-label="Decision system health" style="display:none;"></section>
 
-<nav id="tabs">
-  <button data-tab="command" class="active">Command Center</button>
-  <button data-tab="lineup">Lineup</button>
-  <button data-tab="roster">My Roster</button>
-  <button data-tab="targets">Acquisition Targets</button>
-  <button data-tab="trade">Trade Analyzer</button>
-  <button data-tab="validation">Validation</button>
-  <button data-tab="draft">Draft</button>
+<nav id="tabs" role="tablist" aria-label="Front Office workspace">
+  <button role="tab" aria-selected="true" aria-controls="view-command" data-tab="command" class="active">Command Center</button>
+  <button role="tab" aria-selected="false" aria-controls="view-lineup" data-tab="lineup">Lineup</button>
+  <button role="tab" aria-selected="false" aria-controls="view-roster" data-tab="roster">My Roster</button>
+  <button role="tab" aria-selected="false" aria-controls="view-targets" data-tab="targets">Acquisition Targets</button>
+  <button role="tab" aria-selected="false" aria-controls="view-trade" data-tab="trade">Trade Analyzer</button>
+  <button role="tab" aria-selected="false" aria-controls="view-validation" data-tab="validation">Validation</button>
+  <button role="tab" aria-selected="false" aria-controls="view-draft" data-tab="draft">Draft</button>
 </nav>
 
 <main>
@@ -403,7 +405,7 @@
   <div id="view-validation" class="view">
     <h2 class="display" style="font-size:16px; margin-bottom:6px;">Data Validation</h2>
     <p class="mono" style="font-size:11px; color:var(--text-dim); margin:0 0 16px;">
-      How much to trust what you're seeing. No recommendation here is a backtested model — everything is a heuristic threshold applied to real data.
+      How much to trust what you're seeing. Predictive recommendations are coverage- and freshness-gated; descriptive signals remain labeled and cannot silently increase model weight.
     </p>
     <div id="validation-content"></div>
   </div>
@@ -424,6 +426,8 @@
 
 </main>
 
+<script src="js/dashboard-intelligence.js"></script>
+<script src="js/dashboard-observability.js"></script>
 <script>
 (function () {
   "use strict";
@@ -435,6 +439,7 @@
     league: null, rosters: [], users: [], allPlayers: {}, fcData: [],
     tradedPicks: [], myRosterId: null, activeTab: "roster",
     sideA: [], sideB: [], posFilter: "ALL", fpData: null, fetchedAt: null, watcherState: null, scheduleData: null,
+    qualityManifest: null, leagueProfile: null, rosterAssessment: null,
   };
 
   function fpRankFor(name, position) {
@@ -482,6 +487,44 @@
       if (sid) m[String(sid)] = e;
     });
     return m;
+  }
+
+  function normalizedRosterPlayers() {
+    if (!window.FFODashboardIntel) return [];
+    const market = fcBySleeperId();
+    const roster = state.rosters.find(r => r.roster_id === state.myRosterId);
+    return (roster?.players || []).map(pid => {
+      const raw = state.allPlayers[pid] || { player_id: pid };
+      const name = `${raw.first_name || ""} ${raw.last_name || ""}`.trim() || pid;
+      return window.FFODashboardIntel.normalizedPlayer(raw, market[pid], raw.position ? fpProjectionFor(name, raw.position) : null);
+    });
+  }
+
+  function updateQualityContext() {
+    if (!window.FFODashboardIntel) return;
+    state.leagueProfile = window.FFODashboardIntel.leagueProfile(state.league);
+    state.qualityManifest = window.FFODashboardIntel.sourceManifest([
+      { id: "sleeper-league", label: "Sleeper league state", timestamp: state.fetchedAt, maxAgeHours: 0.25, required: true },
+      { id: "fantasycalc", label: "FantasyCalc market", timestamp: state.fetchedAt, maxAgeHours: 6, required: true },
+      { id: "projection-snapshot", label: "Projection snapshot", timestamp: state.fpData?.generated_at, maxAgeHours: 6, required: false },
+      { id: "league-watcher", label: "League watcher", timestamp: state.watcherState?.last_run, maxAgeHours: 3, required: false },
+      { id: "schedule", label: "Schedule signals", timestamp: state.scheduleData?.generated_at, maxAgeHours: 24, required: false },
+    ]);
+    state.rosterAssessment = window.FFODashboardIntel.rosterAssessment(normalizedRosterPlayers(), state.leagueProfile);
+    renderQualityStrip();
+  }
+
+  function renderQualityStrip() {
+    const strip = $("quality-strip");
+    if (!strip || !state.qualityManifest) return;
+    const manifest = state.qualityManifest;
+    const confidence = state.rosterAssessment ? `${Math.round(state.rosterAssessment.confidence * 100)}%` : "—";
+    const statusClass = manifest.status === "CURRENT" ? "quality-current" : manifest.status === "STALE" ? "quality-stale" : "quality-degraded";
+    strip.innerHTML = `
+      <div class="quality-chip"><strong>Source health</strong><span class="${statusClass}">${manifest.status} · ${manifest.currentCount}/${manifest.requiredCount} current</span></div>
+      <div class="quality-chip"><strong>Decision confidence</strong><span>${confidence} roster evidence</span></div>
+      <div class="quality-chip"><strong>League model</strong><span>${state.leagueProfile?.superflex ? "Superflex" : "1QB"} · ${state.leagueProfile?.scoring || "Unknown"}</span></div>`;
+    strip.style.display = "grid";
   }
 
   function formatFromLeague() {
@@ -557,6 +600,7 @@
 
       localStorage.setItem(STORAGE_KEY, leagueId);
       state.fetchedAt = new Date();
+      updateQualityContext();
       renderHeader();
       showTeamPicker();
     } catch (e) {
@@ -576,6 +620,8 @@
       if (parsed.traded_picks) state.tradedPicks = parsed.traded_picks;
       if (parsed.fc_data) state.fcData = parsed.fc_data;
       if (parsed.all_players) state.allPlayers = parsed.all_players;
+      state.fetchedAt = parsed.fetched_at ? new Date(parsed.fetched_at) : null;
+      updateQualityContext();
       errorBox.style.display = "none";
       renderHeader();
       showTeamPicker();
@@ -612,8 +658,10 @@
     state.league = null; state.rosters = []; state.users = []; state.allPlayers = {};
     state.fcData = []; state.tradedPicks = []; state.myRosterId = null; state.fpData = null;
     state.sideA = []; state.sideB = []; state.fetchedAt = null;
+    state.qualityManifest = null; state.leagueProfile = null; state.rosterAssessment = null;
     tabsNav.classList.remove("visible");
     $("freshness-bar").style.display = "none";
+    $("quality-strip").style.display = "none";
     $("view-connect").classList.add("active");
     document.querySelectorAll(".view").forEach(v => { if (v.id !== "view-connect") v.classList.remove("active"); });
     teamPicker.style.display = "none";
@@ -668,6 +716,7 @@
 
   function selectMyRoster(rosterId) {
     state.myRosterId = rosterId;
+    updateQualityContext();
     $("view-connect").classList.remove("active");
     tabsNav.classList.add("visible");
     switchTab("command");
@@ -676,7 +725,12 @@
   // ---------- Tabs ----------
   function switchTab(tab) {
     state.activeTab = tab;
-    document.querySelectorAll("nav button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+    document.querySelectorAll("nav button").forEach(b => {
+      const selected = b.dataset.tab === tab;
+      b.classList.toggle("active", selected);
+      b.setAttribute("aria-selected", String(selected));
+      b.tabIndex = selected ? 0 : -1;
+    });
     document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
     $(`view-${tab}`).classList.add("active");
     if (tab === "command") renderCommandCenter();
@@ -691,6 +745,21 @@
   tabsNav.addEventListener("click", (e) => {
     const btn = e.target.closest("button[data-tab]");
     if (btn) switchTab(btn.dataset.tab);
+  });
+
+  tabsNav.addEventListener("keydown", (e) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    const tabs = [...tabsNav.querySelectorAll('[role="tab"]')];
+    const current = Math.max(0, tabs.indexOf(document.activeElement));
+    const next = e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : (current + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+    e.preventDefault();
+    tabs[next].focus();
+    switchTab(tabs[next].dataset.tab);
+  });
+
+  document.addEventListener("click", (e) => {
+    const jump = e.target.closest("[data-jump-tab]");
+    if (jump) switchTab(jump.dataset.jumpTab);
   });
 
   // ---------- Render: Lineup ----------
@@ -726,6 +795,23 @@
         projPoints,
       };
     });
+
+    if (window.FFODashboardIntel) {
+      const normalized = pool.map(player => ({
+        ...player,
+        confidence: player.projPoints !== null ? (player.status ? 0.68 : 0.86) : 0.5,
+        projection: player.projPoints,
+        marketValue: player.value,
+      }));
+      const optimized = window.FFODashboardIntel.optimizeLineup(normalized, state.league.roster_positions || []);
+      return {
+        assigned: optimized.assigned.map(row => ({
+          slot: row.slot,
+          player: row.player ? { ...row.player, projPoints: row.player.projection, value: row.player.marketValue } : null,
+        })),
+        bench: optimized.bench.map(player => ({ ...player, projPoints: player.projection, value: player.marketValue })),
+      };
+    }
 
     // Real weekly/season projections and dynasty trade value are on completely
     // different scales — never sort them together directly. Rank anyone with a
@@ -770,6 +856,10 @@
           </span>
         </div>`
       : "";
+    const closeMoves = window.FFODashboardIntel ? window.FFODashboardIntel.lineupMoves(assigned, bench) : [];
+    const decisionHTML = closeMoves.length ? `<div class="quality-note"><strong>Closest lineup decisions</strong><br>${closeMoves.slice(0, 3).map(move =>
+      `${escapeHTML(move.starter.name)} over ${escapeHTML(move.alternative.name)} by ${move.delta.toFixed(1)} projected points · ${window.FFODashboardIntel.confidenceLabel(move.confidence)} confidence`
+    ).join("<br>")}</div>` : `<div class="quality-note">The optimizer found no bench alternative within three projected points of a current starter. Injury designations still require confirmation before lock.</div>`;
 
     const metricHTML = (p) => p.projPoints !== null
       ? `<span class="mono" style="color:var(--green); font-size:12px;">${p.projPoints} pts (proj)</span>`
@@ -791,7 +881,7 @@
       </div>`;
     };
 
-    let html = summaryHTML + `<div style="margin-bottom:24px;">
+    let html = summaryHTML + decisionHTML + `<div style="margin-bottom:24px;">
       <h3 class="display" style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">Starters</h3>
       <div style="display:grid; gap:6px;">${assigned.map(a => rowHTML(a.slot, a.player)).join("")}</div>
     </div>`;
@@ -811,6 +901,43 @@
     </div>`;
 
     $("lineup-content").innerHTML = html;
+  }
+
+  function topDecisionActions() {
+    if (!window.FFODashboardIntel || !state.myRosterId) return [];
+    const actions = [];
+    const { assigned, bench } = computeAssignedLineup();
+    assigned.filter(row => row.player?.status).forEach(row => actions.push({
+      id: `injury-${row.player.id}`, label: "LINEUP", title: `Confirm ${row.player.name}'s status`,
+      detail: `${row.slot} has a ${row.player.status} designation. Prepare the highest-projected eligible replacement.`,
+      impact: 9, urgency: 1, confidence: 0.9, reversible: true, tab: "lineup",
+    }));
+    window.FFODashboardIntel.lineupMoves(assigned, bench).slice(0, 2).forEach(move => actions.push({
+      id: `lineup-${move.starter.id}`, label: "LINEUP", title: `${move.starter.name} over ${move.alternative.name}`,
+      detail: `${move.delta.toFixed(1)} projected-point edge; this is a close decision worth monitoring.`,
+      impact: Math.max(2, Math.abs(move.delta)), urgency: 0.8, confidence: move.confidence, reversible: true, tab: "lineup",
+    }));
+    (state.rosterAssessment?.gaps || []).slice(0, 2).forEach(gap => actions.push({
+      id: `gap-${gap.position}`, label: "ROSTER", title: `Add ${gap.position} depth`,
+      detail: `${gap.count}/${gap.target} preferred depth. Targets include a matching drop and FAAB range.`,
+      impact: 6 + gap.target - gap.count, urgency: 0.65, confidence: state.rosterAssessment.confidence, reversible: true, tab: "targets",
+    }));
+    const free = computeFreeAgents()[0];
+    if (free) actions.push({ id: "market-target", label: "WAIVER", title: `Review ${free.player.name}`,
+      detail: "Best current projection, roster-fit, market, and bounded-momentum combination.",
+      impact: 5, urgency: 0.55, confidence: 0.58, reversible: true, tab: "targets" });
+    return window.FFODashboardIntel.rankActions(actions).slice(0, 5);
+  }
+
+  function decisionSummaryHTML() {
+    const actions = topDecisionActions();
+    if (!actions.length) return "";
+    return `<div class="decision-summary">${actions.slice(0, 3).map(action => `
+      <button class="decision-card" data-jump-tab="${action.tab}" data-priority="${action.priorityScore >= 7 ? "high" : "normal"}" style="color:inherit;text-align:left;cursor:pointer">
+        <span class="decision-label">${action.label}</span><div class="decision-title">${escapeHTML(action.title)}</div>
+        <div class="decision-copy">${escapeHTML(action.detail)}</div>
+        <div class="decision-meta"><span class="pill">${window.FFODashboardIntel.confidenceLabel(action.confidence)} confidence</span><span class="pill teal">REVERSIBLE</span></div>
+      </button>`).join("")}</div>`;
   }
 
   // ---------- Render: Command Center ----------
@@ -1072,7 +1199,7 @@
         <span style="color:var(--text-muted); font-size:13px;">${criticalRowCount === 0 ? "items need your attention right now" : criticalRowCount === 1 ? "item needs your attention right now" : "items need your attention right now"}</span>
       </div>`;
 
-    $("command-content").innerHTML = heroHTML + sections.map((s, i) => {
+    $("command-content").innerHTML = decisionSummaryHTML() + heroHTML + sections.map((s, i) => {
       const isCritical = CRITICAL_TITLES.has(s.title);
       const accentColor = isCritical ? "var(--red)" : "var(--gold)";
       return `
@@ -1150,12 +1277,18 @@
     return state.fcData
       .filter(e => e.player.position && e.player.position !== "PICK")
       .filter(e => e.player.sleeperId && !rosteredIds.has(String(e.player.sleeperId)))
-      .sort((a, b) => (b.trend30Day || 0) - (a.trend30Day || 0));
+      .sort((a, b) => {
+        const score = entry => {
+          const projection = fpProjectionFor(entry.player.name, entry.player.position);
+          return (projection === null ? 0 : projection * 25) + (entry.value || 0) / 100 + (entry.trend30Day || 0) / 20;
+        };
+        return score(b) - score(a);
+      });
   }
 
   function renderTargets() {
     const freeAgents = computeFreeAgents();
-    $("targets-count").textContent = `${freeAgents.length} valued free agents league-wide, sorted by 30-day market momentum. Verify against real news before acting.`;
+    $("targets-count").textContent = `${freeAgents.length} valued free agents ranked by projection, roster fit, market value, and bounded momentum.`;
 
     // Drop candidates — your lowest-value bench players, for context while browsing targets
     const { bench } = computeAssignedLineup();
@@ -1224,8 +1357,15 @@
       const news = fpInjuryFor(e.player.name);
       const newsBadge = news ? `<span class="pill bad" title="${escapeHTML(news.name)}">${escapeHTML(news.team)} news</span>` : "";
       const proj = fpProjectionFor(e.player.name, e.player.position);
-      const bid = suggestBid(e.trend30Day, proj, e.player.position);
-      const bidBadge = bid !== null ? `<span class="pill teal" title="Heuristic suggestion, not a guarantee">Suggested $${bid}</span>` : "";
+      const drop = lowestDropForTarget(e.player.position);
+      const target = window.FFODashboardIntel?.normalizedPlayer({}, e, proj);
+      const dropIntel = drop ? { ...drop, projection: drop.projPoints, marketValue: drop.value, confidence: drop.projPoints !== null ? 0.82 : 0.5 } : null;
+      const decision = window.FFODashboardIntel && dropIntel ? window.FFODashboardIntel.acquisitionDecision(target, dropIntel, myRemaining) : null;
+      const fallbackBid = suggestBid(e.trend30Day, proj, e.player.position);
+      const bid = decision?.bidRange || (fallbackBid !== null ? [fallbackBid, fallbackBid] : null);
+      const bidBadge = bid ? `<span class="pill teal" title="League-budget range with uncertainty">FAAB $${bid[0]}–$${bid[1]}</span>` : "";
+      const actionBadge = decision ? `<span class="pill ${decision.action === "ADD" ? "gold" : ""}">${decision.action} · ${window.FFODashboardIntel.confidenceLabel(decision.confidence)}</span>` : "";
+      const dropBadge = drop ? `<span class="mono" style="color:var(--text-dim);font-size:11px">drop ${escapeHTML(drop.name)}</span>` : "";
       const projBadge = proj !== null ? `<span class="mono" style="color:var(--green); font-size:12px;">${proj} pts (proj)</span>` : "";
       return `
       <div class="fa-row">
@@ -1239,10 +1379,27 @@
           ${projBadge}
           <span class="mono" style="color:var(--text-muted); font-size:12px;">val ${e.value}</span>
           ${trendBadgeHTML(e.trend30Day)}
-          ${bidBadge}
+          ${actionBadge}${dropBadge}${bidBadge}
         </div>
       </div>`;
     }).join("");
+  }
+
+  function lowestDropForTarget(position) {
+    const { bench } = computeAssignedLineup();
+    // Short-roster and best-ball imports can legitimately have no assigned
+    // bench. Keep the acquisition decision actionable by falling back to the
+    // weakest rostered player, while still preferring a same-position bench
+    // replacement whenever one exists.
+    const rosterPool = normalizedRosterPlayers().map(player => ({
+      ...player,
+      projPoints: player.projection,
+      value: player.marketValue,
+    }));
+    const candidates = bench.length ? bench : rosterPool;
+    const same = candidates.filter(player => player.position === position);
+    const pool = same.length ? same : candidates;
+    return [...pool].sort((a, b) => (a.projPoints ?? -1) - (b.projPoints ?? -1) || (a.value || 0) - (b.value || 0))[0] || null;
   }
 
   // ---------- Render: Trade ----------
@@ -1378,7 +1535,11 @@
     const verdictBox = $("verdict-box");
     verdictBox.className = "verdict";
     if (state.sideA.length && state.sideB.length) {
-      if (pctGap < 10) { verdictBox.classList.add("good"); verdictBox.innerHTML = `Fair trade — within 10% value gap <span class="gap mono">${pctGap.toFixed(1)}% gap</span>`; }
+      const decision = window.FFODashboardIntel?.tradeDecision(state.sideA, state.sideB, state.rosterAssessment);
+      if (decision) {
+        verdictBox.classList.add(decision.action === "DECLINE" ? "bad" : decision.action === "ACCEPT" ? "good" : "neutral");
+        verdictBox.innerHTML = `${decision.action} · ${decision.fairness} <span class="gap mono">${decision.valueDelta >= 0 ? "+" : ""}${decision.valueDelta} value · ${window.FFODashboardIntel.confidenceLabel(decision.confidence)} confidence</span>`;
+      } else if (pctGap < 10) { verdictBox.classList.add("good"); verdictBox.innerHTML = `Fair trade — within 10% value gap <span class="gap mono">${pctGap.toFixed(1)}% gap</span>`; }
       else if (diff > 0) { verdictBox.classList.add("bad"); verdictBox.innerHTML = `You're giving more value away <span class="gap mono">${pctGap.toFixed(1)}% gap</span>`; }
       else { verdictBox.classList.add("good"); verdictBox.innerHTML = `You're receiving more value <span class="gap mono">${pctGap.toFixed(1)}% gap</span>`; }
     } else {
@@ -1455,6 +1616,7 @@
       value: entry.value,
       position: entry.player.position,
       team: entry.player.maybeTeam,
+      projection: entry.player.position ? fpProjectionFor(entry.player.name, entry.player.position) : null,
     };
     if (side === "A") state.sideA.push(item); else state.sideB.push(item);
     $("trade-search").value = "";
@@ -1516,6 +1678,28 @@
     const myRoster = state.rosters.find(r => r.roster_id === state.myRosterId);
     const fcMap = fcBySleeperId();
     const blocks = [];
+
+    if (state.qualityManifest) {
+      blocks.push({
+        title: "Decision System Gate",
+        html: `<div class="metric-grid"><div class="metric"><b>${state.qualityManifest.status}</b><small>overall source state</small></div><div class="metric"><b>${state.qualityManifest.currentCount}/${state.qualityManifest.requiredCount}</b><small>required sources current</small></div><div class="metric"><b>${Math.round(state.qualityManifest.confidence * 100)}%</b><small>source confidence</small></div><div class="metric"><b>${window.FFODashboardIntel.VERSION}</b><small>decision contract</small></div></div>
+          <div class="quality-note">Predictive weights remain gated by freshness, coverage, and held-out evidence. Stale descriptive signals may be shown, but cannot silently drive a recommendation.</div>`,
+      });
+      state.qualityManifest.sources.forEach(source => blocks.push({
+        title: source.label,
+        html: `<div style="color:${source.status === "CURRENT" ? "var(--green)" : source.status === "STALE" ? "var(--gold-light)" : "var(--red)"};font-size:13px">${source.status}${source.ageHours === null ? "" : ` · ${source.ageHours.toFixed(1)}h old`} · ${source.usable ? "usable" : "excluded from predictive decisions"}</div>`,
+      }));
+    }
+
+    if (window.FFODashboardObservability) {
+      const observed = window.FFODashboardObservability.snapshot();
+      const lcp = observed.vitals.lcp === undefined ? "collecting" : `${observed.vitals.lcp}ms`;
+      const cls = observed.vitals.cls === undefined ? "collecting" : observed.vitals.cls;
+      blocks.push({
+        title: "Production Observability",
+        html: `<div class="metric-grid"><div class="metric"><b>${observed.errors.length}</b><small>browser errors</small></div><div class="metric"><b>${observed.longTasks.length}</b><small>recent long tasks</small></div><div class="metric"><b>${lcp}</b><small>local LCP</small></div><div class="metric"><b>${cls}</b><small>local CLS</small></div></div><div class="quality-note">Measurements stay in this browser. They are diagnostic evidence, not remotely transmitted analytics.</div>`,
+      });
+    }
 
     // Live data freshness
     blocks.push({
