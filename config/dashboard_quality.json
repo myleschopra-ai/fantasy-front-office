@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0.0",
+  "freshness_hours": {
+    "live_draft": 0.0083,
+    "league_transactions": 0.25,
+    "injuries_depth_charts": 2,
+    "projections_market": 6,
+    "schedule": 24
+  },
+  "coverage": {
+    "identity_match_rate": 0.995,
+    "draftable_players": 320,
+    "middle_late_direct_rate": 0.95
+  },
+  "performance": {
+    "lcp_ms": 2500,
+    "inp_ms": 200,
+    "cls": 0.1,
+    "mobile_overflow_px": 1,
+    "minimum_touch_target_px": 44
+  },
+  "release_policy": {
+    "require_all_tab_journeys": true,
+    "require_stale_data_labels": true,
+    "require_held_out_lift_for_weight_increase": true,
+    "require_production_smoke_test": true
+  }
+}
