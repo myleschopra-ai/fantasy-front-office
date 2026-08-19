@@ -304,6 +304,24 @@
           schemeFit: found.scheme_fit || null,
           archetype: found.archetype || null,
           evidence: found.evidence || [],
+          projectedPoints: numeric(
+            found.projected_points ?? found.projectedPoints ?? player.projectedPoints,
+            null,
+          ),
+          projectionSource:
+            found.projection_source || player.projectionSource || null,
+          projectionMode:
+            found.projection_mode || player.projectionMode || null,
+          projectionConfidence: numeric(
+            found.projection_confidence ?? player.projectionConfidence,
+            null,
+          ),
+          projectionStats:
+            found.projection_stats || player.projectionStats || null,
+          projectionPpr: numeric(
+            found.projection_ppr ?? player.projectionPpr,
+            null,
+          ),
         };
       })
       .filter((player) => POSITIONS.includes(player.position));
@@ -529,6 +547,169 @@
       result[entry.key] = clamp(((entry.vorp - min) / range) * 100);
     });
     return result;
+  }
+
+  function projectionCoverageContract(players, context = {}) {
+    const league = context.league || {};
+    const roster = league.roster || {};
+    const teams = Math.max(4, numeric(context.teams ?? league.teams, 12));
+    const enabled = {
+      QB: numeric(roster.QB, 1) > 0 || numeric(roster.SUPER_FLEX ?? roster.SF, 0) > 0,
+      RB: numeric(roster.RB, 2) > 0 || numeric(roster.FLEX, 0) > 0,
+      WR: numeric(roster.WR, 2) > 0 || numeric(roster.FLEX, 0) > 0,
+      TE: numeric(roster.TE, 1) > 0 || numeric(roster.FLEX, 0) > 0,
+      K: numeric(roster.K, 0) > 0,
+      DST: numeric(roster.DST, 0) > 0,
+    };
+    const baseline = { QB: 32, RB: 72, WR: 84, TE: 32, K: 20, DST: 20 };
+    const targets = starterTargets(league);
+    const bench = Math.max(0, numeric(roster.BENCH ?? roster.BN, 6));
+    const benchShares = { QB: 0.10, RB: 0.32, WR: 0.38, TE: 0.14, K: 0.03, DST: 0.03 };
+    const byPosition = {};
+    let complete = true;
+    POSITIONS.forEach((position) => {
+      const dynamic = Math.ceil(
+        teams * numeric(targets[position], position === "K" || position === "DST" ? 0 : 1) +
+          teams * bench * benchShares[position] +
+          Math.max(4, Math.ceil(teams * 0.25)),
+      );
+      const required = enabled[position] ? Math.max(baseline[position], dynamic) : 0;
+      const poolRows = (players || []).filter((player) => player.position === position);
+      const eligibleRows = poolRows.filter(
+        (player) =>
+          numeric(player.projectedPoints ?? player.projected_points, null) != null,
+      );
+      const openModelRows = eligibleRows.filter(
+        (player) => String(player.projectionMode || player.projection_mode || "").toUpperCase() === "OPEN_MODEL_PROJECTION",
+      );
+      const directRows = eligibleRows.filter((player) => !openModelRows.includes(player));
+      const ready = required === 0 || eligibleRows.length >= required;
+      if (!ready) complete = false;
+      byPosition[position] = {
+        pool: poolRows.length,
+        direct: directRows.length,
+        openModel: openModelRows.length,
+        eligible: eligibleRows.length,
+        required,
+        complete: ready,
+      };
+    });
+    const depthBands = {};
+    [
+      ["top50", 1, 50],
+      ["middle", 51, 120],
+      ["late", 121, 200],
+      ["deep", 201, Infinity],
+    ].forEach(([label, low, high]) => {
+      const rows = (players || []).filter((player) => {
+        const rank = numeric(player.overallRank ?? player.overall_rank ?? player.rank, Infinity);
+        return rank >= low && rank <= high;
+      });
+      const eligible = rows.filter(
+        (player) =>
+          numeric(player.projectedPoints ?? player.projected_points, null) != null,
+      ).length;
+      depthBands[label] = {
+        players: rows.length,
+        eligible,
+        coverage: rows.length ? eligible / rows.length : 0,
+      };
+    });
+    return {
+      status: complete ? "COMPLETE" : "INCOMPLETE",
+      complete,
+      byPosition,
+      depthBands,
+      directPlayers: Object.values(byPosition).reduce((sum, row) => sum + row.direct, 0),
+      openModelPlayers: Object.values(byPosition).reduce((sum, row) => sum + row.openModel, 0),
+      eligiblePlayers: Object.values(byPosition).reduce((sum, row) => sum + row.eligible, 0),
+      poolPlayers: (players || []).length,
+    };
+  }
+
+  function leagueAdjustedProjectedPoints(player, league = {}) {
+    const base = numeric(
+      player.rawProjectedPoints ?? player.projectedPoints ?? player.projected_points,
+      null,
+    );
+    if (base == null) return null;
+    const stats = player.projectionStats || player.projection_stats || {};
+    const receptions = numeric(
+      stats.rec ?? stats.receptions ?? stats.receiving_receptions,
+      null,
+    );
+    const sourcePpr = numeric(player.projectionPpr ?? player.projection_ppr, null);
+    const leaguePpr = numeric(league.scoring?.reception, sourcePpr);
+    let adjusted = base;
+    if (receptions != null && sourcePpr != null && leaguePpr != null) {
+      adjusted += receptions * (leaguePpr - sourcePpr);
+    }
+    if (String(player.position || "").toUpperCase() === "TE" && receptions != null) {
+      adjusted += receptions * Math.max(
+        0,
+        numeric(
+          league.scoring?.te_premium ?? league.scoring?.tePremium ?? league.scoring?.bonus_rec_te,
+          0,
+        ),
+      );
+    }
+    return Math.round(Math.max(0, adjusted) * 10) / 10;
+  }
+
+  function lateRoundValueScore(player, context = {}) {
+    const rank = numeric(player.overallRank ?? player.overall_rank ?? player.rank, 999);
+    const adp = numeric(player.adp, rank);
+    const sourceRanks = Object.values(player.sourceRanks || player.source_ranks || {})
+      .map((value) => numeric(value, null))
+      .filter((value) => value != null);
+    const bestSourceRank = sourceRanks.length ? Math.min(...sourceRanks) : rank;
+    const marketDiscount = clamp(50 + (adp - rank) * 2.2);
+    const evidenceUpside = clamp(50 + (adp - bestSourceRank) * 1.25);
+    const scheme = clamp(numeric(player.schemeFit?.score ?? player.scheme_fit?.score, 50));
+    const pedigree = clamp(numeric(player.pedigreeScore, 50));
+    const ageCurve = clamp(numeric(player.ageCurveScore, 50));
+    const projection = player.vbdPercentileScore != null
+      ? clamp(numeric(player.vbdPercentileScore, 50))
+      : numeric(player.projectedPoints ?? player.projected_points, null) != null
+        ? 58
+        : 45;
+    let score = clamp(
+      marketDiscount * 0.28 +
+        evidenceUpside * 0.20 +
+        projection * 0.22 +
+        scheme * 0.12 +
+        pedigree * 0.10 +
+        ageCurve * 0.08,
+    );
+    const projectionConfidence = numeric(
+      player.projectionConfidence ?? player.projection_confidence,
+      numeric(player.projectedPoints ?? player.projected_points, null) != null ? 70 : 25,
+    );
+    const confidence = clamp(
+      numeric(player.agreement, 50) * 0.45 +
+        Math.min(100, numeric(player.sourceCount ?? player.source_count, 1) * 20) * 0.25 +
+        projectionConfidence * 0.30,
+    );
+    const directProjection = numeric(player.projectedPoints ?? player.projected_points, null) != null &&
+      String(player.projectionMode || player.projection_mode || "").toUpperCase() !== "OPEN_MODEL_PROJECTION" &&
+      !String(player.projectionSource || player.projection_source || "").startsWith("modeled");
+    if (!directProjection) score = Math.min(score, 78);
+    const lateThreshold = Math.max(60, numeric(context.teams, 12) * 5);
+    const eligible = rank > lateThreshold || adp > lateThreshold;
+    const reasons = [];
+    if (adp - rank >= 8) reasons.push(`model ranks player ${Math.round(adp - rank)} picks ahead of ADP`);
+    if (bestSourceRank + 10 <= adp) reasons.push("at least one source identifies material market upside");
+    if (projection >= 65) reasons.push("projection carries above-replacement upside");
+    if (scheme >= 65) reasons.push("team environment supports the player archetype");
+    if (!directProjection) reasons.push("open-model estimate is used; confidence remains evidence-weighted");
+    return {
+      score: Math.round(score),
+      confidence: Math.round(confidence),
+      eligible,
+      directProjection,
+      label: !eligible ? "NOT_LATE" : score >= 72 && confidence >= 58 ? "DIAMOND" : score >= 62 ? "WATCH" : "DEPTH",
+      reasons: reasons.slice(0, 3),
+    };
   }
 
   function vbdScore(player, context) {
@@ -1328,6 +1509,23 @@
       ),
     );
     let value = consensus * 0.60 + grade * 0.20 + vbd * 0.20;
+    // TE premium is a league rule, not an intrinsic player-grade change.
+    // Apply it only in League Value and scale it toward the scarce top of
+    // the position so replacement-level tight ends do not receive the same
+    // bonus as high-volume starters.
+    if (player.position === "TE") {
+      const scoring = context.league?.scoring || {};
+      const premium = Math.max(
+        0,
+        numeric(
+          scoring.te_premium ?? scoring.tePremium ?? scoring.bonus_rec_te,
+          0,
+        ),
+      );
+      const positionRank = numeric(player.posRank, 30);
+      const scarcityShare = clamp((30 - positionRank) / 29, 0, 1);
+      value += premium * (3 + scarcityShare * 9);
+    }
     // K/DST remain draftable and ranked within their positions, but their
     // high replacement availability means they should not enter early-round
     // cross-position Model territory in standard formats.
@@ -1465,7 +1663,16 @@
     const grade = playerGrade(player);
     const market_value = marketValueScore(player, context);
     const league_value = leagueValueScore(player, context);
-    const pickUtility = Math.round(raw);
+    const lateRound = lateRoundValueScore(player, context);
+    const progress = clamp01(
+      (numeric(context.round, 1) - 1) / Math.max(1, numeric(context.totalRounds, 16) - 1),
+    );
+    const diamondBonus = lateRound.eligible
+      ? Math.max(-3, Math.min(6, (lateRound.score - 50) * 0.12)) *
+        progress *
+        (lateRound.confidence / 100)
+      : 0;
+    const pickUtility = Math.round(clamp(raw + diamondBonus));
     return {
       score: pickUtility,
       pickUtility,
@@ -1473,6 +1680,8 @@
       marketValue: Math.round(market_value),
       leagueValue: Math.round(league_value),
       confidence: Math.round(confidence),
+      lateRound,
+      diamondBonus: Math.round(diamondBonus * 10) / 10,
       components,
       weights: effectiveWeights,
     };
@@ -1572,6 +1781,8 @@
     enrichPlayers,
     explainPick,
     leagueValueScore,
+    lateRoundValueScore,
+    leagueAdjustedProjectedPoints,
     marketValueScore,
     mergeSupplementalPositions,
     normalizeName,
@@ -1579,6 +1790,7 @@
     opportunityCost,
     playerGrade,
     playerKey,
+    projectionCoverageContract,
     roundAdjustedWeights,
     rosterCounts,
     rosterNeedState,

@@ -27,11 +27,19 @@ SEASON = int(os.environ.get("NFL_SEASON", date.today().year))
 SCORING = os.environ.get("FANTASY_SCORING", "HALF").upper()
 POSITIONS = ["ALL", "QB", "RB", "WR", "TE", "K", "DST"]
 MINIMUM_RANKINGS = {
-    "OVERALL": 100,
-    "QB": 20,
-    "RB": 30,
-    "WR": 40,
-    "TE": 20,
+    "OVERALL": 240,
+    "QB": 32,
+    "RB": 72,
+    "WR": 84,
+    "TE": 32,
+    "K": 20,
+    "DST": 20,
+}
+MINIMUM_PROJECTIONS = {
+    "QB": 32,
+    "RB": 72,
+    "WR": 84,
+    "TE": 32,
     "K": 20,
     "DST": 20,
 }
@@ -81,6 +89,48 @@ def compact_ranking(player: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def compact_projection(player: dict[str, Any], fallback_position: str) -> dict[str, Any] | None:
+    stats_raw = player.get("stats") or {}
+    stats = stats_raw[0] if isinstance(stats_raw, list) and stats_raw else stats_raw
+    if not isinstance(stats, dict):
+        stats = {}
+    point_fields = {
+        key: round(float(stats[key]), 2)
+        for key in ("points", "points_half", "points_ppr")
+        if stats.get(key) is not None
+    }
+    if not point_fields:
+        return None
+    # Preserve the numeric stat line so custom league scoring and TE premium
+    # can be calculated locally instead of treating half-PPR points as universal.
+    numeric_stats: dict[str, float] = {}
+    for key, value in stats.items():
+        if key in point_fields:
+            continue
+        try:
+            numeric_stats[str(key)] = round(float(value), 3)
+        except (TypeError, ValueError):
+            continue
+    preferred = (
+        point_fields.get("points_half")
+        if SCORING == "HALF"
+        else point_fields.get("points_ppr")
+        if SCORING == "PPR"
+        else point_fields.get("points")
+    )
+    if preferred is None:
+        preferred = next(iter(point_fields.values()))
+    return {
+        "player_id": player.get("fpid") or player.get("player_id"),
+        "name": player.get("name") or player.get("player_name"),
+        "team": player.get("team_id") or "",
+        "position": player.get("position_id") or fallback_position,
+        "projected_points": round(float(preferred), 1),
+        **point_fields,
+        "stats": numeric_stats,
+    }
+
+
 def fetch_rankings() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
     rankings: dict[str, list[dict[str, Any]]] = {}
     metadata: dict[str, Any] = {}
@@ -122,26 +172,9 @@ def fetch_projections() -> dict[str, list[dict[str, Any]]]:
                     {"position": position, "week": 0, "scoring": SCORING},
                 )
                 for player in payload.get("players", []):
-                    stats_raw = player.get("stats") or {}
-                    stats = stats_raw[0] if isinstance(stats_raw, list) and stats_raw else stats_raw
-                    points = (
-                        stats.get("points_half")
-                        if SCORING == "HALF"
-                        else stats.get("points_ppr")
-                        if SCORING == "PPR"
-                        else stats.get("points")
-                    )
-                    if points is not None:
-                        rows.append(
-                            {
-                                "player_id": player.get("fpid") or player.get("player_id"),
-                                "name": player.get("name") or player.get("player_name"),
-                                "team": player.get("team_id") or "",
-                                "position": player.get("position_id") or position,
-                                "projected_points": round(float(points), 1),
-                                "points_half": round(float(stats.get("points_half", points)), 1),
-                            }
-                        )
+                    compact = compact_projection(player, position)
+                    if compact and compact.get("name"):
+                        rows.append(compact)
                 if rows:
                     break
             except Exception as error:  # pragma: no cover - network behavior
@@ -205,6 +238,16 @@ def validate_snapshot(snapshot: dict[str, Any]) -> None:
             raise ValueError(f"{key} contains a missing rank")
         if len({row.get("name") for row in rows}) != len(rows):
             raise ValueError(f"{key} contains duplicate player names")
+    projections = snapshot.get("projections") or {}
+    for key, minimum in MINIMUM_PROJECTIONS.items():
+        rows = projections.get(key, [])
+        if len(rows) < minimum:
+            raise ValueError(
+                f"{key} projection count {len(rows)} is below draftable-player minimum {minimum}"
+            )
+        names = [row.get("name") for row in rows]
+        if any(not name for name in names) or len(set(names)) != len(names):
+            raise ValueError(f"{key} projections contain missing or duplicate player names")
 
 
 def atomic_write(snapshot: dict[str, Any], output: Path = OUTPUT) -> None:

@@ -6,6 +6,8 @@ const path = require('node:path');
 const route = fs.readFileSync(path.join(__dirname, '..', 'draft.html'), 'utf8');
 const room = fs.readFileSync(path.join(__dirname, '..', 'draft-room-v5.html'), 'utf8');
 const iosRuntime = fs.readFileSync(path.join(__dirname, '..', 'js', 'draft-room-ios-v5.js'), 'utf8');
+const sleeperRuntime = fs.readFileSync(path.join(__dirname, '..', 'js', 'draft-room-sleeper-v6.js'), 'utf8');
+const sleeperStyles = fs.readFileSync(path.join(__dirname, '..', 'css', 'draft-room-sleeper-v6.css'), 'utf8');
 const runtime = fs.readFileSync(path.join(__dirname, '..', 'js', 'mock-draft-v4.js'), 'utf8');
 const leagueSwitcher = fs.readFileSync(path.join(__dirname, '..', 'js', 'league-switcher.js'), 'utf8');
 
@@ -31,7 +33,7 @@ for (const id of requiredIds) {
 }
 
 assert.match(room, /Front Office recommendation/, 'recommendation must be a primary visual surface');
-assert.match(room, /Search available players/, 'player search must be immediately visible');
+assert.match(room, /Search players/, 'player search must be immediately visible');
 assert.match(room, /Expand board/, 'board must support compact/expanded modes');
 assert.match(room, /data-pos="FLEX"/, 'quick position filters must include FLEX');
 assert.match(room, /My Team/, 'roster must be a first-class navigation surface');
@@ -41,9 +43,16 @@ assert.match(room, /js\/draft-calibration\.js/, 'room must load bounded local hi
 assert.match(room, /js\/mock-draft-v4\.js/, 'room must use validated draft-state engine');
 assert.match(room, /css\/draft-room-ios-v5\.css/, 'room must load the iOS-first responsive stylesheet');
 assert.match(room, /js\/draft-room-ios-v5\.js/, 'room must load the bounded iOS interaction helper');
+assert.match(room, /css\/draft-room-sleeper-v6\.css/, 'room must load the Sleeper-inspired responsive hierarchy');
+assert.match(room, /js\/draft-room-sleeper-v6\.js/, 'room must load the bounded draft-room navigation enhancement');
+assert.match(room, /id="desktop-queue"/, 'desktop draft room must keep the queue visible');
+assert.match(room, /class="player-columns"/, 'desktop player pool must expose table-style scouting columns');
 assert.doesNotMatch(room, /<iframe/i, 'room must not introduce nested iframes');
 
 assert.doesNotMatch(iosRuntime, /MutationObserver/, 'iOS helper must not use recursive DOM observation');
+assert.doesNotMatch(sleeperRuntime, /MutationObserver/, 'v6 UI helper must not observe or rewrite dynamic draft state');
+assert.match(sleeperStyles, /grid-template-columns:\s*minmax\(660px,1fr\) 330px/, 'desktop room must reserve a persistent queue and roster rail');
+assert.match(runtime, /function renderDesktopQueue\(/, 'queue rail must be rendered from canonical draft state');
 assert.match(runtime, /function approximateSurvival\(/, 'live board must use a cheap survival estimate');
 assert.match(runtime, /function survival\(player, runs = 5\)/, 'full Monte Carlo survival must be bounded');
 assert.match(runtime, /equityFor\(player, false\)/, 'scrolling player board must avoid full Monte Carlo for every row');

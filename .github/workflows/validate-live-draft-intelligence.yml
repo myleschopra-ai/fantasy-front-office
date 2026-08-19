@@ -6,17 +6,25 @@ on:
     paths:
       - 'auction.html'
       - 'js/auction-intelligence.js'
+      - 'js/auction-mock-engine.js'
+      - 'js/auction-room.js'
       - 'js/backtest-intelligence.js'
       - 'js/draft-intelligence.js'
       - 'js/mock-draft-v4.js'
       - 'scripts/refresh_fantasypros.py'
       - 'scripts/build_draft_intelligence.py'
+      - 'scripts/open_projection_engine.py'
+      - 'scripts/backtest_open_projections.py'
+      - 'scripts/collectors/nflverse.py'
+      - 'scripts/collectors/sleeper_players.py'
       - 'scripts/validate_draft_intelligence.py'
       - 'scripts/validate_live_draft_board.js'
       - 'scripts/validate_live_draft_board_v2.js'
       - 'scripts/validate_live_auction_board.js'
+      - 'scripts/validate_auction_mock_formats.js'
       - 'tests/draft-intelligence.test.js'
       - 'tests/auction-intelligence.test.js'
+      - 'tests/auction-mock-engine.test.js'
       - 'tests/backtest-intelligence.test.js'
       - '.github/workflows/validate-live-draft-intelligence.yml'
   workflow_dispatch:
@@ -52,11 +60,19 @@ jobs:
       - name: Run auction draft engine regression tests
         run: node tests/auction-intelligence.test.js
 
+      - name: Run league-wide auction mock regression tests
+        run: node tests/auction-mock-engine.test.js
+
       - name: Run hardened backtest metric tests
         run: node tests/backtest-intelligence.test.js
 
       - name: Run Python regression tests
         run: python -m unittest discover -s tests
+
+      - name: Collect free open player and historical data
+        run: |
+          python scripts/collectors/nflverse.py --seasons 2023 2024 2025
+          python scripts/collectors/sleeper_players.py
 
       - name: Verify FantasyPros credential is configured
         shell: bash
@@ -76,7 +92,8 @@ jobs:
         if: steps.fantasypros_refresh.outcome != 'success'
         run: |
           echo 'Direct FantasyPros refresh did not produce a production-complete snapshot.'
-          echo 'Continuing with the full live aggregate path (nflreadpy FantasyPros ECR + FantasyCalc + configured sources).'
+          echo 'Ranking aggregation will continue using the explicitly labeled open nflverse projection model.'
+          echo 'A top-player sample is not accepted as coverage for middle- and late-round valuation.'
 
       - name: Build fresh full draft intelligence
         run: python scripts/build_draft_intelligence.py --season "$NFL_SEASON" --teams 12
@@ -84,17 +101,24 @@ jobs:
       - name: Validate draft-intelligence snapshot
         run: python scripts/validate_draft_intelligence.py data/draft_intelligence.json
 
+      - name: Run no-lookahead open projection backtest
+        run: python scripts/backtest_open_projections.py --strict
+
       - name: Run real-data snake ranking and behavior gates
         run: node scripts/validate_live_draft_board_v2.js --strict --output-dir=reports
 
       - name: Run real-data auction economy and behavior gates
         run: node scripts/validate_live_auction_board.js --strict --output-dir=reports
 
+      - name: Run complete multi-format auction simulations
+        run: node scripts/validate_auction_mock_formats.js --strict --output-dir=reports
+
       - name: Show human-readable validation reports
         if: always()
         run: |
           if [ -f reports/draft_validation_current.md ]; then cat reports/draft_validation_current.md; fi
           if [ -f reports/auction_validation_current.md ]; then cat reports/auction_validation_current.md; fi
+          if [ -f reports/auction_mock_validation.md ]; then cat reports/auction_mock_validation.md; fi
 
       - name: Upload live validation evidence
         if: always()
@@ -106,8 +130,13 @@ jobs:
             reports/draft_validation_current.md
             reports/auction_validation_current.json
             reports/auction_validation_current.md
+            reports/auction_mock_validation.json
+            reports/auction_mock_validation.md
+            reports/open_projection_backtest.json
             fantasypros.json
             data/draft_intelligence.json
+            data/raw/nflverse/manifest.json
+            data/raw/sleeper/manifest.json
           if-no-files-found: warn
 
   historical-backtest:

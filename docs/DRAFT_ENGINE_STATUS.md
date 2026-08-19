@@ -1,12 +1,12 @@
 # Draft Engine Status
 
-Status date: 2026-08-12
+Status date: 2026-08-17
 
 ## Production verdict
 
 - Snake draft decision engine: **PRODUCTION — READ ONLY**
-- Auction draft decision engine: **PRODUCTION — MANUAL ROOM INPUT**
-- Draft Room v5: **PROMOTED TO `main`**
+- Auction draft decision engine + full CPU mock: **PRODUCTION CANDIDATE — BROWSER-TESTED**
+- Draft Room v5 engine + Sleeper-inspired v6 interface: **PRODUCTION CANDIDATE**
 - Session restore and confirmed Sleeper pick reconciliation: **BROWSER-TESTED**
 
 The limitation is data-source access, not a failing ranking or auction-economy gate: the configured direct FantasyPros API feed is legacy/sample-limited. Full-board validation therefore uses the repository's live aggregate path (`nflreadpy` FantasyPros ECR + FantasyCalc + configured sources).
@@ -80,6 +80,12 @@ Implemented behavior includes:
 - purchase-state tracking
 - endgame budget protection
 - K/DST low-cap treatment
+- rotating nominations and four CPU bidding strategies
+- every-team roster assignment with FLEX/Superflex legality
+- complete-auction simulation, unique-player enforcement, and nonnegative budgets
+- league-wide draft board, recent sales, user decisions, and manual companion mode
+- checksummed reload/resume of every roster, sale, nomination, and budget
+- iPhone/iPad safe-area layout, 44px touch targets, and Safari zoom protection
 
 Fresh 2026 acceptance results for a 12-team, $200 auction:
 
@@ -90,6 +96,11 @@ Fresh 2026 acceptance results for a 12-team, $200 auction:
 - current K/DST maximum intrinsic price in validation: $1 / $1
 - second elite QB max bid: 1QB $15 -> Superflex $38
 - strict real-data auction gate: PASS
+- complete 1QB auction: 192/192 purchases, 12 legal rosters, 0 CPU ceiling overpays
+- complete Superflex auction: 192/192 purchases, 12 legal rosters, 0 CPU ceiling overpays
+- complete 3WR auction: 204/204 purchases, 12 legal rosters, 0 CPU ceiling overpays
+- complete TE-premium auction: 192/192 purchases, 12 legal rosters, 0 CPU ceiling overpays
+- TE-premium top-8 TE price: $17.7 -> $23.4
 
 ## Benchmark and regression protection
 
@@ -109,13 +120,19 @@ CI now runs:
 12. provider normalization and sensitive-field rejection
 13. confirmed-only Sleeper live-draft browser reconciliation, reload, and conflict fail-closed checks
 14. archived-draft comparison filters and auction uncertainty browser flows
+15. desktop/mobile draft-room layout, canonical queue synchronization, and horizontal-overflow checks
+16. complete multi-format auction simulations with CPU bid-ceiling audits
+17. desktop/iPhone/iPad auction interaction, completion, touch-target, and overflow checks
+18. draftable-player projection contracts by position and depth band, including an explicit rejection of top-50-only samples
+19. bounded late-round Diamond scoring using market discount, source evidence, projections, team environment, pedigree, and age curve
 
 The hardened benchmark helper compares top-N results by player identity, detects duplicate keys, handles tied ranks with average ranks, and excludes missing outcomes instead of coercing them to zero.
 
 ## Known limitations / next production gates
 
-- Full direct FantasyPros production API access is not configured; the aggregate source path remains the validated source of truth.
+- The configured FantasyPros key currently returns sample-depth data rather than a production-complete player projection set. Projected-point mode now requires at least QB 32, RB 72, WR 84, TE 32, K 20, and DST 20 direct season projections, with at least 95% direct coverage through ranks 51–200. The UI and CPU engine stay on the labeled format-value fallback until every enabled-position gate passes.
 - League-specific auction clearing-price calibration improves when actual historical purchases are supplied; without them, manager-specific price tendencies remain generic.
+- The current snapshot has incomplete season-projection coverage. Until production API access provides the required depth, CPU roster optimization uses calibrated format-specific League Value as the starter-success proxy. Late-round Diamond signals remain confidence-capped without a direct projection and can add no more than six Draft Fit points at the end of the draft.
 - Sleeper live sync is read-only and never submits selections. Live auction ingestion is not implemented.
 - Yahoo production activation remains subject to application approval, HTTPS deployment, and durable server-side sessions.
 - ESPN is limited to the safe normalized import boundary. Authenticated live sync is not labeled supported because this deployment has no supported public ESPN fantasy OAuth/API contract.
@@ -126,6 +143,8 @@ The hardened benchmark helper compares top-N results by player identity, detects
 - `js/draft-intelligence.js`
 - `js/mock-draft-v4.js`
 - `js/auction-intelligence.js`
+- `js/auction-mock-engine.js`
+- `js/auction-room.js`
 - `js/draft-review.js`
 - `js/draft-calibration.js`
 - `js/provider-contract.js`
@@ -136,8 +155,11 @@ The hardened benchmark helper compares top-N results by player identity, detects
 - `auction.html`
 - `scripts/validate_live_draft_board_v2.js`
 - `scripts/validate_live_auction_board.js`
+- `scripts/validate_auction_mock_formats.js`
 - `tests/draft-intelligence.test.js`
 - `tests/auction-intelligence.test.js`
+- `tests/auction-mock-engine.test.js`
+- `tests/auction-mock-e2e.mjs`
 - `tests/backtest-intelligence.test.js`
 - `.github/workflows/validate-live-draft-intelligence.yml`
 - `.github/workflows/validate-draft-learning.yml`

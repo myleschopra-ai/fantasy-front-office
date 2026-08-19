@@ -127,6 +127,33 @@
   }
 
   function normalizeAuctionPayload(payload = {}) {
+    const rawMock = payload.mockState && typeof payload.mockState === 'object' ? payload.mockState : null;
+    const mockTeams = {};
+    if (rawMock?.teams && typeof rawMock.teams === 'object') {
+      Object.entries(rawMock.teams).forEach(([key, team]) => {
+        if (!team || typeof team !== 'object') return;
+        const id = String(team.id ?? key);
+        mockTeams[id] = {
+          id,
+          name: String(team.name || `Team ${id}`),
+          remainingBudget: Number(team.remainingBudget),
+          slotsLeft: Number(team.slotsLeft),
+          roster: Array.isArray(team.roster) ? team.roster : [],
+          strategy: team.strategy || 'balanced',
+        };
+      });
+    }
+    const mockState = rawMock ? {
+      version: Number(rawMock.version || 1),
+      userTeamId: String(rawMock.userTeamId || '1'),
+      teams: mockTeams,
+      draftedKeys: Array.isArray(rawMock.draftedKeys) ? rawMock.draftedKeys.map(String) : [],
+      purchases: Array.isArray(rawMock.purchases) ? rawMock.purchases : [],
+      nominationIndex: Number(rawMock.nominationIndex || 0),
+      nomination: rawMock.nomination && typeof rawMock.nomination === 'object' ? rawMock.nomination : null,
+      status: String(rawMock.status || 'READY'),
+      seed: Number(rawMock.seed || 17),
+    } : null;
     return {
       version: SCHEMA_VERSION,
       leagueId: payload.leagueId || payload.league_id || null,
@@ -140,6 +167,7 @@
       sold: Array.isArray(payload.sold) ? payload.sold : [],
       selectedKey: payload.selectedKey || null,
       nomination: payload.nomination || null,
+      mockState,
       sourceSnapshot: payload.sourceSnapshot || null,
       leagueSnapshot: payload.leagueSnapshot || payload.league_snapshot || null,
     };
@@ -179,6 +207,43 @@
       const id = playerIdentity(player);
       if (id && !soldKeys.has(id)) issues.push(`Roster player ${id} is missing from canonical sold history`);
     });
+
+    if (p.mockState) {
+      const mock = p.mockState;
+      const teamIds = Object.keys(mock.teams);
+      if (!teamIds.length) issues.push('Auction mock has no teams');
+      if (!mock.teams[mock.userTeamId]) issues.push('Auction mock user team is missing');
+      if (!Number.isInteger(mock.nominationIndex) || mock.nominationIndex < 0) issues.push('Auction mock has invalid nomination index');
+      const rosterPlayers = new Set();
+      teamIds.forEach((teamId) => {
+        const team = mock.teams[teamId];
+        if (!Number.isFinite(team.remainingBudget) || team.remainingBudget < 0) issues.push(`${teamId}: invalid auction mock budget`);
+        if (!Number.isInteger(team.slotsLeft) || team.slotsLeft < 0) issues.push(`${teamId}: invalid auction mock slot count`);
+        team.roster.forEach((player) => {
+          const id = playerIdentity(player);
+          if (!id) issues.push(`${teamId}: roster player has no canonical player ID`);
+          else if (rosterPlayers.has(id)) issues.push(`Auction mock player ${id} appears on multiple rosters`);
+          else rosterPlayers.add(id);
+        });
+      });
+      const purchasePlayers = new Set();
+      mock.purchases.forEach((purchase, index) => {
+        const id = playerIdentity(purchase?.player || purchase);
+        const teamId = String(purchase?.teamId || '');
+        if (!id) issues.push(`Auction mock purchase ${index + 1} has no canonical player ID`);
+        else if (purchasePlayers.has(id)) issues.push(`Auction mock player ${id} purchased more than once`);
+        else purchasePlayers.add(id);
+        if (!mock.teams[teamId]) issues.push(`Auction mock purchase ${index + 1} references unknown team ${teamId || '(empty)'}`);
+        if (!(Number(purchase?.price) >= p.minBid)) issues.push(`Auction mock purchase ${index + 1} has invalid price`);
+      });
+      const drafted = new Set(mock.draftedKeys);
+      if (drafted.size !== mock.draftedKeys.length) issues.push('Auction mock drafted player list contains duplicates');
+      if (purchasePlayers.size !== rosterPlayers.size || purchasePlayers.size !== drafted.size) issues.push('Auction mock purchase, roster, and drafted totals disagree');
+      purchasePlayers.forEach((id) => {
+        if (!rosterPlayers.has(id) || !drafted.has(id)) issues.push(`Auction mock purchase ${id} is not reconciled across state`);
+      });
+      if (mock.purchases.length !== p.sold.length) issues.push('Auction mock purchases do not reconcile with sold history');
+    }
     return { valid: issues.length === 0, issues, payload: p };
   }
 

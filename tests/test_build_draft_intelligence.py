@@ -1,9 +1,11 @@
 import importlib.util
 import pathlib
 import unittest
+import sys
 
 
 MODULE_PATH = pathlib.Path(__file__).parents[1] / "scripts" / "build_draft_intelligence.py"
+sys.path.insert(0, str(MODULE_PATH.parent))
 SPEC = importlib.util.spec_from_file_location("draft_builder", MODULE_PATH)
 builder = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
@@ -98,6 +100,76 @@ class DraftIntelligenceBuilderTests(unittest.TestCase):
         self.assertLessEqual(fit["score"], 100)
         self.assertLess(fit["confidence"], 80)
         self.assertTrue(any("new offensive staff" in reason for reason in fit["reasons"]))
+
+    def test_projection_coverage_rejects_top_fifty_only_board(self):
+        players = []
+        for position, minimum in builder.DRAFTABLE_PROJECTION_MINIMUMS.items():
+            for index in range(minimum):
+                players.append(
+                    {
+                        "name": f"{position} Player {index}",
+                        "position": position,
+                        "overall_rank": len(players) + 1,
+                        "projected_points": 300 - index,
+                    }
+                )
+        complete = builder.projection_coverage(players)
+        self.assertEqual(complete["status"], "complete")
+        for player in players[50:]:
+            player.pop("projected_points")
+        shallow = builder.projection_coverage(players)
+        self.assertEqual(shallow["status"], "incomplete")
+        self.assertLess(shallow["depth_bands"]["late_121_200"]["coverage"], 1)
+
+    def test_attach_projections_respects_scoring_format(self):
+        projections = {
+            "example receiver|WR": {
+                "name": "Example Receiver",
+                "position": "WR",
+                "points": 120,
+                "points_half": 150,
+                "points_ppr": 180,
+                "stats": {"rec": 60},
+            }
+        }
+        players = [{"name": "Example Receiver", "position": "WR"}]
+        builder.attach_projections(players, projections, {"scoring": "HALF"}, {"ppr": 1.0})
+        self.assertEqual(players[0]["projected_points"], 180)
+        self.assertEqual(players[0]["projection_ppr"], 1.0)
+        self.assertEqual(players[0]["projection_source"], "fantasypros_api")
+        self.assertEqual(players[0]["projection_mode"], "DIRECT_PROJECTION")
+
+    def test_open_model_projections_are_complete_but_not_mislabeled_direct(self):
+        players = []
+        for position, minimum in builder.DRAFTABLE_PROJECTION_MINIMUMS.items():
+            for index in range(minimum):
+                players.append({
+                    "name": f"{position} Player {index}",
+                    "position": position,
+                    "overall_rank": len(players) + 1,
+                    "projected_points": 250 - index,
+                    "projection_mode": "OPEN_MODEL_PROJECTION",
+                })
+        coverage = builder.projection_coverage(players)
+        self.assertEqual(coverage["status"], "complete")
+        self.assertEqual(coverage["direct_players"], 0)
+        self.assertEqual(coverage["open_model_players"], len(players))
+
+    def test_sleeper_candidates_fill_and_survive_positional_pool_floor(self):
+        players = []
+        candidates = []
+        for position, minimum in builder.DRAFTABLE_PROJECTION_MINIMUMS.items():
+            for index in range(minimum):
+                candidates.append({
+                    "name": f"{position} Candidate {index}", "position": position,
+                    "team": "", "sleeper_id": f"{position}-{index}",
+                    "search_rank": index, "injury_status": None,
+                })
+        builder.ensure_draftable_depth(players, candidates)
+        selected = builder.select_draftable_pool(players, 320)
+        for position, minimum in builder.DRAFTABLE_PROJECTION_MINIMUMS.items():
+            self.assertGreaterEqual(sum(row["position"] == position for row in selected), minimum)
+        self.assertEqual([row["overall_rank"] for row in selected], list(range(1, len(selected) + 1)))
 
 
 if __name__ == "__main__":

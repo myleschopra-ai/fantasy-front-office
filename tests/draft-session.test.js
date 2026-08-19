@@ -95,6 +95,43 @@ const pick = (n, key) => ({ pick: n, pickNo: n, key, playerId: key, name: key, p
 })();
 
 (() => {
+  const player = { key: 'wr1', playerId: 'wr1', name: 'WR1', position: 'WR', price: 31 };
+  const payload = {
+    initialBudget: 200,
+    remainingBudget: 169,
+    slotsLeft: 1,
+    minBid: 1,
+    sold: [{ ...player, winner: 'me', teamId: '1' }],
+    myRoster: [player],
+    mockState: {
+      version: 1,
+      userTeamId: '1',
+      teams: {
+        1: { id: '1', name: 'My Team', remainingBudget: 169, slotsLeft: 1, roster: [player], strategy: 'balanced' },
+        2: { id: '2', name: 'Team 2', remainingBudget: 200, slotsLeft: 2, roster: [], strategy: 'value' },
+      },
+      draftedKeys: ['wr1'],
+      purchases: [{ teamId: '1', player, price: 31 }],
+      nominationIndex: 1,
+      nomination: null,
+      status: 'RUNNING',
+      seed: 29,
+    },
+  };
+  const storage = memoryStorage();
+  const saved = S.safeSave(storage, 'auction', 'auction', payload);
+  assert.ok(saved.ok, `auction mock save failed: ${(saved.issues || []).join(', ')}`);
+  const loaded = S.safeLoad(storage, 'auction', 'auction');
+  assert.ok(loaded.ok, `auction mock load failed: ${(loaded.issues || []).join(', ')}`);
+  assert.strictEqual(loaded.payload.mockState.purchases.length, 1);
+  assert.strictEqual(loaded.payload.mockState.teams['1'].roster[0].key, 'wr1');
+
+  const broken = structuredClone(payload);
+  broken.mockState.teams['2'].roster.push(player);
+  assert.ok(!S.validateAuctionSession(broken).valid, 'duplicate cross-team player must be rejected');
+})();
+
+(() => {
   const exported = S.diagnosticExport('snake', {
     teams: 12, slot: 1, rounds: 16, picks: [],
     sourceSnapshot: { api_key: 'secret-value', token: 'bearer-value', generated_at: 'now' },

@@ -1,4 +1,5 @@
 import { webkit, devices } from 'playwright';
+import { readFileSync } from 'node:fs';
 
 const base = process.env.DRAFT_SESSION_IOS_URL || 'http://127.0.0.1:4175/draft.html';
 const positions = ['WR','RB','WR','RB','QB','TE','K','DST'];
@@ -14,6 +15,11 @@ const market = Array.from({ length: 180 }, (_, index) => ({
   rank: index + 1,
   value: Math.max(100, 9000 - index * 45),
 }));
+const localJson = {
+  'draft_intelligence.json': readFileSync(new URL('../data/draft_intelligence.json', import.meta.url), 'utf8'),
+  'fantasypros.json': readFileSync(new URL('../fantasypros.json', import.meta.url), 'utf8'),
+  'scouting_signals.json': JSON.stringify({ schema_version: 1, players: {} }),
+};
 
 const browser = await webkit.launch({ headless: true });
 const profiles = [
@@ -32,6 +38,10 @@ try {
       contentType: 'application/json',
       body: JSON.stringify(market),
     }));
+    await page.route(/\/(draft_intelligence|fantasypros|scouting_signals)\.json(?:\?.*)?$/, route => {
+      const filename = new URL(route.request().url()).pathname.split('/').pop();
+      return route.fulfill({ status: 200, contentType: 'application/json', body: localJson[filename] });
+    });
 
     await page.goto(base, { waitUntil: 'domcontentloaded' });
     await page.waitForURL(/draft-room-v5\.html/, { timeout: 15000 });

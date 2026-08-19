@@ -123,13 +123,20 @@
 
   function positionDemandMultiplier(position, config) {
     const roster = config.league?.roster || {};
+    const scoring = config.league?.scoring || {};
     const flex = Math.max(0, numeric(roster.FLEX, 0));
     const sf = Math.max(0, numeric(roster.SUPER_FLEX ?? roster.SF, 0));
+    const tePremium = Math.max(0, numeric(scoring.te_premium ?? scoring.tePremium ?? scoring.bonus_rec_te, 0));
     const explicit = Math.max(0, numeric(roster[position], 0));
     if (position === 'QB') return 1 + sf * 0.55 + Math.max(0, explicit - 1) * 0.45;
-    if (position === 'WR') return 1 + Math.max(0, explicit - 2) * 0.14 + flex * 0.035;
+    // A third required WR increases league-wide starting demand by 50%.
+    // Apply diminishing-return elasticity instead of a small flat bump so
+    // that the scarce top of the position gains value while the fixed room
+    // budget still remains conserved.  sqrt(3 / 2) ~= 1.225; four-WR
+    // formats continue to rise, but do not receive a linear 2x premium.
+    if (position === 'WR') return Math.sqrt(Math.max(1, explicit / 2)) + flex * 0.035;
     if (position === 'RB') return 1 + Math.max(0, explicit - 2) * 0.12 + flex * 0.03;
-    if (position === 'TE') return 1 + Math.max(0, explicit - 1) * 0.12 + flex * 0.012;
+    if (position === 'TE') return 1 + Math.max(0, explicit - 1) * 0.12 + flex * 0.012 + tePremium * 0.18;
     if (position === 'K' || position === 'DST') return 0.035;
     return 1;
   }

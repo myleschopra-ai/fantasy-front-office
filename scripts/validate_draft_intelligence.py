@@ -87,6 +87,23 @@ def validate(path: Path, max_age_days: int = 7) -> list[str]:
             errors.append(f"{profile_id} overall ranks are not contiguous")
         if sum(1 for player in players[:120] if player.get("source_count", 0) >= 2) < 100:
             errors.append(f"{profile_id} has insufficient multi-source coverage in its top 120")
+        coverage = profiles[profile_id].get("projection_coverage") or {}
+        if coverage.get("status") != "complete":
+            errors.append(
+                f"{profile_id} does not have complete sourced projections for its draftable player pool"
+            )
+        for position, details in (coverage.get("by_position") or {}).items():
+            if not details.get("complete"):
+                errors.append(
+                    f"{profile_id} {position} projection depth is {details.get('eligible', details.get('direct', 0))}/{details.get('required', 0)}"
+                )
+        depth_bands = coverage.get("depth_bands") or {}
+        for band in ("middle_51_120", "late_121_200"):
+            details = depth_bands.get(band) or {}
+            if details.get("players", 0) and details.get("coverage", 0) < 0.95:
+                errors.append(
+                    f"{profile_id} {band} sourced projection coverage is below 95%"
+                )
 
     teams = payload.get("team_profiles") or {}
     if len(teams) < 28:

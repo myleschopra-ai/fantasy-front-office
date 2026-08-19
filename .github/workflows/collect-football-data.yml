@@ -38,11 +38,14 @@ jobs:
         run: python -m pip install -r requirements-data.txt
 
       - name: Validate collectors compile
-        run: python -m py_compile scripts/collectors/nflverse.py scripts/collectors/cfbd.py
+        run: python -m py_compile scripts/collectors/nflverse.py scripts/collectors/sleeper_players.py scripts/open_projection_engine.py scripts/collectors/cfbd.py
 
       - name: Collect nflverse datasets
         shell: bash
         run: python scripts/collectors/nflverse.py --seasons ${{ inputs.seasons }}
+
+      - name: Collect Sleeper player universe and trends
+        run: python scripts/collectors/sleeper_players.py
 
       - name: Collect CollegeFootballData datasets
         if: ${{ env.CFBD_API_KEY != '' }}

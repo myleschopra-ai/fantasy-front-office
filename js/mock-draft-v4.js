@@ -40,6 +40,7 @@
     recoveryIssues: [],
     recoveredSession: false,
     sourceHealth: null,
+    projectionCoverage: null,
     providerSyncStatus: ProviderSync ? ProviderSync.STATUS.IDLE : "IDLE",
     providerDraftId: null,
     providerDraft: null,
@@ -536,6 +537,8 @@
       superflex: isSuperflex(),
       poolSize: Math.max(1, state.players.length),
       survival,
+      players: state.players,
+      projectionCoverage: state.projectionCoverage,
     };
   }
 
@@ -552,8 +555,9 @@
     const baseAmplitude =
       state.variance === "low" ? 2 : state.variance === "high" ? 9 : 5;
     const pool = available(picks);
+    const round = Math.floor(picks.length / state.teams) + 1;
     const candidates = pool
-      .slice(0, 50)
+      .slice(0, round >= 7 ? 100 : round >= 5 ? 72 : 50)
       .map((player) => {
         // Scale randomness by real cross-source agreement (already computed
         // from actual rank spread across FantasyPros/FantasyCalc/FFC/etc in
@@ -1216,6 +1220,7 @@
     if (state.activeDraftTab === "board") renderBoard();
     if (state.activeDraftTab === "queue") renderQueue();
     if (state.activeDraftTab === "recommended") renderRecommended();
+    renderDesktopQueue();
   }
 
   function actionClass(actionText) {
@@ -1250,23 +1255,50 @@
       const newsNote = news && news.headline
         ? `<div class="detail-line" style="color:#94a3b8; margin-top:2px;">📰 ${esc(news.headline)}</div>`
         : "";
-      sleeperBlock = valueNote + newsNote;
+      const diamond = evaluation.lateRound;
+      const diamondNote = diamond?.label === "DIAMOND"
+        ? `<div class="detail-line" style="color:#fbbf24;">◆ Diamond ${diamond.score}/100 · ${diamond.confidence}% confidence</div>`
+        : diamond?.label === "WATCH"
+          ? `<div class="detail-line" style="color:#67e8f9;">Late watch ${diamond.score}/100 · ${diamond.confidence}% confidence</div>`
+          : "";
+      sleeperBlock = diamondNote + valueNote + newsNote;
     }
-    return `<div class="row compact-rec">
-      <button class="icon" data-queue-k="${esc(player.key)}" style="background:none;border:none;cursor:pointer;font-size:15px;color:${queued ? "#f5b942" : "#64748b"};" title="Toggle queue">★</button>
-      <div class="player-link" data-player="${esc(player.key)}" tabindex="0">
-        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-          <span class="action-badge ${actionClass(action)}">${action}</span>
-          <span class="action-badge ${needStateClass(needState)}">${esc(needState.label)}</span>
+    const overallRank = numeric(player.overallRank, player.rank);
+    const adp = numeric(player.adp, overallRank).toFixed(1);
+    const tier = numeric(player.tier, 99);
+    return `<div class="row compact-rec player-row pos-${String(player.position).toLowerCase()}">
+      <button class="icon queue-toggle ${queued ? "queued" : ""}" data-queue-k="${esc(player.key)}" title="${queued ? "Remove from" : "Add to"} queue" aria-label="${queued ? "Remove" : "Add"} ${esc(player.name)} ${queued ? "from" : "to"} queue" aria-pressed="${queued}">★</button>
+      <div class="player-link player-main" data-player="${esc(player.key)}" tabindex="0">
+        <div class="player-primary">
+          <span class="pos-pill pos-${String(player.position).toLowerCase()}">${esc(player.position)}</span>
           <span class="name">${esc(player.name)}</span>
-          <span class="meta">${player.position}${player.nflTeam ? ` · ${esc(player.nflTeam)}` : ""}</span>
+          <span class="meta">${player.nflTeam ? esc(player.nflTeam) : "FA"}</span>
         </div>
-        <div class="identity-line">Overall #${numeric(player.overallRank, player.rank)} · Pos #${numeric(player.posRank, 999)} · Tier ${numeric(player.tier, 99)} · ${evaluation.sv <= 35 ? "🔒 locked" : "⏳"} ${evaluation.sv}% survives</div>
-        <div class="detail-line">Score ${evaluation.score} · VBD ${Math.round(evaluation.components.vbd)} · Scheme ${Math.round(evaluation.components.scheme)} · Confidence ${evaluation.confidence}% · ${scarcity.sameTier} left in tier${cliff}</div>
+        <div class="player-signals"><span class="action-badge ${actionClass(action)}">${action}</span><span class="action-badge ${needStateClass(needState)}">${esc(needState.label)}</span><span class="detail-line">Score ${evaluation.score} · VBD ${Math.round(evaluation.components.vbd)} · ${scarcity.sameTier} left${cliff}</span></div>
         ${sleeperBlock}
       </div>
-      <button class="btn secondary" data-k="${esc(player.key)}">Draft</button>
+      <span class="player-stat"><small>Rank</small>${overallRank}</span>
+      <span class="player-stat"><small>ADP</small>${adp}</span>
+      <span class="player-stat"><small>Tier</small>${tier}</span>
+      <span class="player-stat"><small>Survives</small>${evaluation.sv}%</span>
+      <button class="btn secondary draft-player" data-k="${esc(player.key)}">Draft</button>
     </div>`;
+  }
+
+  function renderDesktopQueue() {
+    const target = $("desktop-queue");
+    const count = $("queue-count");
+    if (!target) return;
+    const entries = state.queue
+      .map((key) => state.players.find((player) => player.key === key))
+      .filter(Boolean)
+      .filter((player) => !state.picks.some((pick) => pick.key === player.key));
+    if (count) count.textContent = `${entries.length} player${entries.length === 1 ? "" : "s"}`;
+    target.innerHTML = entries.length
+      ? entries.map((player, index) => `<div class="queue-rail-row"><span class="queue-rail-rank">${index + 1}</span><div><div class="queue-rail-name player-link" data-player="${esc(player.key)}" tabindex="0">${esc(player.name)}</div><div class="queue-rail-meta">${esc(player.position)}${player.nflTeam ? ` · ${esc(player.nflTeam)}` : ""} · ADP ${numeric(player.adp, player.overallRank).toFixed(1)}</div></div><button class="queue-remove" data-queue-k="${esc(player.key)}" aria-label="Remove ${esc(player.name)} from queue" title="Remove from queue">★</button></div>`).join("")
+      : '<div class="queue-empty">Star a player to build your queue.</div>';
+    target.querySelectorAll("[data-queue-k]").forEach((button) => { button.onclick = () => toggleQueue(button.dataset.queueK); });
+    bindPlayerLinks();
   }
 
   function renderQueue() {
@@ -1317,8 +1349,16 @@
     if (!SourceHealth || !state.sourceHealth || !$("source")) return;
     const healthLabel = SourceHealth.label(state.sourceHealth);
     const profileLabel = state.intelProfile?.id || "no compatible profile";
-    $("source").textContent = `${healthLabel} · ${profileLabel} · ${state.players.length} players${state.marketLoaded ? " · live market" : " · cached consensus"}`;
-    $("source").title = state.sourceHealth.issues.join(" · ");
+    const projectionLabel = state.projectionCoverage?.complete
+      ? `complete projections (${state.projectionCoverage.directPlayers})`
+      : `projection fallback (${state.projectionCoverage?.directPlayers || 0}/${state.projectionCoverage?.poolPlayers || state.players.length})`;
+    $("source").textContent = `${healthLabel} · ${profileLabel} · ${state.players.length} players · ${projectionLabel}${state.marketLoaded ? " · live market" : " · cached consensus"}`;
+    const projectionIssues = state.projectionCoverage?.complete
+      ? []
+      : Object.entries(state.projectionCoverage?.byPosition || {})
+          .filter(([, row]) => !row.complete)
+          .map(([position, row]) => `${position} projections ${row.direct}/${row.required}`);
+    $("source").title = [...state.sourceHealth.issues, ...projectionIssues].join(" · ");
   }
 
   function render() {
@@ -1331,6 +1371,7 @@
     renderRoster();
     renderIntelligence();
     renderPicks();
+    renderDesktopQueue();
     renderDraftGrid();
     if (state.activeDraftTab === "team") renderTeamRoster();
     if (state.activeDraftTab === "selections") renderSelections();
@@ -1541,34 +1582,55 @@
         if (item.name && !state.newsByName[item.name]) state.newsByName[item.name] = item;
       });
     }
-    // Merge real projected points (fantasypros.json's projections, already
-    // fetched above) into player objects, then compute pool-wide VORP once.
-    // Falls back gracefully to the rank-based proxy in vbdScore() for any
-    // player without a matched projection — never crashes, never blocks.
+    // Merge direct season projections, then activate projected-point VORP
+    // only if the complete draftable-player contract passes. A top-10 sample
+    // is useful evidence for those players but is never allowed to masquerade
+    // as a complete cross-position valuation feed.
     if (fpResult.status === "fulfilled" && fpResult.value?.projections) {
       const projByName = {};
-      Object.values(fpResult.value.projections).forEach((list) => {
+      Object.entries(fpResult.value.projections).forEach(([position, list]) => {
         if (Array.isArray(list)) {
           list.forEach((row) => {
-            if (row.name) projByName[row.name] = row.projected_points ?? row.points_half;
+            if (row.name) projByName[`${D.normalizeName(row.name)}|${String(row.position || position).toUpperCase()}`] = row;
           });
         }
       });
       state.players.forEach((player) => {
-        const points = projByName[player.name];
-        if (points != null) player.projectedPoints = points;
+        const row = projByName[`${D.normalizeName(player.name)}|${player.position}`];
+        const points = row?.projected_points ?? row?.points_half;
+        if (points != null) {
+          player.projectedPoints = points;
+          player.projectionSource = "fantasypros_api";
+          player.projectionConfidence = 95;
+          player.projectionStats = row.stats || null;
+          const snapshotScoring = String(fpResult.value.scoring || "HALF").toUpperCase();
+          player.projectionPpr = snapshotScoring === "PPR" ? 1 : snapshotScoring === "HALF" ? 0.5 : 0;
+        }
       });
-      const vbdContext = {
-        teams: state.teams,
-        league: state.activeLeague || DEFAULT_LEAGUE,
-        targets: targets(),
-      };
+    }
+    state.players.forEach((player) => {
+      if (numeric(player.projectedPoints, null) == null) return;
+      player.rawProjectedPoints = numeric(player.rawProjectedPoints, player.projectedPoints);
+      player.projectedPoints = D.leagueAdjustedProjectedPoints(
+        player,
+        state.activeLeague || DEFAULT_LEAGUE,
+      );
+    });
+    const vbdContext = {
+      teams: state.teams,
+      league: state.activeLeague || DEFAULT_LEAGUE,
+      targets: targets(),
+    };
+    state.projectionCoverage = D.projectionCoverageContract(state.players, vbdContext);
+    if (state.projectionCoverage.complete) {
       const vbdPercentiles = D.computeVBDPercentiles(state.players, vbdContext);
       state.players.forEach((player) => {
         if (vbdPercentiles[player.key] != null) {
           player.vbdPercentileScore = vbdPercentiles[player.key];
         }
       });
+    } else {
+      state.players.forEach((player) => { delete player.vbdPercentileScore; });
     }
     rehydratePicks();
     state.survivalCache.clear();

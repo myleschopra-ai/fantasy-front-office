@@ -252,6 +252,76 @@ assert.deepEqual(
   'partial projections that do not reach replacement level across QB/RB/WR/TE must fail closed instead of mixing true VORP with rank proxies',
 );
 
+// Draftable-player projection contract: top-50 coverage is never enough.
+const completeProjectionPool = [];
+for (const [position, count] of Object.entries({ QB: 32, RB: 72, WR: 84, TE: 32 })) {
+  for (let index = 0; index < count; index += 1) {
+    completeProjectionPool.push({
+      key: `${position}-${index}`,
+      name: `${position} Projection ${index}`,
+      position,
+      overallRank: completeProjectionPool.length + 1,
+      projectedPoints: 350 - index,
+      projectionSource: 'fantasypros_api',
+    });
+  }
+}
+const coverageContext = {
+  teams: 12,
+  league: { roster: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 2, BENCH: 6 } },
+};
+const completeCoverage = D.projectionCoverageContract(completeProjectionPool, coverageContext);
+assert.equal(completeCoverage.complete, true, 'full positional depth must activate projected-points mode');
+const openModelCoverage = D.projectionCoverageContract(
+  completeProjectionPool.map((player) => ({ ...player, projectionMode: 'OPEN_MODEL_PROJECTION', projectionSource: 'open_nflverse_model' })),
+  coverageContext,
+);
+assert.equal(openModelCoverage.complete, true, 'full open-model depth must activate projected-points mode');
+assert.equal(openModelCoverage.directPlayers, 0, 'open estimates must not be mislabeled as direct vendor projections');
+assert.equal(openModelCoverage.openModelPlayers, completeProjectionPool.length);
+const shallowProjectionPool = completeProjectionPool.map((player, index) =>
+  index < 50 ? player : { ...player, projectedPoints: null, projectionSource: null },
+);
+const shallowCoverage = D.projectionCoverageContract(shallowProjectionPool, coverageContext);
+assert.equal(shallowCoverage.complete, false, 'top-50-only projections must fail the draftable-player contract');
+assert.ok(shallowCoverage.depthBands.late.coverage < 0.95, 'late-round coverage must be measured explicitly');
+
+const lateDiamond = {
+  key: 'late-diamond', name: 'Late Diamond', position: 'WR', overallRank: 140,
+  adp: 175, sourceRanks: { sourceA: 100, sourceB: 138, sourceC: 145 },
+  sourceCount: 3, agreement: 80, projectedPoints: 175,
+  projectionSource: 'fantasypros_api', projectionConfidence: 95,
+  vbdPercentileScore: 70, schemeFit: { score: 70, confidence: 70 },
+  pedigreeScore: 70, ageCurveScore: 70, tier: 7, consensusScore: 52,
+};
+const diamondProfile = D.lateRoundValueScore(lateDiamond, { teams: 12, round: 11, totalRounds: 16 });
+assert.equal(diamondProfile.label, 'DIAMOND', 'a multi-source late value with projection and market discount must be identified');
+const earlyDiamondScore = D.scorePlayer(lateDiamond, {
+  ...coverageContext, round: 2, totalRounds: 16, poolSize: 250, survival: 50,
+  picks: [], counts: {}, targets: D.starterTargets(coverageContext.league),
+});
+const lateDiamondScore = D.scorePlayer(lateDiamond, {
+  ...coverageContext, round: 11, totalRounds: 16, poolSize: 250, survival: 50,
+  picks: [], counts: {}, targets: D.starterTargets(coverageContext.league),
+});
+assert.ok(lateDiamondScore.diamondBonus > earlyDiamondScore.diamondBonus, 'diamond influence must rise late instead of causing an early reach');
+assert.ok(lateDiamondScore.diamondBonus <= 6, 'diamond influence must remain bounded');
+
+const teProjection = {
+  name: 'Volume TE', position: 'TE', projectedPoints: 180, rawProjectedPoints: 180,
+  projectionPpr: 0.5, projectionStats: { rec: 80 },
+};
+assert.equal(
+  D.leagueAdjustedProjectedPoints(teProjection, { scoring: { reception: 1, te_premium: 0.5 } }),
+  260,
+  'custom PPR and TE premium must be applied from the projection stat line',
+);
+assert.equal(
+  D.leagueAdjustedProjectedPoints(teProjection, { scoring: { reception: 0, te_premium: 0 } }),
+  140,
+  'standard scoring must remove the half-PPR reception component from the source projection',
+);
+
 // Complete projection fixture: raw points-over-replacement must be comparable
 // ACROSS positions, not re-normalized so every positional No. 1 equals 100.
 const completeVorpPool = [];

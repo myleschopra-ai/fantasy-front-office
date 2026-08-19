@@ -64,7 +64,7 @@ try {
     if (!cssLoaded.turnVisible) throw new Error(`${profile.name}: centered turn state is hidden`);
 
     const navLabels = await page.locator('.nav-btn').allTextContents();
-    const expectedNav = ['Players','Queue','Team','Board','Picks'];
+    const expectedNav = ['Players','Queue','My Team','Board','Picks'];
     if (navLabels.length < expectedNav.length || expectedNav.some((label, i) => navLabels[i]?.trim() !== label)) {
       throw new Error(`${profile.name}: navigation labels mismatch (${navLabels.join(' / ')})`);
     }

@@ -9,10 +9,16 @@ on:
       - 'draft.html'
       - 'draft-room-v2.html'
       - 'draft-room-v3.html'
+      - 'draft-room-v5.html'
+      - 'css/draft-room-sleeper-v6.css'
+      - 'js/draft-room-sleeper-v6.js'
       - 'js/draft-room-polish.js'
       - 'js/league-switcher.js'
       - 'js/mock-draft-v4.js'
       - 'auction.html'
+      - 'css/auction-room-v2.css'
+      - 'js/auction-room.js'
+      - 'js/auction-mock-engine.js'
       - 'tests/draft-ui.test.js'
       - '.github/workflows/validate-draft-ui.yml'
   pull_request:
@@ -20,10 +26,16 @@ on:
       - 'draft.html'
       - 'draft-room-v2.html'
       - 'draft-room-v3.html'
+      - 'draft-room-v5.html'
+      - 'css/draft-room-sleeper-v6.css'
+      - 'js/draft-room-sleeper-v6.js'
       - 'js/draft-room-polish.js'
       - 'js/league-switcher.js'
       - 'js/mock-draft-v4.js'
       - 'auction.html'
+      - 'css/auction-room-v2.css'
+      - 'js/auction-room.js'
+      - 'js/auction-mock-engine.js'
       - 'tests/draft-ui.test.js'
       - '.github/workflows/validate-draft-ui.yml'
   workflow_dispatch:
@@ -49,4 +61,9 @@ jobs:
           test -f auction.html
           test -f js/draft-intelligence.js
           test -f js/auction-intelligence.js
+          test -f js/auction-mock-engine.js
+          test -f js/auction-room.js
+          test -f css/auction-room-v2.css
           test -f js/draft-room-polish.js
+          test -f css/draft-room-sleeper-v6.css
+          test -f js/draft-room-sleeper-v6.js

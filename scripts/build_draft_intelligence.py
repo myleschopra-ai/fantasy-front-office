@@ -26,6 +26,11 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Iterable
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+from open_projection_engine import build_for_players, load_parquet_rows
+
 
 POSITIONS = {"QB", "RB", "WR", "TE", "K", "DST"}
 USER_AGENT = "FantasyFrontOffice/2.0 (+https://github.com/myleschopra-ai/fantasy-front-office)"
@@ -42,6 +47,14 @@ SOURCE_WEIGHTS = {
     "fantasycalc": 0.30,
     "fantasy_football_calculator": 0.25,
     "repository_positional_snapshot": 0.15,
+}
+DRAFTABLE_PROJECTION_MINIMUMS = {
+    "QB": 32,
+    "RB": 72,
+    "WR": 84,
+    "TE": 32,
+    "K": 20,
+    "DST": 20,
 }
 
 
@@ -209,6 +222,198 @@ def load_repository_positional_snapshot(path: Path) -> list[dict[str, Any]]:
             if record:
                 records.append(record)
     return records
+
+
+def load_repository_projections(path: Path) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    if not path.exists():
+        return {}, {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    result: dict[str, dict[str, Any]] = {}
+    for position, rows in (payload.get("projections") or {}).items():
+        normalized_position = normalize_position(position)
+        for row in rows or []:
+            name = str(row.get("name") or row.get("player_name") or "").strip()
+            player_position = normalize_position(row.get("position") or normalized_position)
+            if not name or player_position not in POSITIONS:
+                continue
+            result[f"{normalize_name(name)}|{player_position}"] = {
+                **row,
+                "name": name,
+                "position": player_position,
+            }
+    return result, payload
+
+
+def attach_projections(
+    players: list[dict[str, Any]],
+    projections: dict[str, dict[str, Any]],
+    snapshot: dict[str, Any],
+    spec: dict[str, Any],
+    *,
+    only_missing: bool = False,
+) -> None:
+    requested_ppr = float(spec.get("ppr", 0.5))
+    requested_field = "points_ppr" if requested_ppr >= 0.75 else "points" if requested_ppr <= 0.25 else "points_half"
+    snapshot_scoring = str(snapshot.get("scoring") or "").upper()
+    compatible_fallback = (
+        requested_ppr >= 0.75 and snapshot_scoring == "PPR"
+    ) or (
+        requested_ppr <= 0.25 and snapshot_scoring in {"STD", "STANDARD"}
+    ) or (0.25 < requested_ppr < 0.75 and snapshot_scoring in {"", "HALF", "HALF_PPR"})
+    for player in players:
+        if only_missing and finite(player.get("projected_points")) is not None:
+            continue
+        row = projections.get(f"{normalize_name(player['name'])}|{player['position']}")
+        if not row:
+            continue
+        points = finite(row.get(requested_field))
+        if points is None and compatible_fallback:
+            points = finite(row.get("projected_points"))
+        if points is None:
+            continue
+        player["projected_points"] = round(points, 1)
+        player["projection_ppr"] = requested_ppr
+        player["projection_source"] = row.get("projection_source") or "fantasypros_api"
+        player["projection_mode"] = row.get("projection_mode") or "DIRECT_PROJECTION"
+        player["projection_confidence"] = int(finite(row.get("projection_confidence"), 95) or 95)
+        if row.get("model_version"):
+            player["projection_model_version"] = row["model_version"]
+        if row.get("evidence"):
+            player["projection_evidence"] = row["evidence"]
+        if row.get("evidence_seasons") is not None:
+            player["projection_evidence_seasons"] = row["evidence_seasons"]
+        if row.get("role_signals") is not None:
+            player["projection_role_signals"] = row["role_signals"]
+        if row.get("role_signal_evidence") is not None:
+            player["projection_role_signal_evidence"] = row["role_signal_evidence"]
+        if isinstance(row.get("stats"), dict):
+            player["projection_stats"] = row["stats"]
+
+
+def projection_coverage(players: list[dict[str, Any]]) -> dict[str, Any]:
+    eligible = [player for player in players if finite(player.get("projected_points")) is not None]
+    direct = [player for player in eligible if player.get("projection_mode") != "OPEN_MODEL_PROJECTION"]
+    modeled = [player for player in eligible if player.get("projection_mode") == "OPEN_MODEL_PROJECTION"]
+    by_position: dict[str, Any] = {}
+    complete = len(players) >= 240
+    for position, minimum in DRAFTABLE_PROJECTION_MINIMUMS.items():
+        pool_count = sum(1 for player in players if player.get("position") == position)
+        eligible_count = sum(1 for player in eligible if player.get("position") == position)
+        direct_count = sum(1 for player in direct if player.get("position") == position)
+        modeled_count = sum(1 for player in modeled if player.get("position") == position)
+        position_complete = pool_count >= minimum and eligible_count >= minimum
+        complete = complete and position_complete
+        by_position[position] = {
+            "pool": pool_count,
+            "direct": direct_count,
+            "open_model": modeled_count,
+            "eligible": eligible_count,
+            "required": minimum,
+            "complete": position_complete,
+        }
+    bands = {}
+    for label, low, high in (("top_50", 1, 50), ("middle_51_120", 51, 120), ("late_121_200", 121, 200), ("deep_201_plus", 201, 10_000)):
+        rows = [player for player in players if low <= int(player.get("overall_rank") or 10_000) <= high]
+        projected = sum(1 for player in rows if finite(player.get("projected_points")) is not None)
+        bands[label] = {
+            "players": len(rows),
+            "eligible": projected,
+            "coverage": round(projected / len(rows), 3) if rows else 0,
+        }
+    return {
+        "status": "complete" if complete else "incomplete",
+        "pool_players": len(players),
+        "direct_players": len(direct),
+        "open_model_players": len(modeled),
+        "eligible_players": len(eligible),
+        "eligible_rate": round(len(eligible) / len(players), 3) if players else 0,
+        "by_position": by_position,
+        "depth_bands": bands,
+        "activation_rule": "Every positional minimum must have an explicitly sourced direct or open-model season projection; top-50-only samples remain inactive.",
+    }
+
+
+def load_sleeper_candidates(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    candidates = []
+    for sleeper_id, row in (payload.items() if isinstance(payload, dict) else []):
+        position = normalize_position("DST" if str(row.get("position") or "").upper() == "DEF" else row.get("position"))
+        if position not in POSITIONS or row.get("active") is not True:
+            continue
+        name = str(row.get("full_name") or f"{row.get('first_name') or ''} {row.get('last_name') or ''}").strip()
+        if position == "DST":
+            name = name or str(row.get("team") or sleeper_id)
+        if not name:
+            continue
+        candidates.append({
+            "name": name,
+            "position": position,
+            "team": normalize_team(row.get("team")),
+            "sleeper_id": str(sleeper_id),
+            "search_rank": int(finite(row.get("search_rank"), 99_999) or 99_999),
+            "injury_status": row.get("injury_status"),
+        })
+    return sorted(candidates, key=lambda row: (row["search_rank"], row["name"]))
+
+
+def ensure_draftable_depth(players: list[dict[str, Any]], candidates: list[dict[str, Any]]) -> None:
+    existing = {(normalize_name(row.get("name")), row.get("position")) for row in players}
+    counts = defaultdict(int)
+    for row in players:
+        counts[row["position"]] += 1
+    for position, minimum in DRAFTABLE_PROJECTION_MINIMUMS.items():
+        for candidate in (row for row in candidates if row["position"] == position):
+            if counts[position] >= minimum:
+                break
+            key = (normalize_name(candidate["name"]), position)
+            if key in existing:
+                continue
+            counts[position] += 1
+            position_rank = counts[position]
+            players.append({
+                **candidate,
+                "market_value": None,
+                "adp": len(players) + 1,
+                "source_ranks": {},
+                "source_position_ranks": {"sleeper_player_universe": position_rank},
+                "source_count": 1,
+                "rank_range": None,
+                "agreement": 35,
+                "confidence": 32,
+                "consensus_score": max(2, 22 - position_rank * 0.25),
+                "position_score": max(2, 25 - position_rank * 0.25),
+                "overall_rank": len(players) + 1,
+                "position_rank": position_rank,
+                "overall_tier": 99,
+                "position_tier": max(8, math.ceil(position_rank / 6)),
+                "tier_gap_after": 0,
+                "tier_end": False,
+            })
+            existing.add(key)
+
+
+def select_draftable_pool(players: list[dict[str, Any]], maximum: int) -> list[dict[str, Any]]:
+    mandatory = set()
+    for position, minimum in DRAFTABLE_PROJECTION_MINIMUMS.items():
+        rows = sorted((row for row in players if row["position"] == position), key=lambda row: row.get("position_rank", 99_999))
+        mandatory.update((normalize_name(row["name"]), row["position"]) for row in rows[:minimum])
+    selected = [row for row in players if (normalize_name(row["name"]), row["position"]) in mandatory]
+    selected_keys = {(normalize_name(row["name"]), row["position"]) for row in selected}
+    for row in sorted(players, key=lambda item: item.get("overall_rank", 99_999)):
+        if len(selected) >= maximum:
+            break
+        key = (normalize_name(row["name"]), row["position"])
+        if key not in selected_keys:
+            selected.append(row)
+            selected_keys.add(key)
+    selected.sort(key=lambda item: item.get("overall_rank", 99_999))
+    for rank, row in enumerate(selected, 1):
+        row["overall_rank"] = rank
+        if row.get("adp") is None:
+            row["adp"] = rank
+    return selected
 
 
 def select_fantasypros_rows(rows: list[dict[str, Any]], profile_family: str) -> list[dict[str, Any]]:
@@ -884,6 +1089,28 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     generated_at = utc_now()
     sources: dict[str, dict[str, Any]] = {}
     repository_snapshot = load_repository_positional_snapshot(args.repository_snapshot)
+    repository_projections, projection_snapshot = load_repository_projections(args.repository_snapshot)
+    sleeper_candidates = load_sleeper_candidates(args.sleeper_players)
+    seasonal_stats_path = args.nflverse_dir / "seasonal_stats.parquet"
+    try:
+        open_projection_rows = load_parquet_rows(seasonal_stats_path)
+        open_projection_error = None if open_projection_rows else "Seasonal stats file contained no rows"
+    except Exception as error:
+        open_projection_rows = []
+        open_projection_error = str(error)
+    open_signal_rows: dict[str, list[dict[str, Any]]] = {}
+    for signal_name, filename in {
+        "opportunity": "ff_opportunity.parquet",
+        "snaps": "snap_counts.parquet",
+        "depth": "depth_charts.parquet",
+        "injuries": "injuries.parquet",
+    }.items():
+        try:
+            rows = load_parquet_rows(args.nflverse_dir / filename)
+            if rows:
+                open_signal_rows[signal_name] = rows
+        except Exception:
+            continue
     if repository_snapshot:
         sources["repository_positional_snapshot"] = source_meta(
             "repository_positional_snapshot",
@@ -892,6 +1119,31 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "ok",
             len(repository_snapshot),
         )
+    projection_count = len(repository_projections)
+    sources["fantasypros_projection_snapshot"] = source_meta(
+        "fantasypros_projection_snapshot",
+        "FantasyPros season projections",
+        "https://www.fantasypros.com/api-data/",
+        "ok" if projection_count >= sum(DRAFTABLE_PROJECTION_MINIMUMS.values()) else "incomplete",
+        projection_count,
+        None if projection_count else "No usable season projections in repository snapshot",
+    )
+    sources["open_nflverse_model"] = source_meta(
+        "open_nflverse_model",
+        "Open nflverse season projection model",
+        "https://nflreadpy.nflverse.com/api/load_functions/",
+        "ok" if open_projection_rows else "unavailable",
+        len(open_projection_rows),
+        open_projection_error or (None if open_projection_rows else f"Missing {seasonal_stats_path}"),
+    )
+    sources["sleeper_player_universe"] = source_meta(
+        "sleeper_player_universe",
+        "Sleeper active NFL player universe",
+        "https://docs.sleeper.com/",
+        "ok" if sleeper_candidates else "unavailable",
+        len(sleeper_candidates),
+        None if sleeper_candidates else f"Missing or empty {args.sleeper_players}",
+    )
 
     try:
         ecr_sets = load_fantasypros_ecr_sets()
@@ -968,12 +1220,23 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
                     error=str(error),
                 )
         players = merge_rankings(sets) if sets else []
+        ensure_draftable_depth(players, sleeper_candidates)
+        attach_projections(players, repository_projections, projection_snapshot, spec)
+        open_projections = build_for_players(players, open_projection_rows, args.season, open_signal_rows) if open_projection_rows else {}
+        if open_projections:
+            attach_projections(players, open_projections, {"scoring": "HALF"}, spec, only_missing=True)
         attach_scheme_fit(players, team_profiles, usage_profiles)
+        players = select_draftable_pool(players, args.max_players)
         profiles[profile_id] = {
             "generated_at": generated_at,
             "format": {"teams": args.teams, **spec},
             "source_ids": sorted(set(profile_sources)),
-            "players": players[: args.max_players],
+            "projection_source_ids": (
+                (["fantasypros_projection_snapshot"] if repository_projections else [])
+                + (["open_nflverse_model"] if open_projections else [])
+            ),
+            "projection_coverage": projection_coverage(players),
+            "players": players,
         }
         time.sleep(0.25)
 
@@ -992,12 +1255,15 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "scheme_fit": "82% team position environment and 18% player-archetype compatibility; recommendation influence is capped in the browser model.",
             "coaching_attribution": "Official staff context is displayed, but team play-calling metrics are not asserted as individual-coach causation.",
             "strategy_weights": "Strategy presets alter a bounded component; VBD, tier cliffs, market value, and roster needs remain primary.",
+            "projection_activation": "Projected-point VORP activates only when explicitly labeled direct or open-model projections reach every draftable positional minimum; otherwise the format-specific League Value fallback remains explicit.",
+            "open_role_adjustment": "Expected-opportunity, offensive-snap, depth-rank, and injury evidence combine into a bounded +/-15% projection adjustment; only rows before the target season are eligible.",
         },
         "limitations": [
             "Preseason coaching changes reduce scheme-fit confidence because current-season play-call evidence does not yet exist.",
             "Fantasy rankings and ADP measure different concepts; rank dispersion is preserved instead of averaged away.",
             "A favorable scheme is a tiebreaker, not a substitute for talent, role, health, or draft price.",
             "Assistant-coach context is descriptive unless a verified role history supports stronger attribution.",
+            "OPEN_MODEL_PROJECTION values are estimates derived from open historical data and conservative priors; they are never represented as licensed vendor projections.",
         ] + ([f"Scheme data unavailable: {scheme_error}"] if scheme_error else []),
     }
 
@@ -1010,6 +1276,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=Path("data/draft_intelligence.json"))
     parser.add_argument("--coaching-config", type=Path, default=Path("config/coaching_sources.json"))
     parser.add_argument("--repository-snapshot", type=Path, default=Path("fantasypros.json"))
+    parser.add_argument("--nflverse-dir", type=Path, default=Path("data/raw/nflverse"))
+    parser.add_argument("--sleeper-players", type=Path, default=Path("data/raw/sleeper/players.json"))
     return parser.parse_args()
 
 
