@@ -35,6 +35,17 @@ for (const team of Object.values(state.teams)) {
   assert.ok(M.optimalStarterPoints(team.roster, l) > 0);
 }
 
+const scarceLeague = league({ teams:4 });
+const scarceCounts = { QB:8,RB:14,WR:14,TE:4,K:4,DST:4 };
+const scarcePlayers = Object.entries(scarceCounts).flatMap(([position,count]) => Array.from({length:count},(_unused,index)=>({
+  key:`scarce-${position}-${index}`,name:`${position} ${index}`,position,rank:index+1,
+  projectedPoints:Math.max(20,250-index),leagueValue:Math.max(1,90-index),
+})));
+const scarcePricing = FFOAuction.buildIntrinsicPrices(scarcePlayers,{league:scarceLeague,valueField:'leagueValue'});
+const scarceComplete = M.simulateComplete(M.createState({league:scarceLeague,players:scarcePlayers,priceMap:scarcePricing.prices,userTeamId:'1',seed:29}));
+assert.equal(M.validateState(scarceComplete,{requireComplete:true}).valid,true,'CPU auction must preserve exact K/DST supply for every roster');
+assert.ok(Object.values(scarceComplete.teams).every(team=>team.roster.filter(player=>player.position==='K').length>=1&&team.roster.filter(player=>player.position==='DST').length>=1));
+
 const sf = league({ superflex:1 }), one = league();
 const oneState = stateFor(one), sfState = stateFor(sf);
 const qb = oneState.players.find((player) => player.position === 'QB');

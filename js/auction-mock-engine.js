@@ -154,6 +154,7 @@
       league,
       config,
       players: players.map((player) => ({ ...player, key: keyOf(player) })),
+      remainingSupplyByPosition: { ...supply },
       priceMap: { ...priceMap },
       expectedPriceMap: { ...expectedPriceMap },
       leagueModel,
@@ -184,9 +185,34 @@
     return Auction.expectedLeaguePrice({ intrinsicPrice: intrinsicPrice(state, player), position: player.position, rank: player.overallRank ?? player.rank, tier: player.tier, model: state.leagueModel });
   }
 
+  function preservesRequiredSupply(state, teamId, player) {
+    // Every accepted purchase must leave enough undrafted players to fill
+    // every team's remaining fixed-position slots. Without this guard a CPU
+    // can legally stash a second K/DST (or another scarce position) on its
+    // bench and strand a later nominator even though the opening pool was
+    // globally valid.
+    const position = String(player?.position || '').toUpperCase();
+    const requiredPerTeam = Math.max(0, Math.round(numeric(state.league?.roster?.[position], 0)));
+    if (!(requiredPerTeam > 0)) return true;
+    const trackedSupply = numeric(state.remainingSupplyByPosition?.[position], -1);
+    const remainingAtPosition = trackedSupply >= 0
+      ? Math.max(0, trackedSupply - 1)
+      : availablePlayers(state)
+        .filter((candidate) => keyOf(candidate) !== keyOf(player) && String(candidate.position || '').toUpperCase() === position)
+        .length;
+    let remainingDeficit = 0;
+    for (const team of Object.values(state.teams || {})) {
+      const owned = (team.roster || []).filter((candidate) => String(candidate.position || '').toUpperCase() === position).length;
+      const afterPurchase = team.id === String(teamId) ? owned + 1 : owned;
+      remainingDeficit += Math.max(0, requiredPerTeam - afterPurchase);
+    }
+    return remainingAtPosition >= remainingDeficit;
+  }
+
   function teamBidLimit(state, teamId, player) {
     const team = state.teams[String(teamId)];
     if (!team || team.slotsLeft <= 0 || !canRoster(team.roster, player, state.league)) return 0;
+    if (!preservesRequiredSupply(state, teamId, player)) return 0;
     const legal = Auction.maximumLegalBid({ remainingBudget: team.remainingBudget, slotsLeft: team.slotsLeft, minBid: state.config.minBid });
     if (legal < state.config.minBid) return 0;
     const strategy = strategies.find((item) => item.id === team.strategy) || strategies[0];
@@ -237,7 +263,7 @@
     // roster optimizer across the entire player pool. Legal filtering happens
     // before the cap, so scarce K/DST/required-position endgames still resolve.
     const candidates = availablePlayers(state)
-      .filter((player) => canRoster(state.teams[String(teamId)].roster, player, state.league))
+      .filter((player) => teamBidLimit(state, teamId, player) >= state.config.minBid)
       .sort((a, b) => intrinsicPrice(state, b) - intrinsicPrice(state, a) || keyOf(a).localeCompare(keyOf(b)))
       .slice(0, 48);
     candidates.sort((a, b) => nominationScore(state, teamId, b) - nominationScore(state, teamId, a) || intrinsicPrice(state, b) - intrinsicPrice(state, a) || keyOf(a).localeCompare(keyOf(b)));
@@ -273,8 +299,13 @@
       intrinsicPrice: intrinsicPrice(state, player),
       expectedPrice: expectedPrice(state, player),
     }, { league: state.league });
+    const position = String(player.position || '').toUpperCase();
+    const remainingSupplyByPosition = {
+      ...(next.remainingSupplyByPosition || {}),
+      [position]: Math.max(0, numeric(next.remainingSupplyByPosition?.[position], 0) - 1),
+    };
     const completed = Object.values(next.teams).every((team) => team.slotsLeft === 0);
-    return { ...next, nomination: null, nominationIndex: (state.nominationIndex + 1) % state.config.teams, status: completed ? 'COMPLETE' : 'RUNNING' };
+    return { ...next, remainingSupplyByPosition, nomination: null, nominationIndex: (state.nominationIndex + 1) % state.config.teams, status: completed ? 'COMPLETE' : 'RUNNING' };
   }
 
   function recordPurchase(state, { teamId, playerKey, price }) {
@@ -358,5 +389,5 @@
     return { valid: issues.length === 0, issues, drafted: seen.size, projectedPointsByTeam: Object.fromEntries(Object.values(state.teams || {}).map((team) => [team.id, optimalStarterPoints(team.roster, state.league)])) };
   }
 
-  return { keyOf, rosterSlots, eligible, assignRoster, canRoster, optimalStarterPoints, marginalStarterPoints, positionalNeed, createState, availablePlayers, intrinsicPrice, expectedPrice, teamBidLimit, nextNominator, chooseNomination, bidderLimits, startNomination, resolveNomination, userDecision, recordPurchase, step, simulateComplete, validateState };
+  return { keyOf, rosterSlots, eligible, assignRoster, canRoster, optimalStarterPoints, marginalStarterPoints, positionalNeed, createState, availablePlayers, intrinsicPrice, expectedPrice, preservesRequiredSupply, teamBidLimit, nextNominator, chooseNomination, bidderLimits, startNomination, resolveNomination, userDecision, recordPurchase, step, simulateComplete, validateState };
 });
