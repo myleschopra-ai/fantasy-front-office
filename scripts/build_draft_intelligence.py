@@ -26,6 +26,11 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Iterable
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+from open_projection_engine import build_for_players, load_parquet_rows
+
 
 POSITIONS = {"QB", "RB", "WR", "TE", "K", "DST"}
 USER_AGENT = "FantasyFrontOffice/2.0 (+https://github.com/myleschopra-ai/fantasy-front-office)"
@@ -244,6 +249,8 @@ def attach_projections(
     projections: dict[str, dict[str, Any]],
     snapshot: dict[str, Any],
     spec: dict[str, Any],
+    *,
+    only_missing: bool = False,
 ) -> None:
     requested_ppr = float(spec.get("ppr", 0.5))
     requested_field = "points_ppr" if requested_ppr >= 0.75 else "points" if requested_ppr <= 0.25 else "points_half"
@@ -254,6 +261,8 @@ def attach_projections(
         requested_ppr <= 0.25 and snapshot_scoring in {"STD", "STANDARD"}
     ) or (0.25 < requested_ppr < 0.75 and snapshot_scoring in {"", "HALF", "HALF_PPR"})
     for player in players:
+        if only_missing and finite(player.get("projected_points")) is not None:
+            continue
         row = projections.get(f"{normalize_name(player['name'])}|{player['position']}")
         if not row:
             continue
@@ -264,24 +273,37 @@ def attach_projections(
             continue
         player["projected_points"] = round(points, 1)
         player["projection_ppr"] = requested_ppr
-        player["projection_source"] = "fantasypros_api"
-        player["projection_confidence"] = 95
+        player["projection_source"] = row.get("projection_source") or "fantasypros_api"
+        player["projection_mode"] = row.get("projection_mode") or "DIRECT_PROJECTION"
+        player["projection_confidence"] = int(finite(row.get("projection_confidence"), 95) or 95)
+        if row.get("model_version"):
+            player["projection_model_version"] = row["model_version"]
+        if row.get("evidence"):
+            player["projection_evidence"] = row["evidence"]
+        if row.get("evidence_seasons") is not None:
+            player["projection_evidence_seasons"] = row["evidence_seasons"]
         if isinstance(row.get("stats"), dict):
             player["projection_stats"] = row["stats"]
 
 
 def projection_coverage(players: list[dict[str, Any]]) -> dict[str, Any]:
-    direct = [player for player in players if finite(player.get("projected_points")) is not None]
+    eligible = [player for player in players if finite(player.get("projected_points")) is not None]
+    direct = [player for player in eligible if player.get("projection_mode") != "OPEN_MODEL_PROJECTION"]
+    modeled = [player for player in eligible if player.get("projection_mode") == "OPEN_MODEL_PROJECTION"]
     by_position: dict[str, Any] = {}
     complete = len(players) >= 240
     for position, minimum in DRAFTABLE_PROJECTION_MINIMUMS.items():
         pool_count = sum(1 for player in players if player.get("position") == position)
+        eligible_count = sum(1 for player in eligible if player.get("position") == position)
         direct_count = sum(1 for player in direct if player.get("position") == position)
-        position_complete = pool_count >= minimum and direct_count >= minimum
+        modeled_count = sum(1 for player in modeled if player.get("position") == position)
+        position_complete = pool_count >= minimum and eligible_count >= minimum
         complete = complete and position_complete
         by_position[position] = {
             "pool": pool_count,
             "direct": direct_count,
+            "open_model": modeled_count,
+            "eligible": eligible_count,
             "required": minimum,
             "complete": position_complete,
         }
@@ -291,17 +313,19 @@ def projection_coverage(players: list[dict[str, Any]]) -> dict[str, Any]:
         projected = sum(1 for player in rows if finite(player.get("projected_points")) is not None)
         bands[label] = {
             "players": len(rows),
-            "direct": projected,
+            "eligible": projected,
             "coverage": round(projected / len(rows), 3) if rows else 0,
         }
     return {
         "status": "complete" if complete else "incomplete",
         "pool_players": len(players),
         "direct_players": len(direct),
-        "direct_rate": round(len(direct) / len(players), 3) if players else 0,
+        "open_model_players": len(modeled),
+        "eligible_players": len(eligible),
+        "eligible_rate": round(len(eligible) / len(players), 3) if players else 0,
         "by_position": by_position,
         "depth_bands": bands,
-        "activation_rule": "Every positional minimum must have direct season projections; top-50-only samples remain inactive.",
+        "activation_rule": "Every positional minimum must have an explicitly sourced direct or open-model season projection; top-50-only samples remain inactive.",
     }
 
 
@@ -979,6 +1003,13 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     sources: dict[str, dict[str, Any]] = {}
     repository_snapshot = load_repository_positional_snapshot(args.repository_snapshot)
     repository_projections, projection_snapshot = load_repository_projections(args.repository_snapshot)
+    seasonal_stats_path = args.nflverse_dir / "seasonal_stats.parquet"
+    try:
+        open_projection_rows = load_parquet_rows(seasonal_stats_path)
+        open_projection_error = None if open_projection_rows else "Seasonal stats file contained no rows"
+    except Exception as error:
+        open_projection_rows = []
+        open_projection_error = str(error)
     if repository_snapshot:
         sources["repository_positional_snapshot"] = source_meta(
             "repository_positional_snapshot",
@@ -995,6 +1026,14 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
         "ok" if projection_count >= sum(DRAFTABLE_PROJECTION_MINIMUMS.values()) else "incomplete",
         projection_count,
         None if projection_count else "No usable season projections in repository snapshot",
+    )
+    sources["open_nflverse_model"] = source_meta(
+        "open_nflverse_model",
+        "Open nflverse season projection model",
+        "https://nflreadpy.nflverse.com/api/load_functions/",
+        "ok" if open_projection_rows else "unavailable",
+        len(open_projection_rows),
+        open_projection_error or (None if open_projection_rows else f"Missing {seasonal_stats_path}"),
     )
 
     try:
@@ -1073,13 +1112,19 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
                 )
         players = merge_rankings(sets) if sets else []
         attach_projections(players, repository_projections, projection_snapshot, spec)
+        open_projections = build_for_players(players, open_projection_rows, args.season) if open_projection_rows else {}
+        if open_projections:
+            attach_projections(players, open_projections, {"scoring": "HALF"}, spec, only_missing=True)
         attach_scheme_fit(players, team_profiles, usage_profiles)
         players = players[: args.max_players]
         profiles[profile_id] = {
             "generated_at": generated_at,
             "format": {"teams": args.teams, **spec},
             "source_ids": sorted(set(profile_sources)),
-            "projection_source_ids": ["fantasypros_projection_snapshot"] if repository_projections else [],
+            "projection_source_ids": (
+                (["fantasypros_projection_snapshot"] if repository_projections else [])
+                + (["open_nflverse_model"] if open_projections else [])
+            ),
             "projection_coverage": projection_coverage(players),
             "players": players,
         }
@@ -1100,13 +1145,14 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "scheme_fit": "82% team position environment and 18% player-archetype compatibility; recommendation influence is capped in the browser model.",
             "coaching_attribution": "Official staff context is displayed, but team play-calling metrics are not asserted as individual-coach causation.",
             "strategy_weights": "Strategy presets alter a bounded component; VBD, tier cliffs, market value, and roster needs remain primary.",
-            "projection_activation": "Projected-point VORP activates only when direct season projections reach every draftable positional minimum; otherwise the format-specific League Value fallback remains explicit.",
+            "projection_activation": "Projected-point VORP activates only when explicitly labeled direct or open-model projections reach every draftable positional minimum; otherwise the format-specific League Value fallback remains explicit.",
         },
         "limitations": [
             "Preseason coaching changes reduce scheme-fit confidence because current-season play-call evidence does not yet exist.",
             "Fantasy rankings and ADP measure different concepts; rank dispersion is preserved instead of averaged away.",
             "A favorable scheme is a tiebreaker, not a substitute for talent, role, health, or draft price.",
             "Assistant-coach context is descriptive unless a verified role history supports stronger attribution.",
+            "OPEN_MODEL_PROJECTION values are estimates derived from open historical data and conservative priors; they are never represented as licensed vendor projections.",
         ] + ([f"Scheme data unavailable: {scheme_error}"] if scheme_error else []),
     }
 
@@ -1119,6 +1165,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=Path("data/draft_intelligence.json"))
     parser.add_argument("--coaching-config", type=Path, default=Path("config/coaching_sources.json"))
     parser.add_argument("--repository-snapshot", type=Path, default=Path("fantasypros.json"))
+    parser.add_argument("--nflverse-dir", type=Path, default=Path("data/raw/nflverse"))
     return parser.parse_args()
 
 

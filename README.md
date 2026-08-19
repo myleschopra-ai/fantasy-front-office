@@ -2,6 +2,8 @@
 
 A local-first Sleeper fantasy football dashboard deployed with GitHub Pages.
 
+Season estimates can be built without paid API keys using the auditable [Open Projection Engine](docs/OPEN_PROJECTION_ENGINE.md). Internally modeled values remain explicitly labeled and are coverage-gated before projected-points VORP activates.
+
 ## Pages
 
 - `index.html` — existing front-office dashboard

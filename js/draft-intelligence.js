@@ -310,6 +310,8 @@
           ),
           projectionSource:
             found.projection_source || player.projectionSource || null,
+          projectionMode:
+            found.projection_mode || player.projectionMode || null,
           projectionConfidence: numeric(
             found.projection_confidence ?? player.projectionConfidence,
             null,
@@ -573,16 +575,21 @@
       );
       const required = enabled[position] ? Math.max(baseline[position], dynamic) : 0;
       const poolRows = (players || []).filter((player) => player.position === position);
-      const directRows = poolRows.filter(
+      const eligibleRows = poolRows.filter(
         (player) =>
-          numeric(player.projectedPoints ?? player.projected_points, null) != null &&
-          !String(player.projectionSource || player.projection_source || "").startsWith("modeled"),
+          numeric(player.projectedPoints ?? player.projected_points, null) != null,
       );
-      const ready = required === 0 || directRows.length >= required;
+      const openModelRows = eligibleRows.filter(
+        (player) => String(player.projectionMode || player.projection_mode || "").toUpperCase() === "OPEN_MODEL_PROJECTION",
+      );
+      const directRows = eligibleRows.filter((player) => !openModelRows.includes(player));
+      const ready = required === 0 || eligibleRows.length >= required;
       if (!ready) complete = false;
       byPosition[position] = {
         pool: poolRows.length,
         direct: directRows.length,
+        openModel: openModelRows.length,
+        eligible: eligibleRows.length,
         required,
         complete: ready,
       };
@@ -598,15 +605,14 @@
         const rank = numeric(player.overallRank ?? player.overall_rank ?? player.rank, Infinity);
         return rank >= low && rank <= high;
       });
-      const direct = rows.filter(
+      const eligible = rows.filter(
         (player) =>
-          numeric(player.projectedPoints ?? player.projected_points, null) != null &&
-          !String(player.projectionSource || player.projection_source || "").startsWith("modeled"),
+          numeric(player.projectedPoints ?? player.projected_points, null) != null,
       ).length;
       depthBands[label] = {
         players: rows.length,
-        direct,
-        coverage: rows.length ? direct / rows.length : 0,
+        eligible,
+        coverage: rows.length ? eligible / rows.length : 0,
       };
     });
     return {
@@ -615,6 +621,8 @@
       byPosition,
       depthBands,
       directPlayers: Object.values(byPosition).reduce((sum, row) => sum + row.direct, 0),
+      openModelPlayers: Object.values(byPosition).reduce((sum, row) => sum + row.openModel, 0),
+      eligiblePlayers: Object.values(byPosition).reduce((sum, row) => sum + row.eligible, 0),
       poolPlayers: (players || []).length,
     };
   }
@@ -683,6 +691,7 @@
         projectionConfidence * 0.30,
     );
     const directProjection = numeric(player.projectedPoints ?? player.projected_points, null) != null &&
+      String(player.projectionMode || player.projection_mode || "").toUpperCase() !== "OPEN_MODEL_PROJECTION" &&
       !String(player.projectionSource || player.projection_source || "").startsWith("modeled");
     if (!directProjection) score = Math.min(score, 78);
     const lateThreshold = Math.max(60, numeric(context.teams, 12) * 5);
@@ -692,7 +701,7 @@
     if (bestSourceRank + 10 <= adp) reasons.push("at least one source identifies material market upside");
     if (projection >= 65) reasons.push("projection carries above-replacement upside");
     if (scheme >= 65) reasons.push("team environment supports the player archetype");
-    if (!directProjection) reasons.push("direct season projection is missing; confidence is capped");
+    if (!directProjection) reasons.push("open-model estimate is used; confidence remains evidence-weighted");
     return {
       score: Math.round(score),
       confidence: Math.round(confidence),

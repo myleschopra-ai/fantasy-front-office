@@ -13,6 +13,9 @@ on:
       - 'js/mock-draft-v4.js'
       - 'scripts/refresh_fantasypros.py'
       - 'scripts/build_draft_intelligence.py'
+      - 'scripts/open_projection_engine.py'
+      - 'scripts/collectors/nflverse.py'
+      - 'scripts/collectors/sleeper_players.py'
       - 'scripts/validate_draft_intelligence.py'
       - 'scripts/validate_live_draft_board.js'
       - 'scripts/validate_live_draft_board_v2.js'
@@ -65,6 +68,11 @@ jobs:
       - name: Run Python regression tests
         run: python -m unittest discover -s tests
 
+      - name: Collect free open player and historical data
+        run: |
+          python scripts/collectors/nflverse.py --seasons 2023 2024 2025
+          python scripts/collectors/sleeper_players.py
+
       - name: Verify FantasyPros credential is configured
         shell: bash
         run: |
@@ -83,7 +91,7 @@ jobs:
         if: steps.fantasypros_refresh.outcome != 'success'
         run: |
           echo 'Direct FantasyPros refresh did not produce a production-complete snapshot.'
-          echo 'Ranking aggregation will continue, but projected-point mode must remain disabled until every positional depth minimum passes.'
+          echo 'Ranking aggregation will continue using the explicitly labeled open nflverse projection model.'
           echo 'A top-player sample is not accepted as coverage for middle- and late-round valuation.'
 
       - name: Build fresh full draft intelligence
@@ -122,6 +130,8 @@ jobs:
             reports/auction_mock_validation.md
             fantasypros.json
             data/draft_intelligence.json
+            data/raw/nflverse/manifest.json
+            data/raw/sleeper/manifest.json
           if-no-files-found: warn
 
   historical-backtest:

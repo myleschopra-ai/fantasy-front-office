@@ -272,6 +272,13 @@ const coverageContext = {
 };
 const completeCoverage = D.projectionCoverageContract(completeProjectionPool, coverageContext);
 assert.equal(completeCoverage.complete, true, 'full positional depth must activate projected-points mode');
+const openModelCoverage = D.projectionCoverageContract(
+  completeProjectionPool.map((player) => ({ ...player, projectionMode: 'OPEN_MODEL_PROJECTION', projectionSource: 'open_nflverse_model' })),
+  coverageContext,
+);
+assert.equal(openModelCoverage.complete, true, 'full open-model depth must activate projected-points mode');
+assert.equal(openModelCoverage.directPlayers, 0, 'open estimates must not be mislabeled as direct vendor projections');
+assert.equal(openModelCoverage.openModelPlayers, completeProjectionPool.length);
 const shallowProjectionPool = completeProjectionPool.map((player, index) =>
   index < 50 ? player : { ...player, projectedPoints: null, projectionSource: null },
 );

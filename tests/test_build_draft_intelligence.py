@@ -1,9 +1,11 @@
 import importlib.util
 import pathlib
 import unittest
+import sys
 
 
 MODULE_PATH = pathlib.Path(__file__).parents[1] / "scripts" / "build_draft_intelligence.py"
+sys.path.insert(0, str(MODULE_PATH.parent))
 SPEC = importlib.util.spec_from_file_location("draft_builder", MODULE_PATH)
 builder = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
@@ -135,6 +137,23 @@ class DraftIntelligenceBuilderTests(unittest.TestCase):
         self.assertEqual(players[0]["projected_points"], 180)
         self.assertEqual(players[0]["projection_ppr"], 1.0)
         self.assertEqual(players[0]["projection_source"], "fantasypros_api")
+        self.assertEqual(players[0]["projection_mode"], "DIRECT_PROJECTION")
+
+    def test_open_model_projections_are_complete_but_not_mislabeled_direct(self):
+        players = []
+        for position, minimum in builder.DRAFTABLE_PROJECTION_MINIMUMS.items():
+            for index in range(minimum):
+                players.append({
+                    "name": f"{position} Player {index}",
+                    "position": position,
+                    "overall_rank": len(players) + 1,
+                    "projected_points": 250 - index,
+                    "projection_mode": "OPEN_MODEL_PROJECTION",
+                })
+        coverage = builder.projection_coverage(players)
+        self.assertEqual(coverage["status"], "complete")
+        self.assertEqual(coverage["direct_players"], 0)
+        self.assertEqual(coverage["open_model_players"], len(players))
 
 
 if __name__ == "__main__":
