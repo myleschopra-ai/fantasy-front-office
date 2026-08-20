@@ -5,6 +5,8 @@ const root = path.join(__dirname, '..');
 const shell = fs.readFileSync(path.join(root, 'js', 'ffo-shell.js'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'css', 'ffo-2.css'), 'utf8');
 const htmlFiles = fs.readdirSync(root).filter((name) => name.endsWith('.html'));
+const dashboard = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const draftController = fs.readFileSync(path.join(root, 'js', 'mock-draft-v4.js'), 'utf8');
 
 if (!shell.includes("'#roster': 'roster'") || !shell.includes("'#lineup': 'lineup'")) {
   throw new Error('The unified shell must deep-link to the existing Team and Matchup dashboard views.');
@@ -23,6 +25,15 @@ if (!css.includes('@media (max-width: 767px)') || !css.includes('min-height: 44p
 }
 if (!css.includes('prefers-reduced-motion') || !css.includes(':focus-visible')) {
   throw new Error('The design system must preserve reduced-motion and visible-focus behavior.');
+}
+if (!dashboard.includes('Run your fantasy team like a front office.') || !dashboard.includes('ffo2-connect-card')) {
+  throw new Error('The main landing page must use the 2.0 product hero and focused connection card.');
+}
+if (!dashboard.includes('id="roster-lineup"') || !dashboard.includes('computeAssignedLineup()')) {
+  throw new Error('The main Team view must render players into configured starting slots.');
+}
+if (!draftController.includes('Starting lineup') || !draftController.includes('ffo2-lineup-board') || !draftController.includes('Bench and reserves')) {
+  throw new Error('The post-draft Team view must separate configured starters from the bench.');
 }
 
 const missing = htmlFiles.filter((name) => {

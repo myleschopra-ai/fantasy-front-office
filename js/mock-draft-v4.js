@@ -1185,9 +1185,10 @@
     const league = state.activeLeague || DEFAULT_LEAGUE;
     const lineup = D.optimalLineup(roster, league);
     const occurrence = {};
+    const slotColor = (slot) => ({ QB:"var(--ffo-qb,#ef4444)",RB:"var(--ffo-rb,#22c55e)",WR:"var(--ffo-wr,#3b82f6)",TE:"var(--ffo-te,#f59e0b)",FLEX:"var(--ffo-info,#4ca6ff)",SUPER_FLEX:"var(--ffo-accent,#7c5cfc)",K:"var(--ffo-k,#a855f7)",DEF:"var(--ffo-dst,#64748b)",DST:"var(--ffo-dst,#64748b)" }[String(slot).replace(/\d+$/,"")] || "var(--ffo-border-strong,#3a4962)");
     const slotRow = (slotName, pick) => pick
-      ? `<div class="row"><div class="player-link" data-player="${esc(pick.key)}" tabindex="0" style="cursor:pointer;"><div class="name">${esc(pick.name)}</div><div class="meta">${esc(slotName)} · ${esc(pick.position)} · ${roundPick(pick.pick)}</div></div><span class="sim-badge">MOCK</span></div>`
-      : `<div class="row"><div class="muted">${esc(slotName)} — Empty</div></div>`;
+      ? `<div class="ffo2-lineup-card" style="--slot-color:${slotColor(slotName)}"><span class="ffo2-slot">${esc(slotName)}</span><div class="player-link" data-player="${esc(pick.key)}" tabindex="0" style="cursor:pointer;min-width:0"><div class="ffo2-player-name">${esc(pick.name)}</div><div class="ffo2-player-meta">${esc(pick.position)}${pick.nflTeam ? ` · ${esc(pick.nflTeam)}` : ""} · drafted ${roundPick(pick.pick)}</div></div><span class="sim-badge">MOCK</span></div>`
+      : `<div class="ffo2-lineup-card empty" style="--slot-color:${slotColor(slotName)}"><span class="ffo2-slot">${esc(slotName)}</span><div><div class="ffo2-player-name">Open starter slot</div><div class="ffo2-player-meta">No eligible player drafted</div></div></div>`;
 
     let html = `<div class="toolbar" style="margin-top:10px"><strong>Team ${team}${team === state.slot ? " · YOU" : ""}</strong><select id="team-select" style="width:auto">${Array.from({ length: state.teams }, (_value, index) => `<option value="${index + 1}" ${team === index + 1 ? "selected" : ""}>Team ${index + 1}${state.slot === index + 1 ? " · YOU" : ""}</option>`).join("")}</select></div>`;
     const starterRows = lineup.starters.map((entry) => {
@@ -1196,8 +1197,8 @@
       const label = total > 1 ? `${entry.slot}${occurrence[entry.slot]}` : entry.slot;
       return slotRow(label, entry.player);
     }).join("");
-    html += `<div class="team-roster-list">${starterRows || '<div class="muted">No starter slots configured.</div>'}</div>`;
-    html += `<div class="muted" style="margin-top:10px">BENCH · ${lineup.bench.length}</div><div class="team-roster-list">${lineup.bench.map((pick) => slotRow("BENCH", pick)).join("") || '<div class="muted">Bench empty.</div>'}</div>`;
+    html += `<div class="ffo2-section-head" style="margin-top:14px"><strong>Starting lineup</strong><span>${lineup.starters.filter(entry => entry.player).length}/${lineup.starters.length} filled</span></div><div class="ffo2-lineup-board">${starterRows || '<div class="muted">No starter slots configured.</div>'}</div>`;
+    html += `<section class="ffo2-bench-section"><div class="ffo2-section-head"><strong>Bench and reserves</strong><span>${lineup.bench.length} drafted</span></div><div class="ffo2-bench-grid">${lineup.bench.map((pick) => `<div class="ffo2-bench-card player-link" data-player="${esc(pick.key)}" tabindex="0" style="cursor:pointer"><strong>${esc(pick.name)}</strong><span>${esc(pick.position)}${pick.nflTeam ? ` · ${esc(pick.nflTeam)}` : ""} · drafted ${roundPick(pick.pick)}</span></div>`).join("") || '<div class="muted">Bench empty.</div>'}</div></section>`;
     html += `<div class="notice" style="margin-top:10px">This simulated class never modifies the real league roster.</div>`;
     $("team-roster-view").innerHTML = html;
     $("team-select").onchange = (event) => {

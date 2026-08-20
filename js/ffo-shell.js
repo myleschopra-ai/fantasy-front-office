@@ -49,6 +49,15 @@
     window.setTimeout(activate, 350);
   }
 
+  function observeDashboardMode() {
+    if (path !== 'index.html') return;
+    const connectView = document.getElementById('view-connect');
+    if (!connectView) return;
+    const sync = () => document.body.classList.toggle('ffo2-landing-mode', connectView.classList.contains('active'));
+    new MutationObserver(sync).observe(connectView, { attributes: true, attributeFilter: ['class'] });
+    sync();
+  }
+
   function activeLeague() {
     const rawName = window.FFO_ACTIVE_LEAGUE?.name || localStorage.getItem('ffo_active_league_name');
     return {
@@ -162,6 +171,7 @@
     });
     window.addEventListener('hashchange', applyDashboardHash);
     applyDashboardHash();
+    observeDashboardMode();
   }
 
   function mount() {

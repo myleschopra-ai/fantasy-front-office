@@ -266,7 +266,7 @@
 </head>
 <body>
 
-<header>
+<header class="legacy-header">
   <div class="brand">
     <div class="brand-icon">FO</div>
     <div>
@@ -277,8 +277,8 @@
   </div>
   <div class="pills" id="header-pills"></div>
 </header>
-<div style="max-width:960px;margin:10px auto 0;padding:0 20px"><a href="mock-draft.html" style="display:block;text-decoration:none;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px 12px;color:#2dd4bf;font-size:12px;font-weight:700">Mock Draft Companion → live manual mock tracking, roster fit, tier cliffs, and next-pick availability</a></div>
-<div style="max-width:960px;margin:10px auto 0;padding:0 20px"><a href="league-config.html" style="display:block;text-decoration:none;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px 12px;color:#fbbf24;font-size:12px;font-weight:700">League Formats & Draft Settings → Sleeper dynasty, Yahoo snake, and Yahoo auction</a></div>
+<div class="legacy-shortcut" style="max-width:960px;margin:10px auto 0;padding:0 20px"><a href="mock-draft.html" style="display:block;text-decoration:none;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px 12px;color:#2dd4bf;font-size:12px;font-weight:700">Mock Draft Companion → live manual mock tracking, roster fit, tier cliffs, and next-pick availability</a></div>
+<div class="legacy-shortcut" style="max-width:960px;margin:10px auto 0;padding:0 20px"><a href="league-config.html" style="display:block;text-decoration:none;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px 12px;color:#fbbf24;font-size:12px;font-weight:700">League Formats & Draft Settings → Sleeper dynasty, Yahoo snake, and Yahoo auction</a></div>
 
 <div id="freshness-bar" style="display:none; padding:6px 20px; background:var(--surface); border-bottom:1px solid var(--border); font-size:11px; color:var(--text-dim);" class="mono"></div>
 <section id="quality-strip" class="quality-strip" aria-label="Decision system health" style="display:none;"></section>
@@ -297,21 +297,47 @@
 
   <!-- CONNECT VIEW -->
   <div id="view-connect" class="view active">
-    <div class="connect-box">
-      <h2 class="display" id="connect-title">Connect Your League</h2>
-      <p class="desc" id="connect-desc">Paste your Sleeper League ID. Format and roster data pull live — no API key needed.</p>
-      <div class="input-row">
-        <input type="text" id="league-id-input" placeholder="e.g. 1124567890123456789"
-               inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
-        <button class="btn" id="connect-btn">Connect</button>
+    <section class="ffo2-landing" aria-labelledby="connect-title">
+      <div class="ffo2-landing-copy">
+        <span class="ffo2-eyebrow"><i></i> Your league. One decision system.</span>
+        <h1>Run your fantasy team like a front office.</h1>
+        <p>Lineup, waiver, trade, and draft recommendations built around your exact league—not a generic rankings page.</p>
+        <div class="ffo2-proof-grid" aria-label="Fantasy Front Office capabilities">
+          <div><strong>League-aware</strong><span>Scoring, roster slots, and format shape every recommendation.</span></div>
+          <div><strong>Decision-first</strong><span>See what to do, why it matters, and how confident the signal is.</span></div>
+          <div><strong>Read-only</strong><span>Your provider remains the source of truth. Nothing is submitted for you.</span></div>
+        </div>
+        <div class="ffo2-landing-links">
+          <a href="draft.html">Open Draft Room <span>→</span></a>
+          <a href="trade-intelligence.html">Explore Trade Center <span>→</span></a>
+        </div>
       </div>
-      <div id="error-box" style="display:none;" class="error-box"></div>
-      <button class="link" id="paste-toggle">Or paste data pulled from Colab</button>
-      <div id="paste-area" style="display:none; margin-top:10px;">
-        <textarea id="paste-input" rows="6" placeholder='{"league":{...},"rosters":[...],"users":[...],"traded_picks":[...],"fc_data":[...],"all_players":{...}}'></textarea>
-        <button class="btn secondary" id="paste-load-btn" style="margin-top:8px;">Load pasted data</button>
+      <div class="connect-box ffo2-connect-card">
+        <div class="ffo2-connect-icon">S</div>
+        <span class="ffo2-card-kicker">Get started</span>
+        <h2 id="connect-title">Connect Sleeper</h2>
+        <p class="desc" id="connect-desc">Enter your public League ID to import settings and rosters. No password or API key is needed.</p>
+        <label class="ffo2-field-label" for="league-id-input">Sleeper League ID</label>
+        <div class="input-row">
+          <input type="text" id="league-id-input" placeholder="e.g. 1124567890123456789"
+                 inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+          <button class="btn" id="connect-btn">Connect league</button>
+        </div>
+        <div class="ffo2-security-note"><span>✓</span> Public, read-only connection</div>
+        <div id="error-box" style="display:none;" class="error-box"></div>
+        <button class="link" id="paste-toggle">Use a manual JSON import instead</button>
+        <div id="paste-area" style="display:none; margin-top:10px;">
+          <textarea id="paste-input" rows="6" placeholder='{"league":{...},"rosters":[...],"users":[...],"traded_picks":[...],"fc_data":[...],"all_players":{...}}'></textarea>
+          <button class="btn secondary" id="paste-load-btn" style="margin-top:8px;">Load pasted data</button>
+        </div>
       </div>
-    </div>
+    </section>
+
+    <section class="ffo2-feature-preview" aria-label="Included tools">
+      <article><span class="ffo2-feature-icon">01</span><div><strong>Weekly Command Center</strong><p>Your highest-value lineup, waiver, and injury actions—ranked by urgency.</p></div></article>
+      <article><span class="ffo2-feature-icon">02</span><div><strong>Draft & Auction Rooms</strong><p>Full board context, roster construction, tier pressure, queue, and live read-only sync.</p></div></article>
+      <article><span class="ffo2-feature-icon">03</span><div><strong>Trade Intelligence</strong><p>Market value plus roster impact, replacement value, and independently bounded evidence.</p></div></article>
+    </section>
 
     <div id="team-picker" style="display:none;" class="connect-box">
       <h2 class="display" style="font-size:16px;">Which team is yours?</h2>
@@ -338,14 +364,18 @@
   <div id="view-roster" class="view">
     <h2 class="display" style="font-size:16px;" id="roster-title">Your Roster</h2>
     <p class="mono" id="roster-validation" style="font-size:11px; color:var(--text-dim); margin:-4px 0 14px;"></p>
-    <div style="overflow-x:auto;">
+    <div id="roster-summary" class="ffo2-roster-summary"></div>
+    <div class="ffo2-section-head"><strong>Starting lineup</strong><span>Optimized for your league's configured roster slots</span></div>
+    <div id="roster-lineup" class="ffo2-lineup-board"></div>
+    <section class="ffo2-bench-section"><div class="ffo2-section-head"><strong>Bench and reserves</strong><span id="roster-bench-count"></span></div><div id="roster-bench" class="ffo2-bench-grid"></div></section>
+    <div class="ffo2-depth-table"><div class="ffo2-section-head"><strong>Full player details</strong><span>Market, projection, trend, and news</span></div><div style="overflow-x:auto;">
       <table class="responsive-table">
         <thead>
           <tr><th>Pos</th><th>Player</th><th>Team</th><th>Value</th><th>Proj</th><th>Rank</th><th>30d</th><th>FP Rank</th><th>News</th></tr>
         </thead>
         <tbody id="roster-body"></tbody>
       </table>
-    </div>
+    </div></div>
   </div>
 
   <!-- TARGETS VIEW -->
@@ -1242,6 +1272,35 @@
     } else {
       $("roster-validation").textContent = `✓ All ${players.length} players matched to market values`;
     }
+
+    const { assigned, bench } = computeAssignedLineup();
+    const filledStarters = assigned.filter(row => row.player);
+    const projectedStarters = filledStarters.filter(row => row.player.projPoints !== null);
+    const projectedTotal = projectedStarters.reduce((sum, row) => sum + Number(row.player.projPoints || 0), 0);
+    const positionCounts = players.reduce((counts, player) => {
+      counts[player.position || "—"] = (counts[player.position || "—"] || 0) + 1;
+      return counts;
+    }, {});
+    const slotColor = slot => ({ QB:"var(--ffo-qb)",RB:"var(--ffo-rb)",WR:"var(--ffo-wr)",TE:"var(--ffo-te)",FLEX:"var(--ffo-info)",SUPER_FLEX:"var(--ffo-accent)",WRRB_FLEX:"var(--ffo-info)",REC_FLEX:"var(--ffo-info)",K:"var(--ffo-k)",DEF:"var(--ffo-dst)",DST:"var(--ffo-dst)" }[slot] || "var(--ffo-border-strong)");
+    const playerMetric = player => player?.projPoints !== null && player?.projPoints !== undefined
+      ? `<strong>${Number(player.projPoints).toFixed(1)}</strong><span>projected</span>`
+      : `<strong style="color:var(--ffo-text)">${player?.value ?? "—"}</strong><span>market value</span>`;
+    $("roster-summary").innerHTML = `
+      <div><span>Rostered</span><strong>${players.length}</strong></div>
+      <div><span>Starting slots</span><strong>${filledStarters.length}/${assigned.length}</strong></div>
+      <div><span>Projected coverage</span><strong>${projectedStarters.length}/${filledStarters.length}</strong></div>
+      <div><span>Known starter pts</span><strong>${projectedStarters.length ? projectedTotal.toFixed(1) : "—"}</strong></div>`;
+    const slotOccurrence = {};
+    const slotTotals = assigned.reduce((totals, row) => { totals[row.slot] = (totals[row.slot] || 0) + 1; return totals; }, {});
+    $("roster-lineup").innerHTML = assigned.map(row => {
+      slotOccurrence[row.slot] = (slotOccurrence[row.slot] || 0) + 1;
+      const slotLabel = slotTotals[row.slot] > 1 ? `${row.slot}${slotOccurrence[row.slot]}` : row.slot;
+      if (!row.player) return `<div class="ffo2-lineup-card empty" style="--slot-color:${slotColor(row.slot)}"><span class="ffo2-slot">${escapeHTML(slotLabel)}</span><div><div class="ffo2-player-name">Open starter slot</div><div class="ffo2-player-meta">No eligible player currently assigned</div></div><div class="ffo2-player-value"><span>need</span></div></div>`;
+      const player = row.player;
+      return `<div class="ffo2-lineup-card" style="--slot-color:${slotColor(row.slot)}"><span class="ffo2-slot">${escapeHTML(slotLabel)}</span><div><div class="ffo2-player-name">${escapeHTML(player.name)}</div><div class="ffo2-player-meta">${escapeHTML(player.position || "—")} · ${escapeHTML(player.team || "FA")}${player.status ? ` · ${escapeHTML(player.status)}` : ""}</div></div><div class="ffo2-player-value">${playerMetric(player)}</div></div>`;
+    }).join("");
+    $("roster-bench-count").textContent = `${bench.length} players · ${Object.entries(positionCounts).map(([position,count]) => `${position} ${count}`).join(" · ")}`;
+    $("roster-bench").innerHTML = bench.map(player => `<div class="ffo2-bench-card"><strong>${escapeHTML(player.name)}</strong><span>${escapeHTML(player.position || "—")} · ${escapeHTML(player.team || "FA")}${player.projPoints !== null ? ` · ${Number(player.projPoints).toFixed(1)} projected` : ` · value ${player.value ?? "—"}`}</span></div>`).join("") || '<div class="muted">No bench players.</div>';
 
     $("roster-body").innerHTML = players.map(p => {
       const fp = fpRankFor(p.name, p.position);
