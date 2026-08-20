@@ -77,4 +77,4 @@ async function load(){restore();for(const id of ['teams','slot','rounds'])$(id).
 document.addEventListener('ffo:league-changed',e=>{state.activeLeague=e.detail;$('league-note').textContent=`Active league: ${e.detail.name} · ${e.detail.league_type} · ${e.detail.scoring?.reception??0} PPR`;load()});$('start').onclick=start;$('advance').onclick=simulateToUser;$('undo').onclick=undo;$('pos').onchange=renderBoard;$('search').oninput=renderBoard;$('review').onclick=review;setTimeout(()=>{if(!state.players.length)load()},500);
 })();
 </script>
-</body></html>
+<script src="js/ffo-shell.js"></script></body></html>

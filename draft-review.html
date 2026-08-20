@@ -30,4 +30,4 @@
   ['compare-slot','compare-format','compare-strategy'].forEach(id=>document.getElementById(id).onchange=renderComparison);renderComparison();
   document.getElementById('export').onclick=()=>{const body=JSON.stringify(FFODraftReview.artifact(payload,review),null,2),url=URL.createObjectURL(new Blob([body],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=`front-office-draft-review-${Date.now()}.json`;a.click();URL.revokeObjectURL(url)};
 })();
-</script></body></html>
+</script><script src="js/ffo-shell.js"></script></body></html>

@@ -44,4 +44,5 @@ async function build(){try{$('run').disabled=true;$('status').textContent='Simul
 document.addEventListener('ffo:league-changed',e=>{S.league=e.detail;const r=e.detail?.roster||{},sc=e.detail?.scoring||{};if(e.detail?.teams)$('teams').value=e.detail.teams;if(sc.reception!=null)$('ppr').value=String(sc.reception);if(r.SUPER_FLEX)$('qbs').value='2'});$('run').onclick=build;setTimeout(build,400);
 })();
 </script>
+<script src="js/ffo-shell.js"></script>
 </body></html>
