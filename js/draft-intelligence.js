@@ -1566,6 +1566,33 @@
     };
   }
 
+  function pairedTurnPlan(entries = [], context = {}) {
+    if (numeric(context.picksUntilNextTurn, 99) > 2 || entries.length < 2) return null;
+    const candidates = entries.filter((entry) => entry.scenario?.decision !== "PASS").slice(0, 10);
+    let best = null;
+    for (let left = 0; left < candidates.length; left += 1) {
+      for (let right = left + 1; right < candidates.length; right += 1) {
+        const a = candidates[left], b = candidates[right];
+        const differentPositions = a.player.position !== b.player.position;
+        const openStarters = [a, b].filter((entry) => rosterNeedState(entry.player, context).state === "starter_need").length;
+        const complementBonus = differentPositions ? 6 : -2;
+        const starterBonus = openStarters * 4;
+        const pairScore = a.contextualScore + b.contextualScore + complementBonus + starterBonus;
+        if (!best || pairScore > best.pairScore) best = { a, b, pairScore, complementBonus, starterBonus };
+      }
+    }
+    if (!best) return null;
+    const urgency = (entry) => numeric(entry.scenario.expectedWaitLoss, 0) + numeric(entry.scenario.scarcity?.scarcity, 0) * .08 + (entry.scenario.atTierCliff ? 8 : 0);
+    const first = urgency(best.a) >= urgency(best.b) ? best.a : best.b;
+    const second = first === best.a ? best.b : best.a;
+    return {
+      first,
+      second,
+      pairScore: Math.round(best.pairScore),
+      rationale: `${first.player.name} first protects the greater wait cost; pair with ${second.player.name} to maximize combined lineup value${best.complementBonus > 0 ? " across complementary positions" : ""}.`,
+    };
+  }
+
   function recommendationBoard(players = [], context = {}) {
     const roomPicks = context.roomPicks || [];
     const runs = positionRunState(roomPicks, players, context);
@@ -1591,9 +1618,16 @@
       if (player.vegasComparison?.available && numeric(player.vegasComparison.confidence,0) >= .35) adjustment += player.vegasComparison.strength * Math.min(1.5, numeric(player.vegasComparison.confidence,0) * 1.5);
       const scenario = decisionScenario(player, players, context);
       const phaseBonus = scenario.optionValue.active ? Math.max(-2, Math.min(6, (scenario.optionValue.score - 50) * .1)) : 0;
-      return { player, evaluation, run, evidence, breakout, scenario, adjustment: Math.round(adjustment + phaseBonus), contextualScore: Math.round(clamp(evaluation.pickUtility + adjustment + phaseBonus)) };
+      const earlyTierProtection = numeric(context.round, 1) <= 4 && scenario.atTierCliff ? Math.min(5, scenario.fallbackLoss * .25) : 0;
+      return { player, evaluation, run, evidence, breakout, scenario, adjustment: Math.round(adjustment + phaseBonus + earlyTierProtection), contextualScore: Math.round(clamp(evaluation.pickUtility + adjustment + phaseBonus + earlyTierProtection)) };
     });
     const recommended = [...evaluated].sort((a, b) => b.contextualScore - a.contextualScore || numeric(a.player.overallRank, 999) - numeric(b.player.overallRank, 999));
+    const pairPlan = pairedTurnPlan(recommended, context);
+    if (pairPlan && recommended[0] !== pairPlan.first) {
+      const index = recommended.indexOf(pairPlan.first);
+      recommended.splice(index, 1);
+      recommended.unshift(pairPlan.first);
+    }
     const bestAvailable = [...evaluated].sort((a, b) => numeric(a.player.adp ?? a.player.overallRank ?? a.player.rank, 999) - numeric(b.player.adp ?? b.player.overallRank ?? b.player.rank, 999));
     recommended.slice(0, 8).forEach((entry) => { entry.comparables = comparablePlayers(entry.player, players, context, 3); });
     const leadRun = runs.find((run) => run.active);
@@ -1603,7 +1637,8 @@
     if (superflex && numeric(counts.QB, 0) < qbTarget) {
       strategyImpact = `Superflex pressure: you still need ${qbTarget - numeric(counts.QB, 0)} starting QB${qbTarget - numeric(counts.QB, 0) === 1 ? "" : "s"}. Treat viable starting QBs as a scarce lineup requirement, not a one-QB luxury. ${strategyImpact}`;
     }
-    return { recommended, bestAvailable, runs, strategyImpact };
+    if (pairPlan) strategyImpact = `TURN PLAN: ${pairPlan.rationale} ${strategyImpact}`;
+    return { recommended, bestAvailable, runs, strategyImpact, pairPlan };
   }
 
   // Real draft methodology differs by round: early picks should lean almost
@@ -1994,6 +2029,7 @@
     normalizeName,
     optimalLineup,
     opportunityCost,
+    pairedTurnPlan,
     comparablePlayers,
     decisionScenario,
     draftPhase,

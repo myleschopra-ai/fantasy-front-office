@@ -1,0 +1,80 @@
+{
+  "method": "paired 2024-2025 redraft replay against competent need-aware market baselines",
+  "years": {
+    "2024": {
+      "snake": {
+        "n": 48,
+        "mean_delta": 36.92,
+        "win_rate": 0.562,
+        "ci95": [
+          7.35,
+          66.49
+        ],
+        "framework_points": 1306.84,
+        "strong_baseline_points": 1269.92
+      },
+      "auction": {
+        "n": 48,
+        "mean_delta": 247.81,
+        "win_rate": 0.896,
+        "ci95": [
+          195.5,
+          300.12
+        ],
+        "framework_points": 1428.77,
+        "strong_baseline_points": 1180.97
+      }
+    },
+    "2025": {
+      "snake": {
+        "n": 48,
+        "mean_delta": 23.32,
+        "win_rate": 0.521,
+        "ci95": [
+          -18.03,
+          64.68
+        ],
+        "framework_points": 1179.62,
+        "strong_baseline_points": 1156.3
+      },
+      "auction": {
+        "n": 48,
+        "mean_delta": 111.67,
+        "win_rate": 0.75,
+        "ci95": [
+          57.19,
+          166.15
+        ],
+        "framework_points": 1303.96,
+        "strong_baseline_points": 1192.29
+      }
+    }
+  },
+  "combined": {
+    "snake": {
+      "n": 96,
+      "mean_delta": 30.12,
+      "win_rate": 0.542,
+      "ci95": [
+        4.8,
+        55.44
+      ]
+    },
+    "auction": {
+      "n": 96,
+      "mean_delta": 179.74,
+      "win_rate": 0.823,
+      "ci95": [
+        139.76,
+        219.72
+      ]
+    }
+  },
+  "rules": {
+    "snake_baseline": "Need-aware ADP/market manager using the same roster constraints and no random handicap.",
+    "auction_baseline": "Need-aware generic-AAV manager with the same budget reserve logic; only the framework receives intrinsic/ceiling/scarcity max-bid adjustments.",
+    "lineups": "Pregame weekly projections choose starters; realized points score Weeks 1-14; no waivers.",
+    "validation_threshold": "Positive mean with 95% interval fully above zero.",
+    "auction_limitation": "League-specific historical-price calibration is not tested until actual league auction records are available."
+  }
+}

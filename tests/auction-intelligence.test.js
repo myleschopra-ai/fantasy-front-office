@@ -88,6 +88,9 @@ const evalRedundant=A.evaluatePlayer({
 });
 assert.equal(evalNeed.intrinsicPrice,evalRedundant.intrinsicPrice);
 assert.ok(evalNeed.maxBid>evalRedundant.maxBid);
+assert.equal(evalNeed.priceConfidence,'UNMODELED');
+assert.ok(evalNeed.maxBid<=Math.round(evalNeed.intrinsicPrice*1.12),'unmodeled auction advice must cap premiums until real clearing-price evidence exists');
+assert.ok(evalNeed.rawMaxBid>=evalNeed.maxBid,'evidence cap may constrain but never inflate the raw roster-aware maximum');
 
 const evalWithComparable=A.evaluatePlayer({
   player:{key:'rb1',name:'Lead RB',position:'RB',rank:10,tier:1},intrinsicPrice:50,currentPrice:52,

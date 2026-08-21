@@ -928,3 +928,14 @@ console.log('draft-intelligence.js tests passed');
   assert.ok(['DRAFT NOW','TARGET'].includes(scenario.decision), 'low-survival late upside should not be presented as a passive wait');
   assert.ok(Number.isFinite(scenario.expectedWaitLoss), 'wait decision must expose a finite expected loss');
 })();
+
+(() => {
+  const league = { roster: { QB:1,RB:2,WR:2,TE:1,FLEX:1 } };
+  const context = { league, teams:12, round:2, totalRounds:15, picks:[], counts:{}, picksUntilNextTurn:1, survival:25 };
+  const make = (name, position, rank, tier, projectedPoints) => ({ key:name, name, position, overallRank:rank, rank, adp:rank, tier, projectedPoints, consensusScore:100-rank });
+  const pool = [make('Turn RB','RB',12,1,250), make('Turn WR','WR',13,1,245), make('Depth RB','RB',14,2,225), make('Depth WR','WR',15,2,220)];
+  const board = D.recommendationBoard(pool, context);
+  assert.ok(board.pairPlan, 'near-turn picks must produce a two-player plan');
+  assert.notEqual(board.pairPlan.first.player.position, board.pairPlan.second.player.position, 'equal-value turn plan should prefer complementary starter positions');
+  assert.equal(board.recommended[0].player.key, board.pairPlan.first.player.key, 'first leg of turn plan must lead recommendations');
+})();

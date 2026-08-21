@@ -67,6 +67,8 @@ assert.match(sleeperStyles, /grid-template-columns:\s*minmax\(660px,1fr\) 330px/
 assert.match(runtime, /function renderDesktopQueue\(/, 'queue rail must be rendered from canonical draft state');
 assert.match(runtime, /function approximateSurvival\(/, 'live board must use a cheap survival estimate');
 assert.match(runtime, /function survival\(player, runs = 5\)/, 'full Monte Carlo survival must be bounded');
+assert.match(runtime, /pairPlan: intelligence\.pairPlan/, 'near-turn recommendation state must expose the paired-pick plan');
+assert.match(auctionRuntime, /price confidence/i, 'auction room must disclose clearing-price evidence confidence');
 assert.match(runtime, /equityFor\(player, false\)/, 'scrolling player board must avoid full Monte Carlo for every row');
 assert.match(runtime, /var\(--pickw,108px\)/, 'draft renderer and CSS must share the same responsive pick width contract');
 assert.doesNotMatch(leagueSwitcher, /if \(!league\.provider_league_id\) showSetup/, 'mock boot must not be blocked by automatic provider setup');

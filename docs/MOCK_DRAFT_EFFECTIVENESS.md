@@ -10,11 +10,14 @@ The 2024-2025 format replay contains 96 paired trials per format. The snake fram
 
 The auction headline is not a production-grade estimate of expected advantage. The baseline buys only to a generic published price, while the framework uses roster-aware maximum bids. A separate sensitivity test raises the baseline willingness to pay for positional need. The framework advantage declines from 257.42 points at a 6% premium to 57.10 points at a 15% premium, where the 95% interval crosses zero, and 51.05 points at a 20% premium. This establishes useful price discipline but not a guaranteed league-winning edge.
 
+A stronger 2024-2025 replay gives both baselines the same roster constraints and need awareness. Across 96 pairs, snake gained 30.12 points with a 54.2% paired win rate (95% interval +4.80 to +55.44). Auction gained 179.74 points with an 82.3% paired win rate (95% interval +139.76 to +219.72). Slot-level results exposed weak snake outcomes at picks 3, 4, 11 and 12, so the production advisor now evaluates two-player combinations at the turn and applies bounded early-tier protection instead of hard-coding slot bonuses. Unmodeled auction advice now caps the premium above format value at 12% until real position/tier clearing-price evidence is available.
+
 Artifacts:
 
 - `data/backtests/2025/report.json`: 48-pair 2025 manager replay with waivers, lineup management and playoffs.
 - `data/backtests/redraft-mock-validation/report.json`: paired 2024-2025 snake and auction format replay.
 - `data/backtests/auction-sensitivity/report.json`: auction robustness versus progressively more aggressive need-aware bidders.
+- `data/backtests/redraft-mock-validation-strong/report.json`: paired replay against competent need-aware snake and auction baselines.
 
 ## Ratings
 

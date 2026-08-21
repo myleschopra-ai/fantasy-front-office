@@ -540,6 +540,9 @@
       survival,
       players: state.players,
       projectionCoverage: state.projectionCoverage,
+      picksUntilNextTurn: team === state.slot
+        ? Math.max(1, numeric(nextUserPick(picks.length), picks.length + state.teams) - (picks.length + 1))
+        : state.teams,
     };
   }
 
@@ -730,6 +733,7 @@
       bestAvailable: D.recommendationBoard(pool.slice(0, 60), context).bestAvailable.slice(0, 5),
       runs: intelligence.runs,
       strategyImpact: intelligence.strategyImpact,
+      pairPlan: intelligence.pairPlan,
     };
   }
 
