@@ -36,8 +36,14 @@
 
   function rosterSlotCount(league = {}) {
     const roster = league.roster || {};
-    const keys = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'SUPER_FLEX', 'SF', 'K', 'DST', 'BENCH'];
-    const total = keys.reduce((acc, key) => acc + Math.max(0, numeric(roster[key], 0)), 0);
+    const total = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'K', 'DST'].reduce(
+      (acc, key) => acc + Math.max(0, numeric(roster[key], 0)),
+      0,
+    ) + Math.max(0, numeric(roster.BENCH ?? roster.BN, 0))
+      + Math.max(0, numeric(roster.SUPER_FLEX ?? roster.SF, 0))
+      + Math.max(0, numeric(roster.WRRB_FLEX ?? roster.RB_WR, 0))
+      + Math.max(0, numeric(roster.REC_FLEX ?? roster.WR_TE, 0))
+      + Math.max(0, numeric(roster.WR_RB_TE, 0));
     return total || 15;
   }
 
@@ -126,6 +132,9 @@
     const scoring = config.league?.scoring || {};
     const flex = Math.max(0, numeric(roster.FLEX, 0));
     const sf = Math.max(0, numeric(roster.SUPER_FLEX ?? roster.SF, 0));
+    const wrRbFlex = Math.max(0, numeric(roster.WRRB_FLEX ?? roster.RB_WR, 0));
+    const receiverFlex = Math.max(0, numeric(roster.REC_FLEX ?? roster.WR_TE, 0));
+    const universalFlex = Math.max(0, numeric(roster.WR_RB_TE, 0));
     const tePremium = Math.max(0, numeric(scoring.te_premium ?? scoring.tePremium ?? scoring.bonus_rec_te, 0));
     const explicit = Math.max(0, numeric(roster[position], 0));
     if (position === 'QB') return 1 + sf * 0.55 + Math.max(0, explicit - 1) * 0.45;
@@ -134,9 +143,9 @@
     // that the scarce top of the position gains value while the fixed room
     // budget still remains conserved.  sqrt(3 / 2) ~= 1.225; four-WR
     // formats continue to rise, but do not receive a linear 2x premium.
-    if (position === 'WR') return Math.sqrt(Math.max(1, explicit / 2)) + flex * 0.035;
-    if (position === 'RB') return 1 + Math.max(0, explicit - 2) * 0.12 + flex * 0.03;
-    if (position === 'TE') return 1 + Math.max(0, explicit - 1) * 0.12 + flex * 0.012 + tePremium * 0.18;
+    if (position === 'WR') return Math.sqrt(Math.max(1, explicit / 2)) + flex * 0.035 + wrRbFlex * 0.025 + receiverFlex * 0.03 + universalFlex * 0.035;
+    if (position === 'RB') return 1 + Math.max(0, explicit - 2) * 0.12 + flex * 0.03 + wrRbFlex * 0.03 + universalFlex * 0.03;
+    if (position === 'TE') return 1 + Math.max(0, explicit - 1) * 0.12 + flex * 0.012 + receiverFlex * 0.025 + universalFlex * 0.012 + tePremium * 0.18;
     if (position === 'K' || position === 'DST') return 0.035;
     return 1;
   }
@@ -403,8 +412,12 @@
   }
 
   function evaluatePlayer({ player, intrinsicPrice, expectedPrice, currentPrice, teamState, draftEvaluation = {}, scarcity = 50, tierUrgency = 50, upside = 50, capableBidders = 1, inflation = 1, opponentsNeedingPosition = 0, minBid = 1, availablePlayers = [], priceForPlayer = null }) {
-    const need = numeric(draftEvaluation.components?.need ?? draftEvaluation.need, 50), redundancy = need < 50 ? (50 - need) * 2 : 0;
-    const rawBidCap = maxBid({ intrinsicPrice, remainingBudget: teamState.remainingBudget, slotsLeft: teamState.slotsLeft, minBid, need, scarcity, tierUrgency, upside, redundancy });
+    const need = numeric(draftEvaluation.components?.need ?? draftEvaluation.need, 50);
+    const wwpa = draftEvaluation.wwpa || null;
+    const winRateSignal = clamp(50 + numeric(wwpa?.deltaPercentagePoints, 0) * 10, 0, 100);
+    const decisionNeed = clamp(need * 0.78 + winRateSignal * 0.22, 0, 100);
+    const redundancy = decisionNeed < 50 ? (50 - decisionNeed) * 2 : 0;
+    const rawBidCap = maxBid({ intrinsicPrice, remainingBudget: teamState.remainingBudget, slotsLeft: teamState.slotsLeft, minBid, need: decisionNeed, scarcity, tierUrgency, upside, redundancy });
     const positionEvidence = numeric(teamState.leagueModel?.position?.[String(player.position || '').toUpperCase()]?.n, 0);
     const tierEvidence = numeric(teamState.leagueModel?.tier?.[`${String(player.position || '').toUpperCase()}:${numeric(player.tier, auctionTier(player.overallRank ?? player.rank))}`]?.n, 0);
     const priceEvidence = positionEvidence + tierEvidence;
@@ -423,7 +436,7 @@
     const dollarsToCeiling = Math.max(0, Math.round((bidCap - observedPrice) * 10) / 10);
     let bidAdvice = nextBid > bidCap ? 'PASS TO COMPARABLE' : dollarsToCeiling <= minBid ? 'FINAL BID ONLY' : observedPrice < clearingPrice ? 'BID — BELOW MARKET' : 'BID IF NEEDED';
     if (nextComparable && nextComparable.valueDrop <= Math.max(2, intrinsicPrice * .08) && observedPrice >= bidCap - minBid) bidAdvice = 'PASS TO COMPARABLE';
-    return { player, intrinsicPrice, expectedPrice: clearingPrice, currentPrice: observedPrice, maxBid: bidCap, rawMaxBid: rawBidCap, priceEvidence, priceConfidence: priceEvidence >= 12 ? 'CALIBRATED' : priceEvidence >= 3 ? 'LIMITED' : 'UNMODELED', surplus, recommendation: recommendation({ currentPrice: observedPrice, expectedPrice: clearingPrice, maxBid: bidCap, intrinsicPrice, surplus }), bidAdvice, nextBid, dollarsToCeiling, nextComparable, nomination: nomination({ surplus, expectedPrice: clearingPrice, maxBid: bidCap, roomInflation: inflation, need, opponentsNeedingPosition, endgame: teamState.slotsLeft <= 3 }), need, scarcity, tierUrgency, inflation };
+    return { player, intrinsicPrice, expectedPrice: clearingPrice, currentPrice: observedPrice, maxBid: bidCap, rawMaxBid: rawBidCap, priceEvidence, priceConfidence: priceEvidence >= 12 ? 'CALIBRATED' : priceEvidence >= 3 ? 'LIMITED' : 'UNMODELED', surplus, recommendation: recommendation({ currentPrice: observedPrice, expectedPrice: clearingPrice, maxBid: bidCap, intrinsicPrice, surplus }), bidAdvice, nextBid, dollarsToCeiling, nextComparable, nomination: nomination({ surplus, expectedPrice: clearingPrice, maxBid: bidCap, roomInflation: inflation, need: decisionNeed, opponentsNeedingPosition, endgame: teamState.slotsLeft <= 3 }), need, decisionNeed, wwpa, scarcity, tierUrgency, inflation };
   }
 
   return { clamp, quantile, auctionTier, rosterSlotCount, compileAuctionConfig, requiredPositionCounts, positionDemandMultiplier, normalizeHistory, leagueModel, calibrationBacktest, maximumLegalBid, buildIntrinsicPrices, roomInflation, expectedLeaguePrice, expectedLeaguePriceRange, maxBid, acquisitionSurplus, recommendation, nomination, capableBidderCount, applyPurchase, budgetHealth, evaluatePlayer };

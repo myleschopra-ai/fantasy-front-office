@@ -118,9 +118,9 @@ body.ffo2-page textarea { touch-action: manipulation; }
 body.ffo2-immersive .ffo2-mobilebar,
 body.ffo2-immersive .ffo2-bottom-nav { display: none !important; }
 
-body.ffo2-page:not(.ffo2-immersive) > header:not(.ffo2-mobilebar),
+body.ffo2-page:not(.ffo2-immersive) > header:not(.ffo2-mobilebar):not(.ffo2-topbar),
 body.ffo2-page:not(.ffo2-immersive) > nav:not(.ffo2-bottom-nav) { position: relative !important; top: auto !important; z-index: 4 !important; }
-body.ffo2-page:not(.ffo2-immersive) > header:not(.ffo2-mobilebar) {
+body.ffo2-page:not(.ffo2-immersive) > header:not(.ffo2-mobilebar):not(.ffo2-topbar) {
   max-width: 1440px; margin: 0 auto; padding: 25px 28px 10px !important; border: 0 !important; background: transparent !important; backdrop-filter: none !important;
 }
 body.ffo2-page:not(.ffo2-immersive) > main { max-width: 1440px !important; margin: 0 auto !important; padding: 18px 28px 48px !important; }

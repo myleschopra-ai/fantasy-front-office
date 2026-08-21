@@ -6,6 +6,8 @@ Updated: 2026-08-21
 
 The redraft mock has been evaluated with paired, no-lookahead historical replays. Identical draft slots, opponent processes, random seeds, weekly lineup rules and realized scoring are used for the framework and baseline rosters.
 
+The production rooms now add the WWPA / Expected Weekly H2H Win Rate decision layer documented in [WEEKLY_WIN_PROBABILITY.md](WEEKLY_WIN_PROBABILITY.md). The historical results below were generated before that objective existed. They validate the established draft framework, not a claim that WWPA has already beaten ADP, ECR, raw projections, or static VORP on historical weekly outcomes. WWPA receives its own leakage-free replay gate before any such claim is promoted.
+
 The 2024-2025 format replay contains 96 paired trials per format. The snake framework beat its ADP-first baseline by 107.62 season points on average and won 74.0% of paired trials. The auction framework beat a generic published-value bidder by 310.17 points and won 95.8% of paired trials.
 
 The auction headline is not a production-grade estimate of expected advantage. The baseline buys only to a generic published price, while the framework uses roster-aware maximum bids. A separate sensitivity test raises the baseline willingness to pay for positional need. The framework advantage declines from 257.42 points at a 6% premium to 57.10 points at a 15% premium, where the 95% interval crosses zero, and 51.05 points at a 20% premium. This establishes useful price discipline but not a guaranteed league-winning edge.

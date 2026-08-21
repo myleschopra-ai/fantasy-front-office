@@ -28,6 +28,7 @@ const requiredIds = [
   'source','pos','search','board','roster','equity-bar','roster-equity','profile',
   'intelligence-status','strategy-playbook','weight-summary','room-status','picks',
   'decision-now','decision-wait','upside-case',
+  'wwpa','team-ppg','weekly-edge','expected-record','draft-fit',
   'player-modal-backdrop','player-modal-title','close-player-modal','player-blurb','player-scheme','player-compare'
   ,'session-status','provider-sync-status','provider-sync'
 ];
@@ -37,6 +38,13 @@ for (const id of requiredIds) {
 
 assert.match(room, /Front Office recommendation/, 'recommendation must be a primary visual surface');
 assert.match(room, /Auction \/ salary cap/, 'mock settings must expose auction as a first-class draft format');
+assert.match(room, /Third-round reversal/, 'snake settings must expose third-round reversal');
+assert.match(room, /id="setupPassTD"/, 'snake settings must expose passing-touchdown scoring');
+assert.match(room, /id="setupRBWR"/, 'snake settings must expose RB\/WR-only flex combinations');
+assert.match(room, /id="setupWRTE"/, 'snake settings must expose WR\/TE-only flex combinations');
+assert.match(runtime, /third_round_reversal/, 'snake order logic must consume the third-round-reversal setting');
+assert.match(runtime, /Expected weekly H2H win rate is the outcome objective/, 'recommendation explainability must identify win rate as the objective');
+assert.match(auctionRuntime, /deltaPercentagePoints/, 'auction valuation must explain WWPA at the live bid');
 assert.match(runtime, /auction\.html\?from=mock-draft/, 'auction selection must hand off to the live auction room');
 assert.match(runtime, /ffo_mock_draft_handoff_v1/, 'mock settings must persist the selected league for auction handoff');
 assert.match(auctionRuntime, /ffo_mock_draft_handoff_v1/, 'auction room must consume the mock-draft settings handoff');

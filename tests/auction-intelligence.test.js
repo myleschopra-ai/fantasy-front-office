@@ -92,6 +92,18 @@ assert.equal(evalNeed.priceConfidence,'UNMODELED');
 assert.ok(evalNeed.maxBid<=Math.round(evalNeed.intrinsicPrice*1.12),'unmodeled auction advice must cap premiums until real clearing-price evidence exists');
 assert.ok(evalNeed.rawMaxBid>=evalNeed.maxBid,'evidence cap may constrain but never inflate the raw roster-aware maximum');
 
+const evalHighWwpa=A.evaluatePlayer({
+  player:{key:'wwpa-rb',position:'RB',rank:20},intrinsicPrice:45,teamState:{remainingBudget:100,slotsLeft:3,leagueModel:null},
+  draftEvaluation:{components:{need:70},wwpa:{deltaPercentagePoints:4.0}},scarcity:70,tierUrgency:70,upside:60,inflation:1,minBid:1,
+});
+const evalLowWwpa=A.evaluatePlayer({
+  player:{key:'wwpa-rb',position:'RB',rank:20},intrinsicPrice:45,teamState:{remainingBudget:100,slotsLeft:3,leagueModel:null},
+  draftEvaluation:{components:{need:70},wwpa:{deltaPercentagePoints:0.2}},scarcity:70,tierUrgency:70,upside:60,inflation:1,minBid:1,
+});
+assert.ok(evalHighWwpa.maxBid>evalLowWwpa.maxBid,'auction ceiling must rise when the same player price creates materially more WWPA');
+assert.equal(evalHighWwpa.wwpa.deltaPercentagePoints,4,'auction explainability must retain the draft WWPA evidence');
+assert.equal(A.rosterSlotCount({roster:{QB:1,RB:2,WR:2,TE:1,WRRB_FLEX:1,REC_FLEX:1,BENCH:5}}),13,'custom eligible flex slots must count toward auction roster size');
+
 const evalWithComparable=A.evaluatePlayer({
   player:{key:'rb1',name:'Lead RB',position:'RB',rank:10,tier:1},intrinsicPrice:50,currentPrice:52,
   teamState:{remainingBudget:100,slotsLeft:8,leagueModel:null},draftEvaluation:{components:{need:70}},

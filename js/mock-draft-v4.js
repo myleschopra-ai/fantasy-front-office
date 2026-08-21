@@ -338,7 +338,11 @@
   function ownerForPick(pick) {
     const round = Math.floor((pick - 1) / state.teams) + 1;
     const slot = ((pick - 1) % state.teams) + 1;
-    return round % 2 ? slot : state.teams - slot + 1;
+    const thirdRoundReversal = Boolean(state.activeLeague?.draft?.third_round_reversal);
+    const forward = thirdRoundReversal
+      ? round === 1 || (round >= 4 && round % 2 === 0)
+      : round % 2 === 1;
+    return forward ? slot : state.teams - slot + 1;
   }
 
   function roundPick(pick) {
@@ -729,7 +733,7 @@
     const intelligence = D.recommendationBoard(detailed, context);
     const byKey = new Map(detailed.map((player) => [player.key, player]));
     return {
-      recommended: intelligence.recommended.slice(0, 4).map((entry) => ({ ...byKey.get(entry.player.key), contextualScore: entry.contextualScore, adjustment: entry.adjustment, run: entry.run, evidence: entry.evidence, breakout: entry.breakout, comparables: entry.comparables, scenario: entry.scenario })),
+      recommended: intelligence.recommended.slice(0, 4).map((entry) => ({ ...byKey.get(entry.player.key), contextualScore: entry.contextualScore, adjustment: entry.adjustment, wwpa: entry.wwpa, run: entry.run, evidence: entry.evidence, breakout: entry.breakout, comparables: entry.comparables, scenario: entry.scenario })),
       bestAvailable: D.recommendationBoard(pool.slice(0, 60), context).bestAvailable.slice(0, 5),
       runs: intelligence.runs,
       strategyImpact: intelligence.strategyImpact,
@@ -856,7 +860,13 @@
     });
     $("best").innerHTML =
       `<span class="player-link" data-player="${esc(best.key)}" tabindex="0">${esc(best.name)} · ${best.position}</span>`;
-    $("equity").textContent = best.contextualScore ?? best.score;
+    const wwpa = best.wwpa;
+    $("equity").textContent = wwpa ? `${wwpa.winRateAfter.toFixed(1)}%` : (best.contextualScore ?? best.score);
+    if ($("wwpa")) $("wwpa").textContent = wwpa ? `${wwpa.deltaPercentagePoints >= 0 ? "+" : ""}${wwpa.deltaPercentagePoints.toFixed(1)} pp` : "—";
+    if ($("team-ppg")) $("team-ppg").textContent = wwpa ? wwpa.after.teamMean.toFixed(1) : "—";
+    if ($("weekly-edge")) $("weekly-edge").textContent = wwpa ? `${wwpa.after.weeklyEdge >= 0 ? "+" : ""}${wwpa.after.weeklyEdge.toFixed(1)}` : "—";
+    if ($("expected-record")) $("expected-record").textContent = wwpa ? `${wwpa.after.expectedWins.toFixed(1)}–${wwpa.after.expectedLosses.toFixed(1)}` : "—";
+    if ($("draft-fit")) $("draft-fit").textContent = best.contextualScore ?? best.score;
     $("delta").textContent = formatSigned(marketDelta(best));
     $("ceiling").textContent = `T${numeric(best.tier, 99)}`;
     $("breakout").textContent = `${Math.round(numeric(best.agreement, 50))}%`;
@@ -864,7 +874,7 @@
     $("survive").textContent = `${best.sv}%`;
     if ($("evidence")) $("evidence").textContent = `${best.evidence?.grade || "—"} · ${best.evidence?.score || 0}%`;
     $("why").textContent =
-      `${actionFor(best, best)} · ${needLabel(best)} — ${needReason(best)}. ${componentSummary(best)}. ${best.vegasComparison?.available ? `${best.vegasComparison.label}: ${best.vegasComparison.delta >= 0 ? "+" : ""}${best.vegasComparison.delta} projected points versus the fantasy model (${best.vegasComparison.books} book${best.vegasComparison.books===1?"":"s"}).` : "No complete, fresh Vegas total is available for this player."} ${best.evidence?.productionReady ? `${best.breakout?.label || "Production profile modeled"}.` : `Evidence ${best.evidence?.grade || "insufficient"}; missing ${best.evidence?.missing?.slice(0,2).join(" + ") || "production inputs"}, so no speculative breakout boost is applied.`} ${directive.directive}`;
+      `${actionFor(best, best)} · ${needLabel(best)} — ${needReason(best)}. ${wwpa ? `${wwpa.explanation} Expected weekly win rate moves from ${wwpa.winRateBefore.toFixed(1)}% to ${wwpa.winRateAfter.toFixed(1)}% (${wwpa.deltaPercentagePoints >= 0 ? "+" : ""}${wwpa.deltaPercentagePoints.toFixed(1)} pp WWPA; ${wwpa.model.toLowerCase()} inputs).` : ""} ${componentSummary(best)}. ${best.vegasComparison?.available ? `${best.vegasComparison.label}: ${best.vegasComparison.delta >= 0 ? "+" : ""}${best.vegasComparison.delta} projected points versus the fantasy model (${best.vegasComparison.books} book${best.vegasComparison.books===1?"":"s"}).` : "No complete, fresh Vegas total is available for this player."} ${best.evidence?.productionReady ? `${best.breakout?.label || "Production profile modeled"}.` : `Evidence ${best.evidence?.grade || "insufficient"}; missing ${best.evidence?.missing?.slice(0,2).join(" + ") || "production inputs"}, so no speculative breakout boost is applied.`} ${directive.directive}`;
     const comparable = best.comparables?.[0];
     if ($("room-impact")) $("room-impact").textContent = recommendationState.strategyImpact;
     if ($("decision-now")) $("decision-now").innerHTML = `<strong>${esc(best.scenario?.decision || actionFor(best, best))}</strong><span>${esc(best.scenario?.whyNow || needReason(best))}</span>`;
@@ -886,7 +896,7 @@
       .slice(1)
       .map(
         (player, index) =>
-          `<div class="row compact-rec"><div class="player-link" data-player="${esc(player.key)}" tabindex="0"><div class="name">${index === 0 ? "Next" : index === 1 ? "Structural" : "Value"}: ${esc(player.name)} · ${player.position}</div><div class="icons">${rankIcons(player, player)}<span class="icon">⏳ ${player.sv}%</span></div></div><span class="score">${player.score}</span></div>`,
+          `<div class="row compact-rec"><div class="player-link" data-player="${esc(player.key)}" tabindex="0"><div class="name">${index === 0 ? "Next" : index === 1 ? "Structural" : "Value"}: ${esc(player.name)} · ${player.position}</div><div class="icons">${rankIcons(player, player)}<span class="icon">⏳ ${player.sv}%</span></div></div><span class="score">${player.wwpa ? `${player.wwpa.winRateAfter.toFixed(1)}%` : player.score}</span></div>`,
       )
       .join("");
   }
@@ -946,8 +956,12 @@
       counts: rosterCounts,
       superflex: isSuperflex(),
     });
+    const outlook = D.expectedWeeklyTeamOutlook(
+      teamPicks(state.slot),
+      scoreContext(null, state.slot, state.picks, 50),
+    );
     $("profile").innerHTML =
-      `Starter gaps: <strong>${openSlots.length ? openSlots.join(", ") : "none"}</strong><br>Current plan: <strong>${esc(directive.directive)}</strong>${directive.warning ? `<br><span class="confidence-low">Guardrail: ${esc(directive.warning)}</span>` : ""}`;
+      `Projected team: <strong>${outlook.teamMean.toFixed(1)} PPG · ${outlook.winRate.toFixed(1)}% weekly win rate · ${outlook.expectedWins.toFixed(1)}–${outlook.expectedLosses.toFixed(1)}</strong><br>Starter gaps: <strong>${openSlots.length ? openSlots.join(", ") : "none"}</strong><br>Current plan: <strong>${esc(directive.directive)}</strong>${directive.warning ? `<br><span class="confidence-low">Guardrail: ${esc(directive.warning)}</span>` : ""}`;
   }
 
   function renderIntelligence() {
@@ -1117,13 +1131,13 @@
           <div class="meta">O${numeric(candidate.overallRank, candidate.rank)} · ${candidate.position}${numeric(candidate.posRank, 999)} · T${numeric(candidate.tier, 99)}</div>
           <div style="margin-top:6px;"><span class="action-badge" style="background:${waitColor}22; color:${waitColor};">${waitLabel}</span> <span class="detail-line" style="display:inline;">— ${evaluation.sv}% survives to your next pick, wait cost ${evaluation.waitRisk.waitCost}</span></div>
           <div class="metric-grid" style="grid-template-columns: repeat(4, 1fr); margin-top:6px;">
+            ${metric("Win rate after", evaluation.wwpa ? `${evaluation.wwpa.winRateAfter.toFixed(1)}%` : "—")}
+            ${metric("WWPA", evaluation.wwpa ? `${evaluation.wwpa.deltaPercentagePoints >= 0 ? "+" : ""}${evaluation.wwpa.deltaPercentagePoints.toFixed(1)} pp` : "—")}
             ${metric("Player Grade", evaluation.playerGrade)}
-            ${metric("Market Value", evaluation.marketValue)}
-            ${metric("League Value", evaluation.leagueValue)}
             ${metric("Pick Utility", evaluation.pickUtility)}
           </div>
           <div class="detail-line" style="margin-top:6px;">Player Grade = stable quality, never changes from your own roster. Pick Utility = should you draft him <em>right now</em>, given your roster and this moment.</div>
-          <div class="notice" style="margin-top:8px">Draft Fit ${evaluation.pickUtility}/100 is a weighted decision score—not projected points or win probability. Weighted points below sum to the score; “vs neutral” shows each factor's positive or negative impact.</div>
+          <div class="notice" style="margin-top:8px">Expected weekly H2H win rate is the outcome objective. Draft Fit ${evaluation.pickUtility}/100 combines its bounded WWPA lift with market, VORP, tier, roster, wait-risk and strategy guardrails; “vs neutral” below explains the supporting inputs.</div>
           <div class="metric-grid" style="grid-template-columns:repeat(2,1fr);">${weightedBreakdown(evaluation)}</div>
           <div class="metricline" style="margin-top:8px;">confidence ${evaluation.confidence}%</div>
           <div class="metric-grid">
@@ -1194,10 +1208,15 @@
     for (let round = 1; round <= state.rounds; round += 1) {
       html += `<div class="draft-cell round">R${round}</div>`;
       for (let displayTeam = 1; displayTeam <= state.teams; displayTeam += 1) {
-        const owner = round % 2 ? displayTeam : state.teams - displayTeam + 1;
-        const pickNumber =
-          (round - 1) * state.teams +
-          (round % 2 ? displayTeam : state.teams - displayTeam + 1);
+        const owner = displayTeam;
+        const firstPick = (round - 1) * state.teams + 1;
+        let pickNumber = firstPick;
+        for (let candidate = firstPick; candidate < firstPick + state.teams; candidate += 1) {
+          if (ownerForPick(candidate) === owner) {
+            pickNumber = candidate;
+            break;
+          }
+        }
         const selection = byPick.get(pickNumber);
         const active = pickNumber === state.picks.length + 1;
         html += `<div class="draft-cell ${active ? "active" : ""} ${owner === state.slot ? "mine" : ""}" data-team="${owner}"><div class="pickno">${roundPick(pickNumber)} · Team ${owner}</div>${selection ? `<div class="pickname">${esc(selection.name)}</div><div class="pickmeta">${esc(selection.position)}${selection.nflTeam ? ` · ${esc(selection.nflTeam)}` : ""}</div><div class="sim-badge">MOCK ADDITION</div>` : `<div class="empty-pick">${active ? "ON THE CLOCK" : "Available"}</div>`}</div>`;
@@ -1320,7 +1339,7 @@
           <span class="name">${esc(player.name)}</span>
           <span class="meta">${player.nflTeam ? esc(player.nflTeam) : "FA"}</span>
         </div>
-        <div class="player-signals"><span class="action-badge ${actionClass(action)}">${action}</span><span class="action-badge ${needStateClass(needState)}">${esc(needState.label)}</span>${vegasBadge(player)}<span class="detail-line">Score ${evaluation.score} · VBD ${Math.round(evaluation.components.vbd)} · ${scarcity.sameTier} left${cliff}</span></div>
+        <div class="player-signals"><span class="action-badge ${actionClass(action)}">${action}</span><span class="action-badge ${needStateClass(needState)}">${esc(needState.label)}</span>${vegasBadge(player)}${evaluation.wwpa ? `<span class="wwpa-badge" title="Expected weekly matchup win probability added">${evaluation.wwpa.deltaPercentagePoints >= 0 ? "+" : ""}${evaluation.wwpa.deltaPercentagePoints.toFixed(1)} pp WWPA</span>` : ""}<span class="detail-line">${evaluation.wwpa ? `${evaluation.wwpa.winRateAfter.toFixed(1)}% win rate · ` : ""}Score ${evaluation.score} · VBD ${Math.round(evaluation.components.vbd)} · ${scarcity.sameTier} left${cliff}</span></div>
         ${sleeperBlock}
       </div>
       <span class="player-stat"><small>Rank</small>${overallRank}</span>
@@ -1480,13 +1499,13 @@
   }
 
   const LEAGUE_PRESETS = {
-    standard: { QB:1,RB:2,WR:2,TE:1,FLEX:2,SUPER_FLEX:0,K:1,DST:1,BENCH:6,ppr:.5,tep:0 },
-    superflex: { QB:1,RB:2,WR:2,TE:1,FLEX:2,SUPER_FLEX:1,K:1,DST:1,BENCH:5,ppr:.5,tep:0 },
-    twoqb: { QB:2,RB:2,WR:2,TE:1,FLEX:1,SUPER_FLEX:0,K:1,DST:1,BENCH:5,ppr:.5,tep:0 },
-    threewr: { QB:1,RB:2,WR:3,TE:1,FLEX:2,SUPER_FLEX:0,K:1,DST:1,BENCH:6,ppr:.5,tep:0 },
-    tep: { QB:1,RB:2,WR:2,TE:1,FLEX:2,SUPER_FLEX:0,K:1,DST:1,BENCH:6,ppr:1,tep:.5 },
+    standard: { QB:1,RB:2,WR:2,TE:1,FLEX:2,SUPER_FLEX:0,WRRB_FLEX:0,REC_FLEX:0,K:1,DST:1,BENCH:6,ppr:.5,tep:0 },
+    superflex: { QB:1,RB:2,WR:2,TE:1,FLEX:2,SUPER_FLEX:1,WRRB_FLEX:0,REC_FLEX:0,K:1,DST:1,BENCH:5,ppr:.5,tep:0 },
+    twoqb: { QB:2,RB:2,WR:2,TE:1,FLEX:1,SUPER_FLEX:0,WRRB_FLEX:0,REC_FLEX:0,K:1,DST:1,BENCH:5,ppr:.5,tep:0 },
+    threewr: { QB:1,RB:2,WR:3,TE:1,FLEX:2,SUPER_FLEX:0,WRRB_FLEX:0,REC_FLEX:0,K:1,DST:1,BENCH:6,ppr:.5,tep:0 },
+    tep: { QB:1,RB:2,WR:2,TE:1,FLEX:2,SUPER_FLEX:0,WRRB_FLEX:0,REC_FLEX:0,K:1,DST:1,BENCH:6,ppr:1,tep:.5 },
   };
-  const ROSTER_INPUTS = { QB:"setupQB",RB:"setupRB",WR:"setupWR",TE:"setupTE",FLEX:"setupFLEX",SUPER_FLEX:"setupSF",K:"setupK",DST:"setupDST",BENCH:"setupBENCH" };
+  const ROSTER_INPUTS = { QB:"setupQB",RB:"setupRB",WR:"setupWR",TE:"setupTE",FLEX:"setupFLEX",SUPER_FLEX:"setupSF",WRRB_FLEX:"setupRBWR",REC_FLEX:"setupWRTE",K:"setupK",DST:"setupDST",BENCH:"setupBENCH" };
 
   function setupRoster() {
     return Object.fromEntries(Object.entries(ROSTER_INPUTS).map(([position,id]) => [position, Math.max(0, numeric($(id)?.value, 0))]));
@@ -1495,7 +1514,7 @@
   function updateLineupPreview() {
     const roster = setupRoster(), slots = [];
     Object.entries(roster).forEach(([position,count]) => {
-      const label = position === "SUPER_FLEX" ? "SFLEX" : position;
+      const label = position === "SUPER_FLEX" ? "SFLEX" : position === "WRRB_FLEX" ? "RB/WR" : position === "REC_FLEX" ? "WR/TE" : position;
       for (let index=0; index<count; index+=1) slots.push(label);
     });
     if ($("lineup-preview")) $("lineup-preview").textContent = slots.length ? slots.join(" · ") : "Add at least one roster slot.";
@@ -1508,6 +1527,8 @@
     Object.entries(ROSTER_INPUTS).forEach(([position,id]) => { if ($(id)) $(id).value = Math.max(0, numeric(roster[position], position === "BENCH" ? 6 : 0)); });
     if ($("setupPPR")) $("setupPPR").value = String(numeric(league.scoring?.reception, .5));
     if ($("setupTEP")) $("setupTEP").value = String(numeric(league.scoring?.te_premium ?? league.scoring?.tePremium, 0));
+    if ($("setupPassTD")) $("setupPassTD").value = String(numeric(league.scoring?.pass_td ?? league.scoring?.passing_td, 4));
+    if ($("setup3RR")) $("setup3RR").value = league.draft?.third_round_reversal ? "1" : "0";
     updateLineupPreview();
   }
 
@@ -1515,7 +1536,7 @@
     const preset = LEAGUE_PRESETS[name];
     if (!preset) return;
     Object.entries(ROSTER_INPUTS).forEach(([position,id]) => { $(id).value = preset[position]; });
-    $("setupPPR").value = String(preset.ppr); $("setupTEP").value = String(preset.tep);
+    $("setupPPR").value = String(preset.ppr); $("setupTEP").value = String(preset.tep); $("setupPassTD").value = "4";
     if ((name === "superflex" || name === "twoqb") && $("strategy").value === "adaptive") $("strategy").value = "early-qb";
     document.querySelectorAll("[data-draft-preset]").forEach((button)=>button.classList.toggle("active",button.dataset.draftPreset===name));
     updateLineupPreview();
@@ -1528,11 +1549,12 @@
       name: `Custom ${numeric($("teams").value,12)}-team ${roster.SUPER_FLEX ? "Superflex" : roster.QB > 1 ? "2QB" : "1QB"}`,
       teams: numeric($("teams").value,12),
       roster,
-      scoring: { ...(previous.scoring || {}), reception:numeric($("setupPPR").value,.5), te_premium:numeric($("setupTEP").value,0) },
+      scoring: { ...(previous.scoring || {}), reception:numeric($("setupPPR").value,.5), pass_td:numeric($("setupPassTD").value,4), te_premium:numeric($("setupTEP").value,0) },
+      draft: { ...(previous.draft || {}), format:"snake", third_round_reversal:$("setup3RR").value === "1" },
     };
     state.rounds = Math.max(1,Object.values(roster).reduce((sum,count)=>sum+count,0));
     $("rounds").value = state.rounds;
-    $("league-note").textContent = `Custom lineup · ${state.rounds} rounds · ${numeric(state.activeLeague.scoring.reception,0)} PPR${roster.SUPER_FLEX ? " · Superflex" : roster.QB > 1 ? " · 2QB" : ""}`;
+    $("league-note").textContent = `Custom lineup · ${state.rounds} rounds · ${numeric(state.activeLeague.scoring.reception,0)} PPR · ${numeric(state.activeLeague.scoring.pass_td,4)}-point pass TD${roster.SUPER_FLEX ? " · Superflex" : roster.QB > 1 ? " · 2QB" : ""}${state.activeLeague.draft.third_round_reversal ? " · 3RR" : ""}`;
   }
 
   function start() {
@@ -1849,7 +1871,7 @@
   });
   document.querySelectorAll("[data-draft-preset]").forEach((button)=>button.onclick=()=>applyPreset(button.dataset.draftPreset));
   Object.values(ROSTER_INPUTS).forEach((id)=>$(id)?.addEventListener("input",()=>{document.querySelectorAll("[data-draft-preset]").forEach((button)=>button.classList.remove("active"));updateLineupPreview();}));
-  ["setupPPR","setupTEP"].forEach((id)=>$(id)?.addEventListener("change",()=>document.querySelectorAll("[data-draft-preset]").forEach((button)=>button.classList.remove("active"))));
+  ["setupPPR","setupPassTD","setupTEP","setup3RR"].forEach((id)=>$(id)?.addEventListener("change",()=>document.querySelectorAll("[data-draft-preset]").forEach((button)=>button.classList.remove("active"))));
   $("settings-done").addEventListener("click",start);
   $("advance").onclick = () => state.mode === "live" ? syncSleeperDraft({ manual: true }) : simulateToUser();
   if ($("provider-sync")) $("provider-sync").onclick = () => syncSleeperDraft({ manual: true });

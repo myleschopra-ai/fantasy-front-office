@@ -939,3 +939,44 @@ console.log('draft-intelligence.js tests passed');
   assert.notEqual(board.pairPlan.first.player.position, board.pairPlan.second.player.position, 'equal-value turn plan should prefer complementary starter positions');
   assert.equal(board.recommended[0].player.key, board.pairPlan.first.player.key, 'first leg of turn plan must lead recommendations');
 })();
+
+// Weekly Win Probability Added is the outcome layer above the existing draft
+// factors. These deterministic checks validate the probability math, league
+// scoring sensitivity, availability treatment and lineup legality.
+(() => {
+  assert.ok(Math.abs(D.normalCdf(0) - 0.5) < 0.0001, 'normal CDF must center on 50%');
+  assert.ok(D.normalCdf(1) > D.normalCdf(0), 'a larger scoring edge must increase win probability');
+
+  const league = {
+    teams: 12,
+    scoring: { reception: 0.5, pass_td: 4 },
+    roster: { QB:1,RB:2,WR:2,TE:1,FLEX:1 },
+  };
+  const context = { league, teams:12, picks:[], round:1, totalRounds:14, regularSeasonWeeks:14 };
+  const elite = { key:'wwpa-elite', name:'Elite WR', position:'WR', projectedPoints:306, projectedGames:17, weeklyStdDev:5, projectionConfidence:90, agreement:90, consensusScore:96 };
+  const replacement = { key:'wwpa-replacement', name:'Replacement WR', position:'WR', projectedPoints:170, projectedGames:17, weeklyStdDev:5, projectionConfidence:90, agreement:90, consensusScore:60 };
+  const eliteLift = D.weeklyWinProbabilityAdded(elite, context);
+  const replacementLift = D.weeklyWinProbabilityAdded(replacement, context);
+  assert.ok(eliteLift.deltaPercentagePoints > replacementLift.deltaPercentagePoints, 'the larger legal-lineup point gain must create more WWPA');
+  assert.ok(eliteLift.winRateAfter > eliteLift.winRateBefore, 'an elite starter must raise expected weekly win rate');
+  assert.equal(eliteLift.after.regularSeasonWeeks, 14, 'expected record must honor configured regular-season weeks');
+  assert.ok(Math.abs(eliteLift.after.expectedWins - eliteLift.after.winProbability * 14) < 0.06, 'expected wins must equal weekly win probability times season weeks');
+
+  const lowVarianceFavorite = D.expectedWeeklyTeamOutlook([{ ...elite, weeklyProjection:24, weeklyStdDev:2 }], { ...context, opponentWeeklyMean:18, opponentWeeklyStdDev:7, league:{ ...league, roster:{ WR:1 } } });
+  const highVarianceFavorite = D.expectedWeeklyTeamOutlook([{ ...elite, weeklyProjection:24, weeklyStdDev:11 }], { ...context, opponentWeeklyMean:18, opponentWeeklyStdDev:7, league:{ ...league, roster:{ WR:1 } } });
+  assert.ok(lowVarianceFavorite.winRate > highVarianceFavorite.winRate, 'lower variance must protect a favored lineup');
+  const lowVarianceUnderdog = D.expectedWeeklyTeamOutlook([{ ...replacement, weeklyProjection:12, weeklyStdDev:2 }], { ...context, opponentWeeklyMean:18, opponentWeeklyStdDev:7, league:{ ...league, roster:{ WR:1 } } });
+  const highVarianceUnderdog = D.expectedWeeklyTeamOutlook([{ ...replacement, weeklyProjection:12, weeklyStdDev:11 }], { ...context, opponentWeeklyMean:18, opponentWeeklyStdDev:7, league:{ ...league, roster:{ WR:1 } } });
+  assert.ok(highVarianceUnderdog.winRate > lowVarianceUnderdog.winRate, 'higher variance must improve upset probability for an underdog');
+
+  const healthy = D.weeklyWinProbabilityAdded({ ...elite, key:'healthy', availabilityProbability:.99 }, context);
+  const risky = D.weeklyWinProbabilityAdded({ ...elite, key:'risky', availabilityProbability:.60 }, context);
+  assert.ok(healthy.deltaPercentagePoints > risky.deltaPercentagePoints, 'availability must affect usable production inside WWPA');
+
+  const qb = { position:'QB', projectedPoints:300, projectionStats:{ pass_td:40 }, projectionScoring:{ pass_td:4 } };
+  assert.equal(D.leagueAdjustedProjectedPoints(qb, { scoring:{ pass_td:6 } }), 380, 'six-point passing TD scoring must reprice quarterback projections');
+
+  const scoringResult = D.scorePlayer(elite, context);
+  assert.ok(scoringResult.wwpa && Number.isFinite(scoringResult.wwpa.winRateAfter), 'scorePlayer must expose explainable WWPA output');
+  assert.ok(Number.isFinite(scoringResult.basePickUtility) && Number.isFinite(scoringResult.wwpaAdjustment), 'legacy pick utility and bounded WWPA adjustment must both remain inspectable');
+})();

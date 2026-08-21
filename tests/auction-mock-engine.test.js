@@ -1,6 +1,7 @@
 'use strict';
 const assert = require('node:assert/strict');
 global.FFOAuction = require('../js/auction-intelligence.js');
+global.FFODraftIntelligence = require('../js/draft-intelligence.js');
 const M = require('../js/auction-mock-engine.js');
 
 function league({ teams = 6, budget = 100, superflex = 0, wr = 2, flex = 1, tePremium = 0 } = {}) {

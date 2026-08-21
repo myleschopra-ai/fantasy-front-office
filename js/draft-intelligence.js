@@ -370,6 +370,22 @@
       targets.RB += Math.floor(flex * 0.35);
       targets.TE += Math.floor(flex * 0.15);
     }
+    const wrRbFlex = numeric(roster.WRRB_FLEX ?? roster.RB_WR, 0);
+    if (wrRbFlex > 0) {
+      targets.WR += Math.ceil(wrRbFlex * 0.55);
+      targets.RB += Math.floor(wrRbFlex * 0.45);
+    }
+    const receiverFlex = numeric(roster.REC_FLEX ?? roster.WR_TE, 0);
+    if (receiverFlex > 0) {
+      targets.WR += Math.ceil(receiverFlex * 0.7);
+      targets.TE += Math.floor(receiverFlex * 0.3);
+    }
+    const universalFlex = numeric(roster.WR_RB_TE, 0);
+    if (universalFlex > 0) {
+      targets.WR += Math.ceil(universalFlex * 0.5);
+      targets.RB += Math.floor(universalFlex * 0.35);
+      targets.TE += Math.floor(universalFlex * 0.15);
+    }
     return targets;
   }
 
@@ -378,7 +394,10 @@
     const ppr = numeric(league.scoring?.reception, 0.5);
     const superflex =
       numeric(roster.SUPER_FLEX, 0) > 0 || numeric(roster.QB, 1) > 1;
-    const flexReceivers = numeric(roster.WR, 2) + numeric(roster.FLEX, 0);
+    const flexReceivers = numeric(roster.WR, 2) + numeric(roster.FLEX, 0) +
+      numeric(roster.WRRB_FLEX ?? roster.RB_WR, 0) +
+      numeric(roster.REC_FLEX ?? roster.WR_TE, 0) +
+      numeric(roster.WR_RB_TE, 0);
     if (strategy === "zero-rb" && (ppr < 0.5 || flexReceivers < 3))
       return {
         viable: false,
@@ -653,6 +672,35 @@
         ),
       );
     }
+    const sourceScoring = player.projectionScoring || player.projection_scoring || {};
+    const passingYards = numeric(stats.pass_yd ?? stats.passing_yards, null);
+    const passingTouchdowns = numeric(stats.pass_td ?? stats.passing_touchdowns, null);
+    const interceptions = numeric(stats.pass_int ?? stats.interceptions, null);
+    const passingFirstDowns = numeric(stats.pass_fd ?? stats.passing_first_downs, null);
+    const rushingFirstDowns = numeric(stats.rush_fd ?? stats.rushing_first_downs, null);
+    const receivingFirstDowns = numeric(stats.rec_fd ?? stats.receiving_first_downs, null);
+    const score = league.scoring || {};
+    if (passingYards != null) {
+      adjusted += passingYards * (
+        numeric(score.pass_yd ?? score.passing_yard, numeric(sourceScoring.pass_yd, 0.04)) -
+        numeric(sourceScoring.pass_yd, 0.04)
+      );
+    }
+    if (passingTouchdowns != null) {
+      adjusted += passingTouchdowns * (
+        numeric(score.pass_td ?? score.passing_td, numeric(sourceScoring.pass_td, 4)) -
+        numeric(sourceScoring.pass_td, 4)
+      );
+    }
+    if (interceptions != null) {
+      adjusted += interceptions * (
+        numeric(score.pass_int ?? score.interception, numeric(sourceScoring.pass_int, -2)) -
+        numeric(sourceScoring.pass_int, -2)
+      );
+    }
+    if (passingFirstDowns != null) adjusted += passingFirstDowns * numeric(score.pass_fd, 0);
+    if (rushingFirstDowns != null) adjusted += rushingFirstDowns * numeric(score.rush_fd, 0);
+    if (receivingFirstDowns != null) adjusted += receivingFirstDowns * numeric(score.rec_fd, 0);
     return Math.round(Math.max(0, adjusted) * 10) / 10;
   }
 
@@ -765,8 +813,12 @@
     DST: ["DST"],
     FLEX: ["RB", "WR", "TE"],
     SUPER_FLEX: ["QB", "RB", "WR", "TE"],
+    SF: ["QB", "RB", "WR", "TE"],
     WRRB_FLEX: ["RB", "WR"],
     REC_FLEX: ["WR", "TE"],
+    RB_WR: ["RB", "WR"],
+    WR_TE: ["WR", "TE"],
+    WR_RB_TE: ["RB", "WR", "TE"],
   };
   const NON_STARTER_SLOTS = new Set(["BENCH", "BN", "TAXI", "IR"]);
 
@@ -800,6 +852,289 @@
   function wouldStart(candidate, picks, league) {
     const lineup = optimalLineup([...(picks || []), candidate], league);
     return lineup.starters.some((s) => s.player === candidate);
+  }
+
+  // ---------------------------------------------------------------------
+  // Weekly Win Probability Added (WWPA)
+  //
+  // This is the objective layer above the existing player/market/league
+  // values. It projects the best legal weekly lineup, preserves uncertainty
+  // and player covariance, compares that distribution with the league's
+  // expected opponent distribution, and measures the percentage-point lift
+  // produced by one candidate. Explicit weekly inputs win; transparent,
+  // league-aware estimates are used when the source feed is season-only.
+  // ---------------------------------------------------------------------
+  const POSITION_WEEKLY_CV = { QB: 0.27, RB: 0.43, WR: 0.48, TE: 0.50, K: 0.42, DST: 0.55 };
+  const BASELINE_SLOT_MEAN = {
+    QB: 18, RB: 10.8, WR: 10.8, TE: 8.4, FLEX: 10.1,
+    SUPER_FLEX: 15.5, SF: 15.5, WRRB_FLEX: 10.4, REC_FLEX: 9.6,
+    RB_WR: 10.4, WR_TE: 9.6, WR_RB_TE: 10.1, K: 7.5, DST: 7.5,
+  };
+
+  function normalCdf(value) {
+    const x = Number(value) || 0;
+    const sign = x < 0 ? -1 : 1;
+    const z = Math.abs(x) / Math.sqrt(2);
+    const t = 1 / (1 + 0.3275911 * z);
+    const erf = sign * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-z * z));
+    return clamp01((1 + erf) / 2);
+  }
+
+  function regularSeasonWeeks(context = {}) {
+    const league = context.league || {};
+    const playoffStart = numeric(
+      league.settings?.playoff_week_start ?? league.playoff_week_start,
+      null,
+    );
+    return Math.max(1, Math.round(numeric(
+      context.regularSeasonWeeks ?? league.settings?.regular_season_weeks ?? league.regular_season_weeks,
+      playoffStart != null && playoffStart > 1 ? playoffStart - 1 : 14,
+    )));
+  }
+
+  function slotBaseline(slot, context = {}) {
+    const league = context.league || {};
+    const scoring = league.scoring || {};
+    const teams = Math.max(4, numeric(context.teams ?? league.teams ?? league.total_rosters, 12));
+    const key = String(slot || "FLEX").toUpperCase();
+    let mean = numeric(BASELINE_SLOT_MEAN[key], 9.5);
+    const pprDelta = numeric(scoring.reception, 0.5) - 0.5;
+    if (["WR", "REC_FLEX", "WR_TE"].includes(key)) mean += pprDelta * 1.5;
+    if (["RB", "FLEX", "WRRB_FLEX", "RB_WR", "WR_RB_TE"].includes(key)) mean += pprDelta * 0.9;
+    if (key === "TE" || key === "REC_FLEX" || key === "WR_TE") {
+      mean += pprDelta * 1.1 + numeric(scoring.te_premium ?? scoring.tePremium ?? scoring.bonus_rec_te, 0) * 1.4;
+    }
+    if (key === "QB" || key === "SUPER_FLEX" || key === "SF") {
+      mean += (numeric(scoring.pass_td ?? scoring.passing_td, 4) - 4) * (key === "QB" ? 1.45 : 1.05);
+    }
+    mean *= 1 + (12 - teams) * 0.012;
+    // Empty slots represent a plausible later starter, not a near-elite one.
+    // Keeping the completion baseline below the positional mean prevents the
+    // first premium player drafted from appearing to reduce win probability.
+    mean *= numeric(context.completionBaselineFactor, 0.88);
+    return {
+      mean: Math.max(1, mean),
+      stdDev: Math.max(2.5, mean * (key === "QB" ? 0.30 : key === "DST" ? 0.58 : 0.46)),
+      source: "LEAGUE_COMPLETION_BASELINE",
+    };
+  }
+
+  function positionReplacementMean(position, context = {}) {
+    const slot = position === "QB" ? "QB" : position === "TE" ? "TE" : position === "K" || position === "DST" ? position : "FLEX";
+    const configured = context.replacementWeeklyPoints || context.replacement_weekly_points || {};
+    return Math.max(1, numeric(configured[position], slotBaseline(slot, context).mean * 0.68));
+  }
+
+  function playerAvailability(player) {
+    const explicit = numeric(
+      player.weeklyAvailability ?? player.availabilityProbability ?? player.availability_probability ?? player.playProbability,
+      null,
+    );
+    if (explicit != null) return clamp01(explicit > 1 ? explicit / 100 : explicit);
+    const status = String(player.injuryStatus || player.injury_status || "").toLowerCase();
+    if (/out|ir|pup|suspend/.test(status)) return 0.55;
+    if (/doubt/.test(status)) return 0.68;
+    if (/question|limited/.test(status)) return 0.88;
+    return 0.97;
+  }
+
+  function playerWeeklyDistribution(player, context = {}) {
+    const position = String(player.position || "").toUpperCase();
+    const seasonPoints = leagueAdjustedProjectedPoints(player, context.league || {});
+    const explicitMean = numeric(player.weeklyProjection ?? player.weekly_projection ?? player.projectedPpg, null);
+    const games = Math.max(1, numeric(player.projectedGames ?? player.projected_games, 17));
+    const grade = playerGrade(player);
+    const estimatedMean = slotBaseline(position, context).mean * (0.65 + grade / 100 * 0.75);
+    const activeMean = Math.max(0, explicitMean != null ? explicitMean : seasonPoints != null ? seasonPoints / games : estimatedMean);
+    const replacementMean = positionReplacementMean(position, context);
+    const availability = playerAvailability(player);
+    const weeks = regularSeasonWeeks(context);
+    const byeProbability = position === "DST" || position === "K" ? 1 / weeks : 1 / weeks;
+    const usableMean = availability * activeMean + (1 - availability) * replacementMean;
+    const mean = usableMean * (1 - byeProbability) + replacementMean * byeProbability;
+    const explicitStdDev = numeric(player.weeklyStdDev ?? player.weekly_std_dev ?? player.projectionStdDev, null);
+    const floor = numeric(player.weeklyFloor ?? player.weekly_floor, null);
+    const ceiling = numeric(player.weeklyCeiling ?? player.weekly_ceiling, null);
+    let activeStdDev = explicitStdDev != null
+      ? explicitStdDev
+      : floor != null && ceiling != null && ceiling > floor
+        ? (ceiling - floor) / 3.29
+        : activeMean * numeric(POSITION_WEEKLY_CV[position], 0.46);
+    const projectionConfidence = clamp(numeric(
+      player.projectionConfidence ?? player.projection_confidence,
+      seasonPoints != null || explicitMean != null ? 70 : 35,
+    ));
+    activeStdDev *= 1 + (100 - projectionConfidence) / 300;
+    const availabilityVariance = availability * (1 - availability) * ((activeMean - replacementMean) ** 2);
+    const variance = Math.max(4, availability * activeStdDev ** 2 + availabilityVariance);
+    return {
+      mean: Math.round(mean * 100) / 100,
+      stdDev: Math.round(Math.sqrt(variance) * 100) / 100,
+      variance,
+      availability,
+      replacementMean,
+      projectionConfidence,
+      source: explicitMean != null
+        ? "WEEKLY_PROJECTION"
+        : seasonPoints != null
+          ? "SEASON_PROJECTION_ESTIMATE"
+          : "LEAGUE_VALUE_ESTIMATE",
+    };
+  }
+
+  function weeklyOptimalLineup(picks = [], context = {}) {
+    const league = context.league || {};
+    const slots = [];
+    Object.entries(league.roster || {}).forEach(([slot, count]) => {
+      if (NON_STARTER_SLOTS.has(slot)) return;
+      for (let index = 0; index < Math.max(0, numeric(count, 0)); index += 1) {
+        slots.push({ slot, order: slots.length, eligibility: SLOT_ELIGIBILITY[slot] || [slot] });
+      }
+    });
+    const orderedSlots = [...slots].sort((a, b) => a.eligibility.length - b.eligibility.length || a.order - b.order);
+    const pool = (picks || []).filter((player) => player?.position).map((player) => ({
+      player,
+      distribution: playerWeeklyDistribution(player, context),
+      used: false,
+    }));
+    const assignments = orderedSlots.map((slot) => {
+      const candidates = pool.filter((entry) => !entry.used && slot.eligibility.includes(String(entry.player.position).toUpperCase()));
+      candidates.sort((a, b) => b.distribution.mean - a.distribution.mean || playerGrade(b.player) - playerGrade(a.player));
+      const selected = candidates[0] || null;
+      if (selected) selected.used = true;
+      return { ...slot, player: selected?.player || null, distribution: selected?.distribution || slotBaseline(slot.slot, context) };
+    });
+    return {
+      starters: assignments.sort((a, b) => a.order - b.order),
+      bench: pool.filter((entry) => !entry.used).map((entry) => entry.player),
+    };
+  }
+
+  function lineupWeeklyDistribution(picks = [], context = {}) {
+    const lineup = weeklyOptimalLineup(picks, context);
+    let mean = 0;
+    let variance = 0;
+    lineup.starters.forEach((entry) => {
+      mean += entry.distribution.mean;
+      variance += entry.distribution.stdDev ** 2;
+    });
+    for (let left = 0; left < lineup.starters.length; left += 1) {
+      for (let right = left + 1; right < lineup.starters.length; right += 1) {
+        const a = lineup.starters[left], b = lineup.starters[right];
+        if (!a.player || !b.player) continue;
+        const sameTeam = String(a.player.nflTeam || a.player.team || "") &&
+          String(a.player.nflTeam || a.player.team || "") === String(b.player.nflTeam || b.player.team || "");
+        if (!sameTeam) continue;
+        const positions = new Set([a.player.position, b.player.position]);
+        let correlation = 0.02;
+        if (positions.has("QB") && (positions.has("WR") || positions.has("TE"))) correlation = 0.12;
+        else if (positions.has("RB") && positions.has("WR")) correlation = -0.04;
+        variance += 2 * correlation * a.distribution.stdDev * b.distribution.stdDev;
+      }
+    }
+    return {
+      mean: Math.round(mean * 100) / 100,
+      stdDev: Math.round(Math.sqrt(Math.max(1, variance)) * 100) / 100,
+      variance: Math.max(1, variance),
+      lineup,
+    };
+  }
+
+  function leagueOpponentDistribution(context = {}) {
+    const explicitMean = numeric(context.opponentWeeklyMean ?? context.leagueAverageWeeklyMean, null);
+    const explicitStdDev = numeric(context.opponentWeeklyStdDev ?? context.leagueAverageWeeklyStdDev, null);
+    if (explicitMean != null) return { mean: explicitMean, stdDev: Math.max(1, numeric(explicitStdDev, 20.9)), source: "LEAGUE_DATA" };
+    const baseline = lineupWeeklyDistribution([], context);
+    return {
+      mean: baseline.mean,
+      stdDev: Math.max(10, baseline.stdDev * 1.08),
+      source: "LEAGUE_CONFIGURATION_ESTIMATE",
+    };
+  }
+
+  function expectedWeeklyTeamOutlook(picks = [], context = {}) {
+    const team = lineupWeeklyDistribution(picks, context);
+    const opponent = leagueOpponentDistribution(context);
+    const matchupCovariance = numeric(context.matchupCovariance, 0);
+    const denominator = Math.sqrt(Math.max(1, team.variance + opponent.stdDev ** 2 - 2 * matchupCovariance));
+    const winProbability = normalCdf((team.mean - opponent.mean) / denominator);
+    const weeks = regularSeasonWeeks(context);
+    return {
+      teamMean: team.mean,
+      teamStdDev: team.stdDev,
+      opponentMean: Math.round(opponent.mean * 100) / 100,
+      opponentStdDev: Math.round(opponent.stdDev * 100) / 100,
+      weeklyEdge: Math.round((team.mean - opponent.mean) * 100) / 100,
+      winProbability,
+      winRate: Math.round(winProbability * 1000) / 10,
+      expectedWins: Math.round(winProbability * weeks * 10) / 10,
+      expectedLosses: Math.round((1 - winProbability) * weeks * 10) / 10,
+      regularSeasonWeeks: weeks,
+      lineup: team.lineup,
+      opponentSource: opponent.source,
+    };
+  }
+
+  function weeklyWinProbabilityAdded(player, context = {}) {
+    const picks = context.picks || [];
+    const duplicate = picks.some((pick) => playerKey(pick) === playerKey(player));
+    const before = expectedWeeklyTeamOutlook(picks, context);
+    const afterPicks = duplicate ? picks : [...picks, player];
+    let after = expectedWeeklyTeamOutlook(afterPicks, context);
+    const starter = after.lineup.starters.find((entry) => entry.player === player || (entry.player && playerKey(entry.player) === playerKey(player)));
+    let optionalityPoints = 0;
+    if (!starter && !duplicate) {
+      const option = optionValueProfile(player, context);
+      const distribution = playerWeeklyDistribution(player, context);
+      const baseProbability = player.position === "RB" || player.position === "WR" ? 0.12 : player.position === "TE" ? 0.08 : 0.05;
+      const futureStarterProbability = clamp01(numeric(
+        player.probabilityOfBecomingStarter ?? player.starterProbability,
+        baseProbability + Math.max(0, option.score - 50) / 500,
+      ));
+      optionalityPoints = Math.max(0, distribution.mean - distribution.replacementMean) * futureStarterProbability;
+      if (optionalityPoints > 0) {
+        const adjustedTeam = { ...after, mean: after.teamMean + optionalityPoints };
+        const denominator = Math.sqrt(Math.max(1, adjustedTeam.teamStdDev ** 2 + adjustedTeam.opponentStdDev ** 2));
+        const winProbability = normalCdf((adjustedTeam.mean - adjustedTeam.opponentMean) / denominator);
+        after = {
+          ...after,
+          teamMean: Math.round(adjustedTeam.mean * 100) / 100,
+          weeklyEdge: Math.round((adjustedTeam.mean - adjustedTeam.opponentMean) * 100) / 100,
+          winProbability,
+          winRate: Math.round(winProbability * 1000) / 10,
+          expectedWins: Math.round(winProbability * after.regularSeasonWeeks * 10) / 10,
+          expectedLosses: Math.round((1 - winProbability) * after.regularSeasonWeeks * 10) / 10,
+        };
+      }
+    }
+    const deltaPercentagePoints = (after.winProbability - before.winProbability) * 100;
+    const weeklyStarterPointsAdded = after.teamMean - before.teamMean;
+    const distribution = playerWeeklyDistribution(player, context);
+    const confidence = Math.round(clamp(distribution.projectionConfidence * 0.75 + numeric(player.agreement, 50) * 0.25));
+    const score = Math.round(clamp(50 + deltaPercentagePoints * 8 + weeklyStarterPointsAdded * 1.5));
+    return {
+      before,
+      after,
+      winRateBefore: before.winRate,
+      winRateAfter: after.winRate,
+      deltaPercentagePoints: Math.round(deltaPercentagePoints * 10) / 10,
+      expectedWinsAdded: Math.round((after.expectedWins - before.expectedWins) * 100) / 100,
+      weeklyStarterPointsAdded: Math.round(weeklyStarterPointsAdded * 10) / 10,
+      optionalityPoints: Math.round(optionalityPoints * 10) / 10,
+      starts: Boolean(starter),
+      starterSlot: starter?.slot || null,
+      score,
+      confidence,
+      // A season total still requires an estimated weekly distribution. Only
+      // a supplied weekly projection earns the stronger projected label.
+      model: distribution.source === "WEEKLY_PROJECTION" ? "WEEKLY-PROJECTED" : "ESTIMATED",
+      projectionSource: distribution.source,
+      explanation: starter
+        ? `${starter.slot} lineup impact raises expected weekly scoring by ${weeklyStarterPointsAdded.toFixed(1)} points.`
+        : optionalityPoints > 0
+          ? `Bench insurance and breakout optionality add ${optionalityPoints.toFixed(1)} expected usable points.`
+          : "No immediate legal-lineup gain; value must come from scarcity, trade value, or later upside.",
+    };
   }
 
   function needScore(player, context) {
@@ -1619,7 +1954,7 @@
       const scenario = decisionScenario(player, players, context);
       const phaseBonus = scenario.optionValue.active ? Math.max(-2, Math.min(6, (scenario.optionValue.score - 50) * .1)) : 0;
       const earlyTierProtection = numeric(context.round, 1) <= 4 && scenario.atTierCliff ? Math.min(5, scenario.fallbackLoss * .25) : 0;
-      return { player, evaluation, run, evidence, breakout, scenario, adjustment: Math.round(adjustment + phaseBonus + earlyTierProtection), contextualScore: Math.round(clamp(evaluation.pickUtility + adjustment + phaseBonus + earlyTierProtection)) };
+      return { player, evaluation, wwpa: evaluation.wwpa, run, evidence, breakout, scenario, adjustment: Math.round(adjustment + phaseBonus + earlyTierProtection), contextualScore: Math.round(clamp(evaluation.pickUtility + adjustment + phaseBonus + earlyTierProtection)) };
     });
     const recommended = [...evaluated].sort((a, b) => b.contextualScore - a.contextualScore || numeric(a.player.overallRank, 999) - numeric(b.player.overallRank, 999));
     const pairPlan = pairedTurnPlan(recommended, context);
@@ -1636,6 +1971,10 @@
       : "No material position run is forcing a reach; stay value-led and protect open starter slots.";
     if (superflex && numeric(counts.QB, 0) < qbTarget) {
       strategyImpact = `Superflex pressure: you still need ${qbTarget - numeric(counts.QB, 0)} starting QB${qbTarget - numeric(counts.QB, 0) === 1 ? "" : "s"}. Treat viable starting QBs as a scarce lineup requirement, not a one-QB luxury. ${strategyImpact}`;
+    }
+    if (recommended[0]?.wwpa) {
+      const lead = recommended[0].wwpa;
+      strategyImpact = `WIN-RATE OBJECTIVE: ${recommended[0].player.name} projects ${lead.winRateAfter.toFixed(1)}% weekly H2H win rate (${lead.deltaPercentagePoints >= 0 ? "+" : ""}${lead.deltaPercentagePoints.toFixed(1)} pp WWPA). ${strategyImpact}`;
     }
     if (pairPlan) strategyImpact = `TURN PLAN: ${pairPlan.rationale} ${strategyImpact}`;
     return { recommended, bestAvailable, runs, strategyImpact, pairPlan };
@@ -1903,6 +2242,7 @@
     const lateRound = lateRoundValueScore(player, context);
     const evidence = playerEvidenceProfile(player, context);
     const breakout = breakoutCandidateScore(player, context);
+    const wwpa = weeklyWinProbabilityAdded(player, context);
     const progress = clamp01(
       (numeric(context.round, 1) - 1) / Math.max(1, numeric(context.totalRounds, 16) - 1),
     );
@@ -1911,7 +2251,12 @@
         progress *
         (lateRound.confidence / 100)
       : 0;
-    const pickUtility = Math.round(clamp(raw + diamondBonus));
+    // WWPA is the controlling outcome layer, but remains bounded so thin or
+    // estimated projections cannot erase the market, VORP, scarcity, wait-risk
+    // and roster-construction guardrails that make the recommendation robust.
+    const wwpaAdjustment = Math.max(-7, Math.min(9, (wwpa.score - 50) * 0.16));
+    const basePickUtility = Math.round(clamp(raw + diamondBonus));
+    const pickUtility = Math.round(clamp(basePickUtility + wwpaAdjustment));
     return {
       score: pickUtility,
       pickUtility,
@@ -1922,6 +2267,9 @@
       lateRound,
       evidence,
       breakout,
+      wwpa,
+      basePickUtility,
+      wwpaAdjustment: Math.round(wwpaAdjustment * 10) / 10,
       diamondBonus: Math.round(diamondBonus * 10) / 10,
       components,
       weights: effectiveWeights,
@@ -2024,10 +2372,16 @@
     leagueValueScore,
     lateRoundValueScore,
     leagueAdjustedProjectedPoints,
+    normalCdf,
     marketValueScore,
     mergeSupplementalPositions,
     normalizeName,
     optimalLineup,
+    weeklyOptimalLineup,
+    playerWeeklyDistribution,
+    lineupWeeklyDistribution,
+    expectedWeeklyTeamOutlook,
+    weeklyWinProbabilityAdded,
     opportunityCost,
     pairedTurnPlan,
     comparablePlayers,

@@ -1,8 +1,8 @@
 (function (root, factory) {
-  const api = factory(root && root.FFOAuction);
+  const api = factory(root && root.FFOAuction, root && root.FFODraftIntelligence);
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.FFOAuctionMock = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (Auction) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (Auction, DraftIntelligence) {
   'use strict';
 
   const numeric = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -10,6 +10,11 @@
   const keyOf = (player) => String(player?.key ?? player?.playerId ?? `${player?.name || 'player'}|${player?.position || '?'}`);
   const flex = new Set(['RB', 'WR', 'TE']);
   const superflex = new Set(['QB', 'RB', 'WR', 'TE']);
+  const wrRbFlex = new Set(['RB', 'WR']);
+  const receiverFlex = new Set(['WR', 'TE']);
+  const bidLimitCache = new WeakMap();
+  const completionCache = new WeakMap();
+  const wwpaCache = new WeakMap();
 
   function rosterSlots(league = {}) {
     const roster = league.roster || {};
@@ -23,6 +28,9 @@
     add('TE', roster.TE);
     add('FLEX', roster.FLEX);
     add('SUPER_FLEX', roster.SUPER_FLEX ?? roster.SF);
+    add('WRRB_FLEX', roster.WRRB_FLEX ?? roster.RB_WR);
+    add('REC_FLEX', roster.REC_FLEX ?? roster.WR_TE);
+    add('WR_RB_TE', roster.WR_RB_TE);
     add('K', roster.K);
     add('DST', roster.DST);
     add('BENCH', roster.BENCH ?? roster.BN);
@@ -38,6 +46,9 @@
     if (type === 'BENCH') return ['QB','RB','WR','TE','K','DST'].includes(pos);
     if (type === 'FLEX') return flex.has(pos);
     if (type === 'SUPER_FLEX') return superflex.has(pos);
+    if (type === 'WRRB_FLEX') return wrRbFlex.has(pos);
+    if (type === 'REC_FLEX') return receiverFlex.has(pos);
+    if (type === 'WR_RB_TE') return flex.has(pos);
     return type === pos;
   }
 
@@ -95,6 +106,9 @@
     total += take(new Set(['TE']), settings.TE);
     total += take(flex, settings.FLEX);
     total += take(superflex, settings.SUPER_FLEX ?? settings.SF);
+    total += take(wrRbFlex, settings.WRRB_FLEX ?? settings.RB_WR);
+    total += take(receiverFlex, settings.REC_FLEX ?? settings.WR_TE);
+    total += take(flex, settings.WR_RB_TE);
     total += take(new Set(['K']), settings.K);
     total += take(new Set(['DST']), settings.DST);
     return Math.round(total * 10) / 10;
@@ -110,7 +124,10 @@
     const pos = String(player.position || '').toUpperCase();
     const openTypes = assignment.openSlots.map(slotType);
     const direct = openTypes.includes(pos);
-    const flexible = (flex.has(pos) && openTypes.includes('FLEX')) || (superflex.has(pos) && openTypes.includes('SUPER_FLEX'));
+    const flexible = (flex.has(pos) && (openTypes.includes('FLEX') || openTypes.includes('WR_RB_TE'))) ||
+      (superflex.has(pos) && openTypes.includes('SUPER_FLEX')) ||
+      (wrRbFlex.has(pos) && openTypes.includes('WRRB_FLEX')) ||
+      (receiverFlex.has(pos) && openTypes.includes('REC_FLEX'));
     const marginal = marginalStarterPoints(team, player, league);
     if (direct) return clamp(86 + marginal / 8, 86, 100);
     if (flexible) return clamp(74 + marginal / 8, 74, 96);
@@ -185,6 +202,49 @@
     return Auction.expectedLeaguePrice({ intrinsicPrice: intrinsicPrice(state, player), position: player.position, rank: player.overallRank ?? player.rank, tier: player.tier, model: state.leagueModel });
   }
 
+  function leagueCompletionPossibleAfterPurchase(state, teamId, player) {
+    let cache = completionCache.get(state);
+    if (!cache) { cache = new Map(); completionCache.set(state, cache); }
+    const cacheKey = `${teamId}|${String(player?.position || '').toUpperCase()}`;
+    if (cache.has(cacheKey)) return cache.get(cacheKey);
+    const openSlots = [];
+    for (const team of Object.values(state.teams || {})) {
+      const roster = team.id === String(teamId) ? [...(team.roster || []), player] : team.roster || [];
+      const assignment = assignRoster(roster, state.league);
+      if (!assignment.valid) { cache.set(cacheKey, false); return false; }
+      openSlots.push(...assignment.openSlots);
+    }
+    const remaining = availablePlayers(state).filter((candidate) => keyOf(candidate) !== keyOf(player));
+    if (remaining.length < openSlots.length) { cache.set(cacheKey, false); return false; }
+
+    // Tight endgames need a league-wide feasibility check, not just a check
+    // that each roster is legal in isolation. This matching prevents one team
+    // from consuming all FLEX-eligible players while another team still has a
+    // FLEX opening, even when every fixed-position minimum remains satisfied.
+    openSlots.sort((left, right) => {
+      const leftOptions = remaining.reduce((count, candidate) => count + Number(eligible(candidate.position, left)), 0);
+      const rightOptions = remaining.reduce((count, candidate) => count + Number(eligible(candidate.position, right)), 0);
+      return leftOptions - rightOptions;
+    });
+    const owner = new Array(remaining.length).fill(-1);
+    function place(slotIndex, seen) {
+      for (let playerIndex = 0; playerIndex < remaining.length; playerIndex += 1) {
+        if (seen.has(playerIndex) || !eligible(remaining[playerIndex].position, openSlots[slotIndex])) continue;
+        seen.add(playerIndex);
+        if (owner[playerIndex] === -1 || place(owner[playerIndex], seen)) {
+          owner[playerIndex] = slotIndex;
+          return true;
+        }
+      }
+      return false;
+    }
+    for (let slotIndex = 0; slotIndex < openSlots.length; slotIndex += 1) {
+      if (!place(slotIndex, new Set())) { cache.set(cacheKey, false); return false; }
+    }
+    cache.set(cacheKey, true);
+    return true;
+  }
+
   function preservesRequiredSupply(state, teamId, player) {
     // Every accepted purchase must leave enough undrafted players to fill
     // every team's remaining fixed-position slots. Without this guard a CPU
@@ -193,32 +253,47 @@
     // globally valid.
     const position = String(player?.position || '').toUpperCase();
     const requiredPerTeam = Math.max(0, Math.round(numeric(state.league?.roster?.[position], 0)));
-    if (!(requiredPerTeam > 0)) return true;
-    const trackedSupply = numeric(state.remainingSupplyByPosition?.[position], -1);
-    const remainingAtPosition = trackedSupply >= 0
-      ? Math.max(0, trackedSupply - 1)
-      : availablePlayers(state)
-        .filter((candidate) => keyOf(candidate) !== keyOf(player) && String(candidate.position || '').toUpperCase() === position)
-        .length;
-    let remainingDeficit = 0;
-    for (const team of Object.values(state.teams || {})) {
-      const owned = (team.roster || []).filter((candidate) => String(candidate.position || '').toUpperCase() === position).length;
-      const afterPurchase = team.id === String(teamId) ? owned + 1 : owned;
-      remainingDeficit += Math.max(0, requiredPerTeam - afterPurchase);
+    if (requiredPerTeam > 0) {
+      const trackedSupply = numeric(state.remainingSupplyByPosition?.[position], -1);
+      const remainingAtPosition = trackedSupply >= 0
+        ? Math.max(0, trackedSupply - 1)
+        : availablePlayers(state)
+          .filter((candidate) => keyOf(candidate) !== keyOf(player) && String(candidate.position || '').toUpperCase() === position)
+          .length;
+      let remainingDeficit = 0;
+      for (const team of Object.values(state.teams || {})) {
+        const owned = (team.roster || []).filter((candidate) => String(candidate.position || '').toUpperCase() === position).length;
+        const afterPurchase = team.id === String(teamId) ? owned + 1 : owned;
+        remainingDeficit += Math.max(0, requiredPerTeam - afterPurchase);
+      }
+      if (remainingAtPosition < remainingDeficit) return false;
     }
-    return remainingAtPosition >= remainingDeficit;
+    const totalOpenAfter = Object.values(state.teams || {}).reduce(
+      (total, team) => total + Math.max(0, numeric(team.slotsLeft, 0) - Number(team.id === String(teamId))),
+      0,
+    );
+    const remainingPlayersAfter = Math.max(0, availablePlayers(state).length - 1);
+    return remainingPlayersAfter - totalOpenAfter > state.config.teams * 2
+      ? true
+      : leagueCompletionPossibleAfterPurchase(state, teamId, player);
   }
 
   function teamBidLimit(state, teamId, player) {
+    let cache = bidLimitCache.get(state);
+    if (!cache) { cache = new Map(); bidLimitCache.set(state, cache); }
+    const cacheKey = `${teamId}|${keyOf(player)}`;
+    if (cache.has(cacheKey)) return cache.get(cacheKey);
+    const remember = (value) => { cache.set(cacheKey, value); return value; };
     const team = state.teams[String(teamId)];
-    if (!team || team.slotsLeft <= 0 || !canRoster(team.roster, player, state.league)) return 0;
-    if (!preservesRequiredSupply(state, teamId, player)) return 0;
+    if (!team || team.slotsLeft <= 0 || !canRoster(team.roster, player, state.league)) return remember(0);
+    if (!preservesRequiredSupply(state, teamId, player)) return remember(0);
     const legal = Auction.maximumLegalBid({ remainingBudget: team.remainingBudget, slotsLeft: team.slotsLeft, minBid: state.config.minBid });
-    if (legal < state.config.minBid) return 0;
+    if (legal < state.config.minBid) return remember(0);
     const strategy = strategies.find((item) => item.id === team.strategy) || strategies[0];
     const base = intrinsicPrice(state, player), expected = expectedPrice(state, player);
     const need = positionalNeed(team, player, state.league);
     const marginal = marginalStarterPoints(team, player, state.league);
+    const wwpa = teamWwpa(state, teamId, player);
     const elite = base >= state.config.budget * .18 ? strategy.stars : 1;
     const valueEdge = base > expected ? strategy.value : 1;
     const needMultiplier = .76 + (need / 100) * .30;
@@ -227,6 +302,9 @@
     const marginalMultiplier = directProjectionMode
       ? .90 + Math.min(.18, Math.max(0, marginalShare) * .18)
       : 1 + Math.min(.08, marginal / 1000);
+    const wwpaMultiplier = wwpa
+      ? clamp(1 + numeric(wwpa.deltaPercentagePoints, 0) * 0.012, 0.94, 1.12)
+      : 1;
     const pointsPerDollar = marginal / Math.max(state.config.minBid, expected);
     const efficiencyMultiplier = directProjectionMode
       ? 1 + Math.min(.08, Math.max(0, pointsPerDollar) / 100)
@@ -237,8 +315,26 @@
     const endgame = team.slotsLeft <= 3 ? 1.08 : 1;
     const pace = team.remainingBudget / Math.max(1, team.slotsLeft);
     const releaseBudget = pace > expected * 1.7 ? 1.05 : 1;
-    const raw = base * strategy.aggression * elite * valueEdge * needMultiplier * marginalMultiplier * efficiencyMultiplier * diamondMultiplier * endgame * releaseBudget;
-    return Math.max(state.config.minBid, Math.min(legal, Math.round(raw)));
+    const raw = base * strategy.aggression * elite * valueEdge * needMultiplier * marginalMultiplier * wwpaMultiplier * efficiencyMultiplier * diamondMultiplier * endgame * releaseBudget;
+    return remember(Math.max(state.config.minBid, Math.min(legal, Math.round(raw))));
+  }
+
+  function teamWwpa(state, teamId, player) {
+    if (!DraftIntelligence?.weeklyWinProbabilityAdded) return null;
+    let cache = wwpaCache.get(state);
+    if (!cache) { cache = new Map(); wwpaCache.set(state, cache); }
+    const cacheKey = `${teamId}|${keyOf(player)}`;
+    if (cache.has(cacheKey)) return cache.get(cacheKey);
+    const team = state.teams[String(teamId)];
+    const result = DraftIntelligence.weeklyWinProbabilityAdded(player, {
+      league: state.league,
+      teams: state.config.teams,
+      picks: team?.roster || [],
+      counts: DraftIntelligence.rosterCounts(team?.roster || []),
+      poolSize: state.players.length,
+    });
+    cache.set(cacheKey, result);
+    return result;
   }
 
   function nextNominator(state) {
@@ -252,10 +348,17 @@
 
   function nominationScore(state, teamId, player) {
     const team = state.teams[String(teamId)], max = teamBidLimit(state, teamId, player), expected = expectedPrice(state, player);
-    if (!max) return -Infinity;
+    if (!max) {
+      // A manager may legally nominate a player it cannot roster or afford.
+      // That matters in exact-supply endgames and is also a useful drain bid.
+      // The sale remains protected because only legal bidders enter the lot.
+      const legalBidders = bidderLimits(state, player);
+      return legalBidders.length ? expected * .5 + legalBidders.length * 3 : -Infinity;
+    }
     const need = positionalNeed(team, player, state.league), marginal = marginalStarterPoints(team, player, state.league);
     const buyEdge = max - expected;
-    return need * .7 + marginal * .12 + buyEdge * 2 + intrinsicPrice(state, player) * .08;
+    const wwpa = teamWwpa(state, teamId, player);
+    return need * .7 + marginal * .12 + numeric(wwpa?.deltaPercentagePoints, 0) * 3 + buyEdge * 2 + intrinsicPrice(state, player) * .08;
   }
 
   function chooseNomination(state, teamId) {
@@ -263,7 +366,7 @@
     // roster optimizer across the entire player pool. Legal filtering happens
     // before the cap, so scarce K/DST/required-position endgames still resolve.
     const candidates = availablePlayers(state)
-      .filter((player) => teamBidLimit(state, teamId, player) >= state.config.minBid)
+      .filter((player) => bidderLimits(state, player).length > 0)
       .sort((a, b) => intrinsicPrice(state, b) - intrinsicPrice(state, a) || keyOf(a).localeCompare(keyOf(b)))
       .slice(0, 48);
     candidates.sort((a, b) => nominationScore(state, teamId, b) - nominationScore(state, teamId, a) || intrinsicPrice(state, b) - intrinsicPrice(state, a) || keyOf(a).localeCompare(keyOf(b)));
@@ -285,7 +388,6 @@
     if (nominator !== next.id) throw new Error(`It is ${state.teams[next.id].name}'s nomination.`);
     const player = playerKey ? availablePlayers(state).find((item) => keyOf(item) === String(playerKey)) : chooseNomination(state, nominator);
     if (!player) throw new Error(`${state.teams[nominator].name} has no legal nomination.`);
-    if (!canRoster(state.teams[nominator].roster, player, state.league)) throw new Error('Nominator cannot legally roster that player.');
     return { ...state, nomination: { playerKey: keyOf(player), nominatorTeamId: nominator, currentBid: state.config.minBid, leaderTeamId: nominator, passedTeamIds: [], awaitingUser: false }, status: 'BIDDING' };
   }
 
