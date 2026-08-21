@@ -1404,6 +1404,208 @@
     };
   }
 
+  function playerEvidenceProfile(player, context = {}) {
+    const present = (value) => value !== null && value !== undefined && value !== "";
+    const any = (...values) => values.some(present);
+    const stage = numeric(context.round, 1) <= 4 ? "EARLY" : numeric(context.round, 1) <= 10 ? "MIDDLE" : "LATE";
+    const coverage = {
+      market: any(player.adp, player.overallRank, player.consensusScore) ? 100 : 0,
+      projection: any(player.projectedPoints, player.projected_points, player.vbdPercentileScore) ? 100 : 0,
+      role: any(player.depthChartOrder, player.depth_chart_order, player.snapShare, player.snap_share, player.routeParticipation, player.route_participation, player.targetShare, player.target_share, player.carryShare, player.carry_share, player.opportunityShare, player.opportunity_share) ? 100 : 0,
+      production: any(player.yardsPerRouteRun, player.yards_per_route_run, player.targetsPerRouteRun, player.targets_per_route_run, player.ryoe, player.xyac, player.cpoe, player.explosiveRate, player.explosive_rate) ? 100 : 0,
+      availability: any(player.injuryStatus, player.injury_status, player.practiceParticipation, player.practice_participation, player.gamesPlayed, player.games_played) ? 100 : 0,
+      upside: any(player.pedigreeScore, player.ageCurveScore, player.draftCapitalScore, player.draft_capital_score, player.athleticScore, player.athletic_score) ? 100 : 0,
+      environment: any(player.schemeFit?.score, player.scheme_fit?.score) ? 100 : 0,
+    };
+    const weights = stage === "EARLY"
+      ? { market:.30,projection:.25,role:.15,production:.10,availability:.08,upside:.04,environment:.08 }
+      : stage === "MIDDLE"
+        ? { market:.15,projection:.25,role:.24,production:.14,availability:.08,upside:.07,environment:.07 }
+        : { market:.10,projection:.20,role:.27,production:.17,availability:.08,upside:.12,environment:.06 };
+    const score = Math.round(Object.entries(weights).reduce((sum,[key,weight])=>sum+coverage[key]*weight,0));
+    const missing = Object.keys(weights).filter((key)=>coverage[key]===0).sort((a,b)=>weights[b]-weights[a]);
+    return { stage, score, grade:score>=85?"A":score>=70?"B":score>=55?"C":score>=40?"D":"INSUFFICIENT", coverage, weights, missing, productionReady:coverage.projection===100&&coverage.role===100&&score>=65 };
+  }
+
+  function breakoutCandidateScore(player, context = {}) {
+    const evidence = playerEvidenceProfile(player, context), signals = [];
+    const add = (label,value,weight) => { if (value != null) signals.push({label,value:clamp(value),weight}); };
+    const pct = (value) => value == null ? null : numeric(value) <= 1 ? numeric(value)*100 : numeric(value);
+    add("age curve", player.ageCurveScore, .22);
+    add("pedigree", player.pedigreeScore ?? player.draftCapitalScore ?? player.draft_capital_score, .18);
+    add("role", pct(player.opportunityShare ?? player.opportunity_share ?? player.snapShare ?? player.snap_share ?? player.routeParticipation ?? player.route_participation), .26);
+    add("efficiency", pct(player.targetsPerRouteRun ?? player.targets_per_route_run ?? player.explosiveRate ?? player.explosive_rate), .16);
+    add("environment", player.schemeFit?.score ?? player.scheme_fit?.score, .10);
+    const marketGap = numeric(player.adp, null) != null && numeric(player.overallRank ?? player.rank, null) != null ? clamp(50 + (numeric(player.adp)-numeric(player.overallRank ?? player.rank))*2) : null;
+    add("market discount", marketGap, .08);
+    const totalWeight = signals.reduce((sum,signal)=>sum+signal.weight,0);
+    const score = totalWeight ? Math.round(signals.reduce((sum,signal)=>sum+signal.value*signal.weight,0)/totalWeight) : null;
+    const reliable = signals.length >= 4 && evidence.score >= 55;
+    return { score, reliable, evidence, signals, label:!reliable?"UNMODELED":score>=72?"BREAKOUT TARGET":score>=62?"UPSIDE WATCH":"DEPTH" };
+  }
+
+  function positionRunState(roomPicks = [], availablePool = [], context = {}) {
+    const teams = Math.max(2, numeric(context.league?.teams || context.teams, 12));
+    const windowSize = Math.max(4, Math.min(12, Math.ceil(teams / 2)));
+    const recent = (roomPicks || []).slice(-windowSize);
+    const targets = starterTargets(context.league || {});
+    const positions = ["QB", "RB", "WR", "TE"];
+    const totalDemand = positions.reduce((sum, position) => sum + numeric(targets[position], 0), 0) || 1;
+    return positions.map((position) => {
+      const count = recent.filter((pick) => pick.position === position).length;
+      const expected = windowSize * numeric(targets[position], 0) / totalDemand;
+      const topGone = (roomPicks || []).filter((pick) => pick.position === position && numeric(pick.posRank, 99) <= Math.max(3, teams / 3)).length;
+      const next = (availablePool || []).filter((player) => player.position === position)
+        .sort((a, b) => numeric(a.posRank, 999) - numeric(b.posRank, 999))[0];
+      const tierDepth = next ? (availablePool || []).filter((player) => player.position === position && numeric(player.tier, 99) === numeric(next.tier, 99)).length : 0;
+      const runLift = Math.max(0, count - expected);
+      const severity = Math.round(clamp(runLift * 28 + topGone * 7 + (tierDepth === 1 ? 18 : tierDepth === 2 ? 10 : 0)));
+      return {
+        position, count, expected: Math.round(expected * 10) / 10, windowSize,
+        topGone, nextPlayer: next || null, tierDepth, severity,
+        active: count >= 2 && severity >= 28,
+        label: severity >= 70 ? "POSITION CLIFF" : severity >= 45 ? "ACTIVE RUN" : severity >= 28 ? "RUN FORMING" : "STABLE",
+      };
+    }).sort((a, b) => b.severity - a.severity);
+  }
+
+  function comparablePlayers(player, availablePool = [], context = {}, limit = 3) {
+    if (!player) return [];
+    const playerValue = leagueValueScore(player, context);
+    return (availablePool || [])
+      .filter((candidate) => candidate.key !== player.key && candidate.position === player.position)
+      .map((candidate) => ({
+        player: candidate,
+        leagueValue: Math.round(leagueValueScore(candidate, context)),
+        valueDrop: Math.max(0, Math.round(playerValue - leagueValueScore(candidate, context))),
+        adpGap: Math.round(numeric(candidate.adp ?? candidate.overallRank ?? candidate.rank, 999) - numeric(player.adp ?? player.overallRank ?? player.rank, 999)),
+        sameTier: numeric(candidate.tier, 99) === numeric(player.tier, 99),
+      }))
+      .sort((a, b) => Number(b.sameTier) - Number(a.sameTier) || a.valueDrop - b.valueDrop || a.adpGap - b.adpGap)
+      .slice(0, Math.max(1, limit));
+  }
+
+  function draftPhase(context = {}) {
+    const round = numeric(context.round, 1);
+    const total = Math.max(1, numeric(context.totalRounds, 16));
+    const progress = round / total;
+    if (round <= Math.max(2, Math.floor(total * .2))) return "foundation";
+    if (progress < .62) return "starter-build";
+    if (progress < .88) return "upside";
+    return "final-bets";
+  }
+
+  // Bench picks should be judged by asymmetric payoff and how quickly a failed
+  // thesis can be replaced, not by a tiny difference in median projection.
+  function optionValueProfile(player, context = {}) {
+    const phase = draftPhase(context);
+    const evidence = playerEvidenceProfile(player, context);
+    const breakout = breakoutCandidateScore(player, context);
+    const role = clamp(numeric(player.opportunityScore,
+      numeric(player.targetShare, 0) * 210 + numeric(player.snapShare, 0) * 38 +
+      (numeric(player.depthChartOrder, 4) === 1 ? 20 : numeric(player.depthChartOrder, 4) === 2 ? 10 : 0)));
+    const contingent = clamp(numeric(player.contingentValue,
+      player.position === "RB" && numeric(player.depthChartOrder, 4) <= 2 ? 72 : 45));
+    const ceiling = clamp(numeric(player.ceilingScore,
+      breakout.reliable ? breakout.score : numeric(player.ageCurveScore, 50)));
+    const replaceability = clamp(numeric(player.earlyRoleClarity,
+      numeric(player.depthChartOrder, 4) <= 2 ? 68 : 48));
+    const confidence = Math.round((evidence.score * .7) + (numeric(breakout.confidence, evidence.score) * .3));
+    const score = Math.round(clamp(role * .29 + contingent * .25 + ceiling * .3 + replaceability * .16));
+    return {
+      score,
+      confidence,
+      phase,
+      active: phase === "upside" || phase === "final-bets",
+      label: score >= 72 ? "ASYMMETRIC UPSIDE" : score >= 60 ? "LIVE UPSIDE" : "DEPTH BET",
+      drivers: [
+        { label: "role path", value: Math.round(role) },
+        { label: "ceiling", value: Math.round(ceiling) },
+        { label: "contingent value", value: Math.round(contingent) },
+        { label: "early clarity", value: Math.round(replaceability) },
+      ].sort((a, b) => b.value - a.value).slice(0, 2),
+    };
+  }
+
+  function decisionScenario(player, availablePool = [], context = {}) {
+    const evaluation = scorePlayer(player, context);
+    const comparables = comparablePlayers(player, availablePool, context, 3);
+    const fallback = comparables[0] || null;
+    const survivalProbability = clamp(numeric(player.sv ?? player.survivalProbability ?? context.survival, 50));
+    const scarcity = scarcityScore(player, availablePool, context);
+    const atTierCliff = scarcity.tierDepth <= 1 && scarcity.tierDropoff >= 8;
+    const fallbackValue = fallback ? fallback.leagueValue : Math.max(0, Math.round(leagueValueScore(player, context) - 18));
+    const currentValue = Math.round(leagueValueScore(player, context));
+    const fallbackLoss = Math.max(0, currentValue - fallbackValue);
+    const expectedWaitLoss = Math.round((1 - survivalProbability / 100) * fallbackLoss * 10) / 10;
+    const waitRisk = waitRiskCategory({ survivalProbability, playerValue: evaluation.playerGrade, scarcity: scarcity.scarcity });
+    const need = rosterNeedState(player, context);
+    const optionValue = optionValueProfile(player, context);
+    let decision = "TARGET";
+    if (need.state === "saturated") decision = "PASS";
+    else if (survivalProbability >= 72 && expectedWaitLoss < 5 && !atTierCliff) decision = "WAIT";
+    else if (waitRisk.category === "TAKE_NOW" || expectedWaitLoss >= 8 || atTierCliff) decision = "DRAFT NOW";
+    if (optionValue.active && optionValue.score >= 72 && need.state !== "saturated") decision = decision === "WAIT" ? "TARGET" : decision;
+    const confidence = Math.round(clamp(evaluation.confidence * .65 + optionValue.confidence * .2 + (100 - Math.abs(50 - survivalProbability)) * .15));
+    return {
+      decision,
+      confidence,
+      survivalProbability,
+      expectedWaitLoss,
+      currentValue,
+      fallback,
+      fallbackLoss,
+      waitRisk,
+      scarcity,
+      atTierCliff,
+      optionValue,
+      whyNow: `${need.label}: ${atTierCliff ? "the position is at a tier cliff" : `${survivalProbability}% chance to survive your next turn`}`,
+      whyWait: fallback
+        ? `${fallback.player.name} is the next ${fallback.sameTier ? "same-tier" : "lower-tier"} fallback; expected value lost by waiting is ${expectedWaitLoss}`
+        : `No close positional fallback is visible; expected value lost by waiting is ${expectedWaitLoss}`,
+    };
+  }
+
+  function recommendationBoard(players = [], context = {}) {
+    const roomPicks = context.roomPicks || [];
+    const runs = positionRunState(roomPicks, players, context);
+    const runMap = Object.fromEntries(runs.map((run) => [run.position, run]));
+    const targets = starterTargets(context.league || {});
+    const counts = context.counts || rosterCounts(context.picks || []);
+    const superflex = numeric(context.league?.roster?.SUPER_FLEX, 0) > 0 || numeric(context.league?.roster?.QB, 1) > 1;
+    const qbTarget = Math.max(1, numeric(targets.QB, 1));
+    const evaluated = players.map((player) => {
+      const evaluation = scorePlayer(player, context);
+      const evidence = playerEvidenceProfile(player, context);
+      const breakout = breakoutCandidateScore(player, context);
+      const run = runMap[player.position] || { severity: 0, active: false };
+      let adjustment = run.active ? Math.min(10, run.severity * 0.1) : 0;
+      if (superflex && player.position === "QB") {
+        if (numeric(counts.QB, 0) < qbTarget) adjustment += 12 + Math.min(10, run.severity * 0.12);
+        else adjustment -= 5;
+      }
+      const need = rosterNeedState(player, context);
+      if (need.state === "saturated") adjustment -= 18;
+      if (need.state === "starter_need") adjustment += 5;
+      if (numeric(context.round, 1) >= 6 && breakout.reliable) adjustment += Math.max(-4, Math.min(7, (breakout.score - 50) * .14));
+      if (player.vegasComparison?.available && numeric(player.vegasComparison.confidence,0) >= .35) adjustment += player.vegasComparison.strength * Math.min(1.5, numeric(player.vegasComparison.confidence,0) * 1.5);
+      const scenario = decisionScenario(player, players, context);
+      const phaseBonus = scenario.optionValue.active ? Math.max(-2, Math.min(6, (scenario.optionValue.score - 50) * .1)) : 0;
+      return { player, evaluation, run, evidence, breakout, scenario, adjustment: Math.round(adjustment + phaseBonus), contextualScore: Math.round(clamp(evaluation.pickUtility + adjustment + phaseBonus)) };
+    });
+    const recommended = [...evaluated].sort((a, b) => b.contextualScore - a.contextualScore || numeric(a.player.overallRank, 999) - numeric(b.player.overallRank, 999));
+    const bestAvailable = [...evaluated].sort((a, b) => numeric(a.player.adp ?? a.player.overallRank ?? a.player.rank, 999) - numeric(b.player.adp ?? b.player.overallRank ?? b.player.rank, 999));
+    recommended.slice(0, 8).forEach((entry) => { entry.comparables = comparablePlayers(entry.player, players, context, 3); });
+    const leadRun = runs.find((run) => run.active);
+    let strategyImpact = leadRun
+      ? `${leadRun.position} run: ${leadRun.count} selected in the last ${leadRun.windowSize}. ${leadRun.tierDepth <= 2 ? "The current tier may not survive your next turn." : "Do not chase the run if an equal-tier player at another position is available."}`
+      : "No material position run is forcing a reach; stay value-led and protect open starter slots.";
+    if (superflex && numeric(counts.QB, 0) < qbTarget) {
+      strategyImpact = `Superflex pressure: you still need ${qbTarget - numeric(counts.QB, 0)} starting QB${qbTarget - numeric(counts.QB, 0) === 1 ? "" : "s"}. Treat viable starting QBs as a scarce lineup requirement, not a one-QB luxury. ${strategyImpact}`;
+    }
+    return { recommended, bestAvailable, runs, strategyImpact };
+  }
+
   // Real draft methodology differs by round: early picks should lean almost
   // entirely on value (roster construction isn't defined yet), later picks
   // should weigh roster need, opportunity, and situational context (pedigree,
@@ -1664,6 +1866,8 @@
     const market_value = marketValueScore(player, context);
     const league_value = leagueValueScore(player, context);
     const lateRound = lateRoundValueScore(player, context);
+    const evidence = playerEvidenceProfile(player, context);
+    const breakout = breakoutCandidateScore(player, context);
     const progress = clamp01(
       (numeric(context.round, 1) - 1) / Math.max(1, numeric(context.totalRounds, 16) - 1),
     );
@@ -1681,6 +1885,8 @@
       leagueValue: Math.round(league_value),
       confidence: Math.round(confidence),
       lateRound,
+      evidence,
+      breakout,
       diamondBonus: Math.round(diamondBonus * 10) / 10,
       components,
       weights: effectiveWeights,
@@ -1788,14 +1994,22 @@
     normalizeName,
     optimalLineup,
     opportunityCost,
+    comparablePlayers,
+    decisionScenario,
+    draftPhase,
+    breakoutCandidateScore,
+    optionValueProfile,
     playerGrade,
+    playerEvidenceProfile,
     playerKey,
     projectionCoverageContract,
     roundAdjustedWeights,
     rosterCounts,
     rosterNeedState,
+    recommendationBoard,
     runBacktest,
     scarcityScore,
+    positionRunState,
     seededRandom,
     waitRiskCategory,
     scorePlayer,

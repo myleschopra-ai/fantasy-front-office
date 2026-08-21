@@ -50,6 +50,19 @@ def agreement(lines):
     rel=abs(spread/med)
     return round(max(0,min(1,1-rel*8)),3)
 
+CORE_MARKETS={
+    'QB':{'passing_yards','passing_touchdowns'},
+    'RB':{'rushing_yards','rushing_touchdowns','receiving_yards','receptions'},
+    'WR':{'receiving_yards','receiving_touchdowns','receptions'},
+    'TE':{'receiving_yards','receiving_touchdowns','receptions'},
+}
+
+def coverage(position,lines):
+    required=CORE_MARKETS.get(str(position or '').upper(),set())
+    present=set(lines)
+    score=len(required & present)/len(required) if required else 0
+    return {'required':sorted(required),'present':sorted(present),'score':round(score,3),'total_ready':bool(required) and required.issubset(present)}
+
 def previous_index(raw):
     out={}
     for p in (raw or {}).get('markets',[]):out[str(p.get('player_key'))]=p
@@ -90,11 +103,13 @@ def main():
         old_fp=old.get('implied_fantasy_points') or {}
         movement={k:round(v-float(old_fp[k]),2) for k,v in fantasy.items() if k in old_fp and old_fp[k] is not None}
         overall_agreement=round(sum(agreements)/len(agreements),3) if agreements else 0
+        market_coverage=coverage(g['position'],lines)
         out.append({
             'player_key':key,'player_name':g['name'],'position':g['position'],
             'books':len(g['books']),'freshness_hours':freshness_hours(g['times']),
             'lines':lines,'market_detail':market_detail,'agreement':overall_agreement,
-            'implied_fantasy_points':fantasy,'fantasy_point_movement':movement
+            'implied_fantasy_points':fantasy,'fantasy_point_movement':movement,
+            'market_coverage':market_coverage,'total_ready':market_coverage['total_ready']
         })
     payload={'version':2,'generated_at':datetime.now(timezone.utc).isoformat(),'markets':out}
     Path(sys.argv[2]).parent.mkdir(parents=True,exist_ok=True)

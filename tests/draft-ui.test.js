@@ -7,8 +7,10 @@ const route = fs.readFileSync(path.join(__dirname, '..', 'draft.html'), 'utf8');
 const room = fs.readFileSync(path.join(__dirname, '..', 'draft-room-v5.html'), 'utf8');
 const iosRuntime = fs.readFileSync(path.join(__dirname, '..', 'js', 'draft-room-ios-v5.js'), 'utf8');
 const sleeperRuntime = fs.readFileSync(path.join(__dirname, '..', 'js', 'draft-room-sleeper-v6.js'), 'utf8');
+const boardPanRuntime = fs.readFileSync(path.join(__dirname, '..', 'js', 'draft-room-board-pan-v7.js'), 'utf8');
 const sleeperStyles = fs.readFileSync(path.join(__dirname, '..', 'css', 'draft-room-sleeper-v6.css'), 'utf8');
 const runtime = fs.readFileSync(path.join(__dirname, '..', 'js', 'mock-draft-v4.js'), 'utf8');
+const auctionRuntime = fs.readFileSync(path.join(__dirname, '..', 'js', 'auction-room.js'), 'utf8');
 const leagueSwitcher = fs.readFileSync(path.join(__dirname, '..', 'js', 'league-switcher.js'), 'utf8');
 
 assert.match(route, /draft-room-v5\.html/, 'candidate snake/mock route must open promoted iOS-first room');
@@ -19,12 +21,13 @@ assert.doesNotMatch(route, /fetch\(/i, 'draft route must not async-bootstrap ano
 assert.match(route, /location\.replace/, 'draft route must use browser-native navigation');
 
 const requiredIds = [
-  'mode','teams','slot','rounds','strategy','variance','league-note',
+  'draft-type','mode','teams','slot','rounds','strategy','variance','league-note','format-note',
   'start','advance','undo','board-summary','tab-board','tab-team','tab-selections','tab-queue','tab-recommended',
   'draft-grid-view','draft-grid','team-roster-view','selections-view','queue-view','recommended-view',
   'best','why','pick-label','clock','equity','delta','ceiling','breakout','bust','survive','alts',
   'source','pos','search','board','roster','equity-bar','roster-equity','profile',
   'intelligence-status','strategy-playbook','weight-summary','room-status','picks',
+  'decision-now','decision-wait','upside-case',
   'player-modal-backdrop','player-modal-title','close-player-modal','player-blurb','player-scheme','player-compare'
   ,'session-status','provider-sync-status','provider-sync'
 ];
@@ -33,6 +36,11 @@ for (const id of requiredIds) {
 }
 
 assert.match(room, /Front Office recommendation/, 'recommendation must be a primary visual surface');
+assert.match(room, /Auction \/ salary cap/, 'mock settings must expose auction as a first-class draft format');
+assert.match(runtime, /auction\.html\?from=mock-draft/, 'auction selection must hand off to the live auction room');
+assert.match(runtime, /ffo_mock_draft_handoff_v1/, 'mock settings must persist the selected league for auction handoff');
+assert.match(auctionRuntime, /ffo_mock_draft_handoff_v1/, 'auction room must consume the mock-draft settings handoff');
+assert.match(auctionRuntime, /format:'auction'/, 'auction handoff must force the salary-cap format contract');
 assert.match(room, /Search players/, 'player search must be immediately visible');
 assert.match(room, /Expand board/, 'board must support compact/expanded modes');
 assert.match(room, /data-pos="FLEX"/, 'quick position filters must include FLEX');
@@ -45,6 +53,10 @@ assert.match(room, /css\/draft-room-ios-v5\.css/, 'room must load the iOS-first 
 assert.match(room, /js\/draft-room-ios-v5\.js/, 'room must load the bounded iOS interaction helper');
 assert.match(room, /css\/draft-room-sleeper-v6\.css/, 'room must load the Sleeper-inspired responsive hierarchy');
 assert.match(room, /js\/draft-room-sleeper-v6\.js/, 'room must load the bounded draft-room navigation enhancement');
+assert.match(room, /id="board-current"/, 'draftboard must provide a jump-to-current control');
+assert.match(room, /js\/draft-room-board-pan-v7\.js/, 'draftboard must load touch and mouse panning controls');
+assert.match(boardPanRuntime, /pointermove/, 'draftboard panning must support direct pointer dragging');
+assert.match(boardPanRuntime, /scrollIntoView/, 'draftboard must support centering the current pick');
 assert.match(room, /id="desktop-queue"/, 'desktop draft room must keep the queue visible');
 assert.match(room, /class="player-columns"/, 'desktop player pool must expose table-style scouting columns');
 assert.doesNotMatch(room, /<iframe/i, 'room must not introduce nested iframes');

@@ -1,0 +1,17 @@
+(()=>{'use strict';
+  const board=document.getElementById('draft-grid');
+  if(!board)return;
+  const pan=(x=0,y=0)=>board.scrollBy({left:x*(board.clientWidth*.72),top:y*(board.clientHeight*.72),behavior:'smooth'});
+  document.querySelectorAll('.board-pan').forEach(button=>button.addEventListener('click',()=>pan(Number(button.dataset.panX||0),Number(button.dataset.panY||0))));
+  const current=()=>board.querySelector('.draft-cell.active')?.scrollIntoView({behavior:'smooth',block:'center',inline:'center'});
+  document.getElementById('board-current')?.addEventListener('click',current);
+  let drag=null,moved=false;
+  board.addEventListener('pointerdown',event=>{if(event.button!==0)return;event.preventDefault();drag={id:event.pointerId,x:event.clientX,y:event.clientY,left:board.scrollLeft,top:board.scrollTop};moved=false;try{board.setPointerCapture(event.pointerId)}catch{}board.classList.add('is-panning')});
+  document.addEventListener('pointermove',event=>{if(!drag||drag.id!==event.pointerId)return;event.preventDefault();const dx=event.clientX-drag.x,dy=event.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>5)moved=true;board.scrollLeft=drag.left-dx;board.scrollTop=drag.top-dy},{passive:false});
+  const end=event=>{if(!drag||drag.id!==event.pointerId)return;drag=null;board.classList.remove('is-panning')};
+  document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end);
+  board.addEventListener('click',event=>{if(moved){event.preventDefault();event.stopPropagation();moved=false}},true);
+  board.addEventListener('wheel',event=>{if(Math.abs(event.deltaY)>Math.abs(event.deltaX)&&!event.shiftKey)return;event.preventDefault();board.scrollLeft+=event.deltaX||event.deltaY},{passive:false});
+  const observer=new MutationObserver(()=>{const active=board.querySelector('.draft-cell.active');if(active&&!board.dataset.initialFocus){board.dataset.initialFocus='1';requestAnimationFrame(current)}});
+  observer.observe(board,{childList:true,subtree:true});
+})();

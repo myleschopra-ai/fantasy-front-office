@@ -1,9 +1,9 @@
 {
-  "version": 4,
+  "version": 5,
   "providers": [
-    {"id":"betmgm_public","use":"free_season_futures_primary_input","requires_api_key":false,"weight":0.7,"collector":"scripts/scrape_betmgm_season_props.py","status":"experimental_public_scrape"},
-    {"id":"draftkings_public","use":"free_season_futures_cross_check","requires_api_key":false,"weight":0.65,"collector":"scripts/scrape_draftkings_season_props.py","status":"experimental_undocumented_public_api"},
-    {"id":"sportsbook_odds_scraper_reference","use":"free_multi_book_reference_and_fallback","requires_api_key":false,"weight":0.6,"repository":"declanwalpole/sportsbook-odds-scraper","status":"external_undocumented_api_reference"},
+    {"id":"sharpapi","use":"weekly_event_props_only","requires_api_key":true,"api_key_environment_variable":"SHARP_API_KEY","weight":0.85,"collector":"scripts/collect_sharpapi_weekly_props.py","status":"enabled_weekly_no_supported_season_stat_props"},
+    {"id":"draftkings_public","use":"free_season_futures_gap_fill","requires_api_key":false,"weight":0.65,"collector":"scripts/scrape_draftkings_season_props.py","upstream_repository":"yzRobo/draftkings_api_explorer","status":"experimental_manual_undocumented_public_api"},
+    {"id":"betmgm_public","use":"free_season_futures_cross_check","requires_api_key":false,"weight":0.7,"collector":"scripts/scrape_betmgm_season_props.py","status":"experimental_manual_public_scrape"},
     {"id":"sportsdataio","use":"season_futures_primary","requires_api_key":true,"weight":1.0},
     {"id":"opticodds","use":"season_futures_primary_or_secondary","requires_api_key":true,"weight":1.0},
     {"id":"the_odds_api","use":"weekly_props_and_cross_check","requires_api_key":true,"weight":0.8}
@@ -24,6 +24,11 @@
     "fail_closed_on_scraper_parse_error": true,
     "no_bot_bypass_or_access_control_evasion": true,
     "require_provider_timestamp": true,
-    "experimental_sources_cannot_outweigh_verified_model": true
+    "experimental_sources_cannot_outweigh_verified_model": true,
+    "deduplicate_same_book_across_providers": true,
+    "direct_sportsbook_collectors_manual_only": true,
+    "season_markets_affect_draft_only": true,
+    "event_markets_affect_weekly_only": true,
+    "weekly_projection_adjustment_cap_pct": 0.10
   }
 }

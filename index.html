@@ -468,7 +468,7 @@
   const state = {
     league: null, rosters: [], users: [], allPlayers: {}, fcData: [],
     tradedPicks: [], myRosterId: null, activeTab: "roster",
-    sideA: [], sideB: [], posFilter: "ALL", fpData: null, fetchedAt: null, watcherState: null, scheduleData: null,
+    sideA: [], sideB: [], posFilter: "ALL", fpData: null, weeklyVegasData: null, fetchedAt: null, watcherState: null, scheduleData: null,
     qualityManifest: null, leagueProfile: null, rosterAssessment: null,
   };
 
@@ -489,7 +489,16 @@
     const list = state.fpData.projections[position];
     if (!list) return null;
     const entry = list.find(p => p.name === name);
-    return entry ? entry.points_half : null;
+    if (!entry) return null;
+    const vegas = weeklyVegasFor(name);
+    return vegas ? vegas.adjusted_points : (entry.projected_points ?? entry.points_half ?? null);
+  }
+
+  function weeklyVegasFor(name) {
+    const players = state.weeklyVegasData?.players;
+    if (!Array.isArray(players)) return null;
+    const key = String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    return players.find(player => player.projection_scope === "weekly" && player.player_key === key) || null;
   }
 
   // ---------- DOM refs ----------
@@ -537,6 +546,7 @@
       { id: "sleeper-league", label: "Sleeper league state", timestamp: state.fetchedAt, maxAgeHours: 0.25, required: true },
       { id: "fantasycalc", label: "FantasyCalc market", timestamp: state.fetchedAt, maxAgeHours: 6, required: true },
       { id: "projection-snapshot", label: "Projection snapshot", timestamp: state.fpData?.generated_at, maxAgeHours: 6, required: false },
+      { id: "weekly-vegas", label: "Weekly sportsbook adjustment", timestamp: state.weeklyVegasData?.generated_at, maxAgeHours: 6, required: false },
       { id: "league-watcher", label: "League watcher", timestamp: state.watcherState?.last_run, maxAgeHours: 3, required: false },
       { id: "schedule", label: "Schedule signals", timestamp: state.scheduleData?.generated_at, maxAgeHours: 24, required: false },
     ]);
@@ -626,6 +636,16 @@
         if (schedRes.ok) state.scheduleData = await schedRes.json();
       } catch (e) {
         console.warn("data/schedule_signals.json not found or unreadable — continuing without it (bye-week check unavailable until the schedule collector has run).");
+      }
+
+      try {
+        const vegasRes = await fetch("data/vegas/weekly-projections.json?t=" + Date.now());
+        if (vegasRes.ok) {
+          const weekly = await vegasRes.json();
+          if (weekly.kind === "weekly_vegas_adjusted_projections") state.weeklyVegasData = weekly;
+        }
+      } catch (e) {
+        console.warn("Weekly Vegas projections unavailable — baseline projections remain unchanged.");
       }
 
       localStorage.setItem(STORAGE_KEY, leagueId);
@@ -891,9 +911,12 @@
       `${escapeHTML(move.starter.name)} over ${escapeHTML(move.alternative.name)} by ${move.delta.toFixed(1)} projected points · ${window.FFODashboardIntel.confidenceLabel(move.confidence)} confidence`
     ).join("<br>")}</div>` : `<div class="quality-note">The optimizer found no bench alternative within three projected points of a current starter. Injury designations still require confirmation before lock.</div>`;
 
-    const metricHTML = (p) => p.projPoints !== null
-      ? `<span class="mono" style="color:var(--green); font-size:12px;">${p.projPoints} pts (proj)</span>`
+    const metricHTML = (p) => {
+      const vegas = weeklyVegasFor(p.name);
+      return p.projPoints !== null
+      ? `<span class="mono" style="color:var(--green); font-size:12px;">${p.projPoints} pts ${vegas ? `(weekly market ${vegas.applied_market_delta >= 0 ? "+" : ""}${vegas.applied_market_delta})` : "(proj)"}</span>`
       : `<span class="mono" style="color:var(--text-muted); font-size:12px;">val ${p.value}</span>`;
+    };
 
     const rowHTML = (slot, p) => {
       if (!p) {

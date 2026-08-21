@@ -7,6 +7,7 @@
   const ProviderSync = window.FFOProviderDraftSync;
   const SleeperDraft = window.FFOSleeperDraftClient;
   const Calibration = window.FFODraftCalibration;
+  const Championship = window.FFOChampionshipIntel;
   const $ = (id) => document.getElementById(id);
   const LS = "ffo_mock_draft_v4";
   const POSITIONS = ["QB", "RB", "WR", "TE", "K", "DST"];
@@ -649,7 +650,9 @@
   }
 
   function equityFor(player, detailed = true) {
-    const survives = detailed ? survival(player) : approximateSurvival(player);
+    // Twenty-five room simulations give the decision layer 4-point
+    // probability resolution while remaining bounded for an on-clock render.
+    const survives = detailed ? survival(player, 25) : approximateSurvival(player);
     const model = D.scorePlayer(
       player,
       scoreContext(player, state.slot, state.picks, survives),
@@ -693,6 +696,7 @@
     // Never let an opaque composite score produce a contradictory live-draft
     // instruction after the roster state says this position is already solved.
     if (needState.state === "saturated") return "AVOID AT COST";
+    if (isSuperflex() && player.position === "QB" && needState.state === "starter_need" && numeric(evaluation.adjustment, 0) >= 10) return "DRAFT NOW";
     if (needState.state === "luxury" && evaluation.score < 92) return "WAIT";
     if (evaluation.score >= 76 && evaluation.sv < 50) return "DRAFT NOW";
     if (
@@ -708,15 +712,24 @@
   }
 
   function recommendations() {
-    const shortlist = available()
+    const pool = available();
+    const shortlist = pool
       .slice(0, 60)
       .map((player) => ({ ...player, ...equityFor(player, false) }))
       .sort((a, b) => b.score - a.score || a.overallRank - b.overallRank)
       .slice(0, 8);
-    return shortlist
+    const detailed = shortlist
       .map((player) => ({ ...player, ...equityFor(player, true) }))
       .sort((a, b) => b.score - a.score || a.overallRank - b.overallRank)
-      .slice(0, 4);
+    const context = { ...scoreContext(detailed[0], state.slot, state.picks, 50), roomPicks: state.picks };
+    const intelligence = D.recommendationBoard(detailed, context);
+    const byKey = new Map(detailed.map((player) => [player.key, player]));
+    return {
+      recommended: intelligence.recommended.slice(0, 4).map((entry) => ({ ...byKey.get(entry.player.key), contextualScore: entry.contextualScore, adjustment: entry.adjustment, run: entry.run, evidence: entry.evidence, breakout: entry.breakout, comparables: entry.comparables, scenario: entry.scenario })),
+      bestAvailable: D.recommendationBoard(pool.slice(0, 60), context).bestAvailable.slice(0, 5),
+      runs: intelligence.runs,
+      strategyImpact: intelligence.strategyImpact,
+    };
   }
 
   function advisorNeedState(player) {
@@ -801,7 +814,8 @@
   }
 
   function renderRecommendation() {
-    const ranked = recommendations();
+    const recommendationState = recommendations();
+    const ranked = recommendationState.recommended;
     const best = ranked[0];
     const nextPick = state.picks.length + 1;
     const draftComplete = state.picks.length >= state.teams * state.rounds;
@@ -837,14 +851,32 @@
     });
     $("best").innerHTML =
       `<span class="player-link" data-player="${esc(best.key)}" tabindex="0">${esc(best.name)} · ${best.position}</span>`;
-    $("equity").textContent = best.score;
+    $("equity").textContent = best.contextualScore ?? best.score;
     $("delta").textContent = formatSigned(marketDelta(best));
     $("ceiling").textContent = `T${numeric(best.tier, 99)}`;
     $("breakout").textContent = `${Math.round(numeric(best.agreement, 50))}%`;
     $("bust").textContent = `${best.confidence}%`;
     $("survive").textContent = `${best.sv}%`;
+    if ($("evidence")) $("evidence").textContent = `${best.evidence?.grade || "—"} · ${best.evidence?.score || 0}%`;
     $("why").textContent =
-      `${actionFor(best, best)} · ${needLabel(best)} — ${needReason(best)}. ${componentSummary(best)}. ${directive.directive}`;
+      `${actionFor(best, best)} · ${needLabel(best)} — ${needReason(best)}. ${componentSummary(best)}. ${best.vegasComparison?.available ? `${best.vegasComparison.label}: ${best.vegasComparison.delta >= 0 ? "+" : ""}${best.vegasComparison.delta} projected points versus the fantasy model (${best.vegasComparison.books} book${best.vegasComparison.books===1?"":"s"}).` : "No complete, fresh Vegas total is available for this player."} ${best.evidence?.productionReady ? `${best.breakout?.label || "Production profile modeled"}.` : `Evidence ${best.evidence?.grade || "insufficient"}; missing ${best.evidence?.missing?.slice(0,2).join(" + ") || "production inputs"}, so no speculative breakout boost is applied.`} ${directive.directive}`;
+    const comparable = best.comparables?.[0];
+    if ($("room-impact")) $("room-impact").textContent = recommendationState.strategyImpact;
+    if ($("decision-now")) $("decision-now").innerHTML = `<strong>${esc(best.scenario?.decision || actionFor(best, best))}</strong><span>${esc(best.scenario?.whyNow || needReason(best))}</span>`;
+    if ($("decision-wait")) $("decision-wait").innerHTML = `<strong>${best.scenario?.expectedWaitLoss || 0} value at risk</strong><span>${esc(best.scenario?.whyWait || "No reliable fallback comparison available.")}</span>`;
+    if ($("upside-case")) {
+      const option = best.scenario?.optionValue;
+      $("upside-case").innerHTML = option
+        ? `<strong>${esc(option.label)} · ${option.score}/100</strong><span>${esc(option.drivers.map((driver) => `${driver.label} ${driver.value}`).join(" · "))} · ${option.confidence}% evidence confidence</span>`
+        : `<strong>Foundation pick</strong><span>Prioritizing bankable value and lineup advantage.</span>`;
+    }
+    if ($("next-comparable")) $("next-comparable").innerHTML = comparable
+      ? `<strong>${esc(comparable.player.name)} · ${comparable.player.position}</strong><span>${comparable.sameTier ? `Same tier · ${comparable.valueDrop}-point format-value drop` : `Next tier · ${comparable.valueDrop}-point format-value drop`} · market window ${comparable.adpGap >= 0 ? "+" : ""}${comparable.adpGap} picks</span>`
+      : `<strong>No close positional substitute</strong><span>This is the last comparable option in the visible pool.</span>`;
+    if ($("market-best")) $("market-best").innerHTML = recommendationState.bestAvailable
+      .slice(0, 4)
+      .map((entry, index) => `<div><b>${index + 1}. ${esc(entry.player.name)}</b><span>${entry.player.position} · ADP ${numeric(entry.player.adp ?? entry.player.overallRank ?? entry.player.rank, "—")}</span></div>`)
+      .join("");
     $("alts").innerHTML = ranked
       .slice(1)
       .map(
@@ -1232,6 +1264,13 @@
     return "target";
   }
 
+  function vegasBadge(player) {
+    const signal=player.vegasComparison;
+    if(!signal?.available)return "";
+    const delta=`${signal.delta>=0?"+":""}${signal.delta}`;
+    return `<span class="vegas-badge vegas-${esc(signal.tone)}" title="Vegas implied ${delta} points versus fantasy projection · ${signal.books} book(s) · ${Math.round(signal.agreement*100)}% line agreement · ${Math.round(signal.marketCoverage*100)}% required-market coverage">${esc(signal.label)} · ${delta}</span>`;
+  }
+
   function playerRowHTML(player, evaluation, queued) {
     const action = actionFor(player, evaluation);
     const needState = advisorNeedState(player);
@@ -1257,12 +1296,13 @@
         ? `<div class="detail-line" style="color:#94a3b8; margin-top:2px;">📰 ${esc(news.headline)}</div>`
         : "";
       const diamond = evaluation.lateRound;
+      const evidenceNote = evaluation.evidence ? `<div class="detail-line" style="color:${evaluation.evidence.score>=55?'#67e8f9':'#fbbf24'};">Evidence ${evaluation.evidence.grade} · ${evaluation.evidence.score}%${evaluation.breakout?.reliable?` · ${evaluation.breakout.label}`:` · missing ${evaluation.evidence.missing.slice(0,2).join(' + ')}`}</div>` : "";
       const diamondNote = diamond?.label === "DIAMOND"
         ? `<div class="detail-line" style="color:#fbbf24;">◆ Diamond ${diamond.score}/100 · ${diamond.confidence}% confidence</div>`
         : diamond?.label === "WATCH"
           ? `<div class="detail-line" style="color:#67e8f9;">Late watch ${diamond.score}/100 · ${diamond.confidence}% confidence</div>`
           : "";
-      sleeperBlock = diamondNote + valueNote + newsNote;
+      sleeperBlock = evidenceNote + diamondNote + valueNote + newsNote;
     }
     const overallRank = numeric(player.overallRank, player.rank);
     const adp = numeric(player.adp, overallRank).toFixed(1);
@@ -1275,7 +1315,7 @@
           <span class="name">${esc(player.name)}</span>
           <span class="meta">${player.nflTeam ? esc(player.nflTeam) : "FA"}</span>
         </div>
-        <div class="player-signals"><span class="action-badge ${actionClass(action)}">${action}</span><span class="action-badge ${needStateClass(needState)}">${esc(needState.label)}</span><span class="detail-line">Score ${evaluation.score} · VBD ${Math.round(evaluation.components.vbd)} · ${scarcity.sameTier} left${cliff}</span></div>
+        <div class="player-signals"><span class="action-badge ${actionClass(action)}">${action}</span><span class="action-badge ${needStateClass(needState)}">${esc(needState.label)}</span>${vegasBadge(player)}<span class="detail-line">Score ${evaluation.score} · VBD ${Math.round(evaluation.components.vbd)} · ${scarcity.sameTier} left${cliff}</span></div>
         ${sleeperBlock}
       </div>
       <span class="player-stat"><small>Rank</small>${overallRank}</span>
@@ -1431,9 +1471,78 @@
     $("strategy").value = state.strategy;
     $("mode").value = state.mode;
     $("variance").value = state.variance;
+    syncLeagueInputs();
+  }
+
+  const LEAGUE_PRESETS = {
+    standard: { QB:1,RB:2,WR:2,TE:1,FLEX:2,SUPER_FLEX:0,K:1,DST:1,BENCH:6,ppr:.5,tep:0 },
+    superflex: { QB:1,RB:2,WR:2,TE:1,FLEX:2,SUPER_FLEX:1,K:1,DST:1,BENCH:5,ppr:.5,tep:0 },
+    twoqb: { QB:2,RB:2,WR:2,TE:1,FLEX:1,SUPER_FLEX:0,K:1,DST:1,BENCH:5,ppr:.5,tep:0 },
+    threewr: { QB:1,RB:2,WR:3,TE:1,FLEX:2,SUPER_FLEX:0,K:1,DST:1,BENCH:6,ppr:.5,tep:0 },
+    tep: { QB:1,RB:2,WR:2,TE:1,FLEX:2,SUPER_FLEX:0,K:1,DST:1,BENCH:6,ppr:1,tep:.5 },
+  };
+  const ROSTER_INPUTS = { QB:"setupQB",RB:"setupRB",WR:"setupWR",TE:"setupTE",FLEX:"setupFLEX",SUPER_FLEX:"setupSF",K:"setupK",DST:"setupDST",BENCH:"setupBENCH" };
+
+  function setupRoster() {
+    return Object.fromEntries(Object.entries(ROSTER_INPUTS).map(([position,id]) => [position, Math.max(0, numeric($(id)?.value, 0))]));
+  }
+
+  function updateLineupPreview() {
+    const roster = setupRoster(), slots = [];
+    Object.entries(roster).forEach(([position,count]) => {
+      const label = position === "SUPER_FLEX" ? "SFLEX" : position;
+      for (let index=0; index<count; index+=1) slots.push(label);
+    });
+    if ($("lineup-preview")) $("lineup-preview").textContent = slots.length ? slots.join(" · ") : "Add at least one roster slot.";
+    const rounds = Object.values(roster).reduce((sum,count)=>sum+count,0);
+    if ($("rounds")) $("rounds").value = Math.max(1, rounds);
+  }
+
+  function syncLeagueInputs() {
+    const league = state.activeLeague || DEFAULT_LEAGUE, roster = league.roster || {};
+    Object.entries(ROSTER_INPUTS).forEach(([position,id]) => { if ($(id)) $(id).value = Math.max(0, numeric(roster[position], position === "BENCH" ? 6 : 0)); });
+    if ($("setupPPR")) $("setupPPR").value = String(numeric(league.scoring?.reception, .5));
+    if ($("setupTEP")) $("setupTEP").value = String(numeric(league.scoring?.te_premium ?? league.scoring?.tePremium, 0));
+    updateLineupPreview();
+  }
+
+  function applyPreset(name) {
+    const preset = LEAGUE_PRESETS[name];
+    if (!preset) return;
+    Object.entries(ROSTER_INPUTS).forEach(([position,id]) => { $(id).value = preset[position]; });
+    $("setupPPR").value = String(preset.ppr); $("setupTEP").value = String(preset.tep);
+    if ((name === "superflex" || name === "twoqb") && $("strategy").value === "adaptive") $("strategy").value = "early-qb";
+    document.querySelectorAll("[data-draft-preset]").forEach((button)=>button.classList.toggle("active",button.dataset.draftPreset===name));
+    updateLineupPreview();
+  }
+
+  function applyLeagueSettings() {
+    const roster = setupRoster(), previous = state.activeLeague || DEFAULT_LEAGUE;
+    state.activeLeague = {
+      ...previous,
+      name: `Custom ${numeric($("teams").value,12)}-team ${roster.SUPER_FLEX ? "Superflex" : roster.QB > 1 ? "2QB" : "1QB"}`,
+      teams: numeric($("teams").value,12),
+      roster,
+      scoring: { ...(previous.scoring || {}), reception:numeric($("setupPPR").value,.5), te_premium:numeric($("setupTEP").value,0) },
+    };
+    state.rounds = Math.max(1,Object.values(roster).reduce((sum,count)=>sum+count,0));
+    $("rounds").value = state.rounds;
+    $("league-note").textContent = `Custom lineup · ${state.rounds} rounds · ${numeric(state.activeLeague.scoring.reception,0)} PPR${roster.SUPER_FLEX ? " · Superflex" : roster.QB > 1 ? " · 2QB" : ""}`;
   }
 
   function start() {
+    applyLeagueSettings();
+    if ($("draft-type")?.value === "auction") {
+      const handoff = {
+        league: state.activeLeague,
+        teams: numeric($("teams").value, 12),
+        strategy: $("strategy").value,
+        createdAt: new Date().toISOString(),
+      };
+      localStorage.setItem("ffo_mock_draft_handoff_v1", JSON.stringify(handoff));
+      window.location.assign("auction.html?from=mock-draft");
+      return;
+    }
     state.teams = numeric($("teams").value, 12);
     state.slot = Math.min(state.teams, numeric($("slot").value, 1));
     state.rounds = numeric($("rounds").value, 16);
@@ -1491,6 +1600,20 @@
       .filter((player) => POSITIONS.includes(player.position));
   }
 
+  function attachVegasComparisons(snapshot) {
+    if (!Championship || !Array.isArray(snapshot?.markets)) return 0;
+    const leaguePpr=numeric(state.activeLeague?.scoring?.reception,.5), key=leaguePpr>=.75?"ppr_1":leaguePpr>=.25?"ppr_0_5":"ppr_0";
+    const byName=new Map(snapshot.markets.map((row)=>[D.normalizeName(row.player_name||row.player_key),row]));
+    let covered=0;
+    state.players.forEach((player)=>{
+      const row=byName.get(D.normalizeName(player.name));
+      const coverage=row?.market_coverage?.score ?? (row?.total_ready ? 1 : 0);
+      const comparison=Championship.vegasComparison({modelPoints:numeric(player.projectedPoints,null),vegasPoints:numeric(row?.implied_fantasy_points?.[key],null),books:numeric(row?.books,0),agreement:numeric(row?.agreement,.45),freshness_hours:numeric(row?.freshness_hours,Infinity),totalReady:Boolean(row?.total_ready||row?.market_coverage?.total_ready),marketCoverage:numeric(coverage,0),movementPoints:numeric(row?.fantasy_point_movement?.[key],0)});
+      if(comparison.available){player.vegasComparison=comparison;player.vegasMarket=row;covered+=1}else delete player.vegasComparison;
+    });
+    return covered;
+  }
+
   function rehydratePicks() {
     const byKey = new Map(state.players.map((player) => [player.key, player]));
     const byName = new Map(
@@ -1524,13 +1647,14 @@
       String(league.league_type || league.type || "").toLowerCase() ===
       "dynasty";
     $("source").textContent = "Loading consensus rankings and live market…";
-    const [intelligenceResult, marketResult, scoutingResult, fpResult] = await Promise.allSettled([
+    const [intelligenceResult, marketResult, scoutingResult, fpResult, vegasResult] = await Promise.allSettled([
       fetchJson(`data/draft_intelligence.json?ts=${Date.now()}`),
       fetchJson(
         `https://api.fantasycalc.com/values/current?isDynasty=${dynasty}&numQbs=${qbs}&numTeams=${state.teams}&ppr=${ppr}`,
       ),
       fetchJson(`data/scouting_signals.json?ts=${Date.now()}`),
       fetchJson(`fantasypros.json?ts=${Date.now()}`),
+      fetchJson(`data/vegas/consensus.json?ts=${Date.now()}`),
     ]);
     if (token !== state.loadToken) return;
     state.intelligence =
@@ -1617,6 +1741,7 @@
         state.activeLeague || DEFAULT_LEAGUE,
       );
     });
+    state.vegasCovered = attachVegasComparisons(vegasResult.status === "fulfilled" ? vegasResult.value : null);
     const vbdContext = {
       teams: state.teams,
       league: state.activeLeague || DEFAULT_LEAGUE,
@@ -1673,6 +1798,7 @@
       ? "sleeper"
       : String(state.activeLeague?.provider || "").toLowerCase();
     state.activeLeague = event.detail || DEFAULT_LEAGUE;
+    syncLeagueInputs();
     const nextProvider = String(state.activeLeague?.provider || "").toLowerCase();
     const nextLeagueId = providerLeagueId();
     const providerChanged = previousProvider !== nextProvider || previousLeagueId !== nextLeagueId;
@@ -1708,6 +1834,18 @@
     else if (state.mode === "live" && providerEligible()) ensureProviderPolling();
   });
   $("start").onclick = start;
+  if ($("draft-type")) $("draft-type").addEventListener("change", () => {
+    const auction = $("draft-type").value === "auction";
+    if ($("format-note")) $("format-note").textContent = auction
+      ? "Auction selected — Start Mock Draft opens live nominations, timed bidding, budget enforcement and comparable-player price advice."
+      : "Snake selected — recommendations model pick survival, positional runs and the cost of waiting until your next turn.";
+    if ($("slot")) $("slot").closest("label").style.display = auction ? "none" : "";
+    if ($("rounds")) $("rounds").closest("label").style.display = auction ? "none" : "";
+  });
+  document.querySelectorAll("[data-draft-preset]").forEach((button)=>button.onclick=()=>applyPreset(button.dataset.draftPreset));
+  Object.values(ROSTER_INPUTS).forEach((id)=>$(id)?.addEventListener("input",()=>{document.querySelectorAll("[data-draft-preset]").forEach((button)=>button.classList.remove("active"));updateLineupPreview();}));
+  ["setupPPR","setupTEP"].forEach((id)=>$(id)?.addEventListener("change",()=>document.querySelectorAll("[data-draft-preset]").forEach((button)=>button.classList.remove("active"))));
+  $("settings-done").addEventListener("click",start);
   $("advance").onclick = () => state.mode === "live" ? syncSleeperDraft({ manual: true }) : simulateToUser();
   if ($("provider-sync")) $("provider-sync").onclick = () => syncSleeperDraft({ manual: true });
   $("undo").onclick = () => {

@@ -1,0 +1,80 @@
+{
+  "method": "paired 2024-2025 redraft-only historical replay; pregame projections choose lineups; no waivers; no dynasty",
+  "years": {
+    "2024": {
+      "snake": {
+        "n": 48,
+        "mean_delta": 115.38,
+        "win_rate": 0.792,
+        "ci95": [
+          77.94,
+          152.82
+        ],
+        "framework_points": 1306.84,
+        "baseline_points": 1191.46
+      },
+      "auction": {
+        "n": 48,
+        "mean_delta": 342.44,
+        "win_rate": 0.958,
+        "ci95": [
+          293.77,
+          391.11
+        ],
+        "framework_points": 1428.77,
+        "baseline_points": 1086.33
+      }
+    },
+    "2025": {
+      "snake": {
+        "n": 48,
+        "mean_delta": 99.86,
+        "win_rate": 0.688,
+        "ci95": [
+          49.89,
+          149.83
+        ],
+        "framework_points": 1179.62,
+        "baseline_points": 1079.76
+      },
+      "auction": {
+        "n": 48,
+        "mean_delta": 277.91,
+        "win_rate": 0.958,
+        "ci95": [
+          236.86,
+          318.95
+        ],
+        "framework_points": 1303.96,
+        "baseline_points": 1026.05
+      }
+    }
+  },
+  "combined": {
+    "snake": {
+      "n": 96,
+      "mean_delta": 107.62,
+      "win_rate": 0.74,
+      "ci95": [
+        76.53,
+        138.72
+      ]
+    },
+    "auction": {
+      "n": 96,
+      "mean_delta": 310.17,
+      "win_rate": 0.958,
+      "ci95": [
+        277.85,
+        342.5
+      ]
+    }
+  },
+  "interpretation": {
+    "snake_baseline": "ADP-first target team; identical competent ADP-driven opponents and seeds.",
+    "auction_baseline": "FFToday half-PPR $200 values; target bids to generic price while opponents use need-adjusted market bids.",
+    "auction_scope": "Validates roster-construction/max-bid mechanics against historical market prices, not your league-specific price model because Yahoo historical auction records are not yet available.",
+    "lineup_policy": "Weekly starters chosen only from that week pregame projections; scoring uses realized points.",
+    "promotion_rule": "Treat format as validated only when combined paired mean is positive and its 95% interval does not cross zero."
+  }
+}

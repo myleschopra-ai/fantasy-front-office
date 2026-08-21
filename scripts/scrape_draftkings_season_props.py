@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 """Collect DraftKings NFL season-long player futures into the Vegas quote contract.
 
-⚠️ TOS WARNING (confirmed 2026-08-05): the same class of "no automated access"
-clause found in BetMGM's Terms of Use is standard across major sportsbooks;
-treat DraftKings as carrying equivalent ToS risk until their specific terms
-are checked directly. Not wired into any automated workflow (confirmed clean
-as of this date) — manual-invocation-only, real ToS risk if run. Do not
-schedule this. Prefer a licensed odds API once one is verified.
+Adapted from yzRobo/draftkings_api_explorer (MIT): live category discovery,
+the current sportscontent endpoint, season-prefix handling, embedded lines, and
+DraftKings' `main` marker. Its GUI, updater, TLS impersonation, and executable
+packaging are intentionally omitted.
 
-Uses DraftKings' public sportsbook JSON endpoints only. No authentication, CAPTCHA solving,
-proxy rotation, geolocation evasion, or access-control circumvention is implemented.
-The endpoint family is undocumented and therefore experimental; failures are expected to fail closed.
+This remains an unofficial, manually invoked collector for an undocumented
+public feed. It does not authenticate, solve CAPTCHAs, rotate proxies, emulate a
+browser, evade geolocation, or retry an access denial.
 """
 from __future__ import annotations
 
@@ -20,165 +18,181 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-NFL_EVENT_GROUP = "88808"
-BASE = "https://sportsbook.draftkings.com/sites/US-SB/api/v5/eventgroups"
-MARKET_MAP = {
-    "passing yards": "passing_yards",
-    "passing tds": "passing_touchdowns",
-    "passing touchdowns": "passing_touchdowns",
-    "interceptions": "interceptions",
-    "rushing yards": "rushing_yards",
-    "rushing tds": "rushing_touchdowns",
-    "rushing touchdowns": "rushing_touchdowns",
-    "receiving yards": "receiving_yards",
-    "receiving tds": "receiving_touchdowns",
-    "receiving touchdowns": "receiving_touchdowns",
+NFL_LEAGUE_ID = "88808"
+DEFAULT_API_BASE = "https://sportsbook-nash.draftkings.com/api/sportscontent/dkusoh/v1"
+SEED_CATEGORY_ID = "1286"
+UPSTREAM_REPOSITORY = "https://github.com/yzRobo/draftkings_api_explorer"
+UPSTREAM_COMMIT = "9a0eceedeb8b38e81e4529c578a00dc9980b0a4a"
+MARKET_ALIASES = {
+    "passing yards": "passing_yards", "passing touchdowns": "passing_touchdowns",
+    "passing tds": "passing_touchdowns", "interceptions": "interceptions",
+    "rushing yards": "rushing_yards", "rushing touchdowns": "rushing_touchdowns",
+    "rushing tds": "rushing_touchdowns", "receiving yards": "receiving_yards",
+    "receiving touchdowns": "receiving_touchdowns", "receiving tds": "receiving_touchdowns",
     "receptions": "receptions",
 }
-
-
-def get_json(url: str) -> dict:
-    req = Request(url, headers={"User-Agent": "FantasyFrontOffice/1.0 (+public-data-research)", "Accept": "application/json"})
-    with urlopen(req, timeout=25) as resp:
-        if resp.status != 200:
-            raise RuntimeError(f"DraftKings returned HTTP {resp.status}")
-        return json.loads(resp.read().decode("utf-8", errors="replace"))
+PREFIX_RE = re.compile(r"^[A-Za-z]{2,5}\s+\d{4}(?:/\d{2,4})?\s+-\s+")
+EMBEDDED_LINE_RE = re.compile(r"^(Over|Under)\s+([+-]?\d+(?:\.\d+)?)$", re.I)
 
 
 def slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
-def norm_market(name: str | None) -> str | None:
-    low = (name or "").strip().lower()
-    for key, val in MARKET_MAP.items():
-        if low == key or key in low:
-            return val
+def get_json(url: str) -> dict:
+    request = Request(url, headers={"User-Agent": "FantasyFrontOffice/2.0 (+public-data-research)", "Accept": "application/json"})
+    try:
+        with urlopen(request, timeout=30) as response:
+            return json.loads(response.read().decode("utf-8", errors="replace"))
+    except HTTPError as exc:
+        if exc.code in {401, 403, 429}:
+            raise RuntimeError(f"DraftKings denied or limited access (HTTP {exc.code}); stopping without bypass") from exc
+        raise
+
+
+def build_url(api_base: str, league_id: str, category_id: str, subcategory_id: str = "") -> str:
+    url = f"{api_base.rstrip('/')}/leagues/{league_id}/categories/{category_id}"
+    return f"{url}/subcategories/{subcategory_id}" if subcategory_id else url
+
+
+def normalize_market_name(name: str) -> str:
+    return PREFIX_RE.sub("", name or "").strip()
+
+
+def market_key(name: str) -> str | None:
+    normalized = normalize_market_name(name).lower()
+    for label, key in MARKET_ALIASES.items():
+        if normalized.endswith(label) or f"regular season {label}" in normalized:
+            return key
     return None
 
 
-def discover_categories(group: dict) -> list[dict]:
-    eg = group.get("eventGroup") or {}
-    return eg.get("offerCategories") or []
+def split_player_market(name: str) -> tuple[str | None, str | None]:
+    normalized = normalize_market_name(name)
+    match = re.match(r"^(.*?)\s+Regular Season\s+(.*)$", normalized, re.I)
+    if match:
+        return match.group(1).strip(), market_key(match.group(2))
+    if " - " in normalized:
+        player, _, market = normalized.partition(" - ")
+        return player.strip(), market_key(market)
+    for label in sorted(MARKET_ALIASES, key=len, reverse=True):
+        suffix = f" {label}"
+        if normalized.lower().endswith(suffix):
+            return normalized[:-len(suffix)].strip(), MARKET_ALIASES[label]
+    return None, None
 
 
-def select_player_futures(categories: list[dict]) -> list[dict]:
-    out = []
-    for c in categories:
-        name = (c.get("name") or "").lower()
-        if "player futures" in name or ("player" in name and "future" in name):
-            out.append(c)
-    return out
-
-
-def flatten_offers(obj):
-    if isinstance(obj, dict):
-        if "outcomes" in obj and isinstance(obj["outcomes"], list):
-            yield obj
-        for v in obj.values():
-            yield from flatten_offers(v)
-    elif isinstance(obj, list):
-        for v in obj:
-            yield from flatten_offers(v)
-
-
-def parse_category(category_payload: dict, source_url: str) -> list[dict]:
-    captured = datetime.now(timezone.utc).isoformat()
-    quotes = []
-    for offer in flatten_offers(category_payload):
-        label = offer.get("label") or offer.get("name") or offer.get("marketName")
-        market = norm_market(label)
-        if not market:
-            continue
-        outcomes = offer.get("outcomes") or []
-        if not outcomes:
-            continue
-        participant = None
+def outcome_side_and_line(selection: dict) -> tuple[str | None, float | None]:
+    label = str(selection.get("label") or "").strip()
+    points = selection.get("points")
+    match = EMBEDDED_LINE_RE.match(label)
+    if match:
+        label = match.group(1).title()
+        points = points if points is not None else match.group(2)
+    elif selection.get("outcomeType") in {"Over", "Under"}:
+        label = selection["outcomeType"]
+    try:
+        line = float(points) if points is not None else None
+    except (TypeError, ValueError):
         line = None
-        over_odds = under_odds = None
-        for o in outcomes:
-            participant = participant or o.get("participant") or o.get("participantName") or o.get("label")
-            if o.get("line") is not None:
-                try:
-                    line = float(o.get("line"))
-                except Exception:
-                    pass
-            side = str(o.get("label") or o.get("outcomeType") or "").lower()
-            odds = o.get("oddsAmerican") or o.get("odds")
-            if "over" in side:
-                over_odds = odds
-            elif "under" in side:
-                under_odds = odds
-        if not participant or line is None:
+    return (label.lower() if label.lower() in {"over", "under"} else None), line
+
+
+def discover_player_subcategories(payload: dict) -> list[tuple[str, str, str]]:
+    categories = {str(item.get("id")): str(item.get("name") or "") for item in payload.get("categories", [])}
+    matches = []
+    for sub in payload.get("subcategories", []):
+        category_id, subcategory_id = str(sub.get("categoryId") or ""), str(sub.get("id") or "")
+        subcategory_name = str(sub.get("name") or "")
+        combined = f"{categories.get(category_id, '')} {subcategory_name}".lower()
+        if category_id and subcategory_id and ("player" in combined or "future" in combined):
+            if market_key(subcategory_name) or any(label in combined for label in MARKET_ALIASES):
+                matches.append((category_id, subcategory_id, subcategory_name))
+    return sorted(set(matches))
+
+
+def parse_feed(payload: dict, source_url: str, captured_at: str | None = None) -> list[dict]:
+    captured_at = captured_at or datetime.now(timezone.utc).isoformat()
+    markets = {item.get("id"): item for item in payload.get("markets", [])}
+    grouped: dict[tuple, dict] = {}
+    for selection in payload.get("selections", []):
+        market = markets.get(selection.get("marketId"), {})
+        player, normalized_market = split_player_market(str(market.get("name") or ""))
+        side, line = outcome_side_and_line(selection)
+        if not player or not normalized_market or not side or line is None:
             continue
-        quotes.append({
-            "player_key": slug(str(participant)),
-            "player_name": str(participant),
-            "position": None,
-            "book": "DraftKings",
-            "market": market,
-            "line": line,
-            "over_odds": over_odds,
-            "under_odds": under_odds,
-            "updated_at": captured,
-            "source_url": source_url,
-            "source_type": "public_undocumented_api",
+        odds = (selection.get("displayOdds") or {}).get("american")
+        if isinstance(odds, str):
+            odds = odds.replace("−", "-").replace("+", "")
+        try:
+            odds = int(odds) if odds is not None else None
+        except (TypeError, ValueError):
+            odds = None
+        key = (selection.get("marketId"), player, normalized_market, line)
+        row = grouped.setdefault(key, {
+            "player_key": slug(player), "player_name": player, "position": None,
+            "book": "DraftKings", "market": normalized_market, "line": line,
+            "over_odds": None, "under_odds": None, "updated_at": captured_at,
+            "source_url": source_url, "source_type": "public_undocumented_api",
+            "source_provider": "draftkings_public", "market_id": str(selection.get("marketId") or ""),
+            "is_main_line": False,
         })
-    return quotes
+        row[f"{side}_odds"] = odds
+        row["is_main_line"] = row["is_main_line"] or bool(selection.get("main", False))
+    rows = list(grouped.values())
+    main_markets = {(row["player_key"], row["market"]) for row in rows if row["is_main_line"]}
+    return [row for row in rows if (row["player_key"], row["market"]) not in main_markets or row["is_main_line"]]
 
 
-def scrape() -> dict:
-    group_url = f"{BASE}/{NFL_EVENT_GROUP}/?format=json"
-    group = get_json(group_url)
-    cats = select_player_futures(discover_categories(group))
-    if not cats:
-        raise RuntimeError("DraftKings Player Futures category not found")
-    quotes = []
-    for c in cats:
-        cid = c.get("offerCategoryId") or c.get("offerCategoryIdStr") or c.get("id")
-        if cid is None:
-            continue
-        category_url = f"{BASE}/{NFL_EVENT_GROUP}/categories/{cid}?format=json"
-        payload = get_json(category_url)
-        quotes.extend(parse_category(payload, category_url))
+def scrape(api_base: str = DEFAULT_API_BASE) -> dict:
+    seed_url = build_url(api_base, NFL_LEAGUE_ID, SEED_CATEGORY_ID)
+    subcategories = discover_player_subcategories(get_json(seed_url))
+    if not subcategories:
+        raise RuntimeError("No live NFL player-futures subcategories were discovered")
+    captured_at, quotes, fetched = datetime.now(timezone.utc).isoformat(), [], []
+    for category_id, subcategory_id, name in subcategories:
+        url = build_url(api_base, NFL_LEAGUE_ID, category_id, subcategory_id)
+        fetched.append({"category_id": category_id, "subcategory_id": subcategory_id, "name": name, "url": url})
+        quotes.extend(parse_feed(get_json(url), url, captured_at))
     if not quotes:
-        raise RuntimeError("No recognized season-long player futures parsed from DraftKings")
-    return {
-        "version": 1,
-        "provider": "draftkings_public",
-        "captured_at": datetime.now(timezone.utc).isoformat(),
-        "quotes": quotes,
-    }
+        raise RuntimeError("Discovered DraftKings futures categories but parsed no supported season player lines")
+    return {"version": 1, "provider": "draftkings_public", "captured_at": captured_at,
+            "upstream": {"repository": UPSTREAM_REPOSITORY, "commit": UPSTREAM_COMMIT},
+            "discovered_subcategories": fetched, "quotes": quotes}
 
 
-def self_test():
-    sample = {"offerCategories":[{"offerCategory":{"offers":[[{"label":"Passing Yards","outcomes":[{"participant":"Test QB","label":"Over","line":4050.5,"oddsAmerican":-110},{"participant":"Test QB","label":"Under","line":4050.5,"oddsAmerican":-110}]}]]}}]}
-    q = parse_category(sample, "test")
-    assert len(q) == 1 and q[0]["market"] == "passing_yards" and q[0]["line"] == 4050.5, q
+def self_test() -> None:
+    sample = {"markets": [{"id": 10, "name": "NFL 2026/27 - Test QB Regular Season Passing Yards"}], "selections": [
+        {"marketId": 10, "label": "Over 4050.5", "displayOdds": {"american": "−110"}, "main": True},
+        {"marketId": 10, "label": "Under 4050.5", "displayOdds": {"american": "+100"}, "main": True}]}
+    rows = parse_feed(sample, "test", "2026-08-21T00:00:00+00:00")
+    assert len(rows) == 1 and rows[0]["market"] == "passing_yards", rows
+    assert rows[0]["over_odds"] == -110 and rows[0]["under_odds"] == 100, rows
     print("self-test passed")
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--output")
-    ap.add_argument("--self-test", action="store_true")
-    args = ap.parse_args()
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output")
+    parser.add_argument("--api-base", default=DEFAULT_API_BASE)
+    parser.add_argument("--self-test", action="store_true")
+    args = parser.parse_args()
     if args.self_test:
         self_test(); return
     if not args.output:
-        ap.error("--output is required")
-    data = scrape()
-    out = Path(args.output)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print(f"wrote {len(data['quotes'])} DraftKings quotes to {out}")
+        parser.error("--output is required")
+    data, output = scrape(args.api_base), Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    print(f"wrote {len(data['quotes'])} DraftKings quotes to {output}")
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as exc:
-        print(f"scrape failed: {exc}", file=sys.stderr)
+        print(f"collection failed: {exc}", file=sys.stderr)
         raise

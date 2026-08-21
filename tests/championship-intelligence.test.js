@@ -1,0 +1,14 @@
+'use strict';
+const assert=require('node:assert/strict');
+global.window={};
+require('../js/championship-intelligence.js');
+const C=window.FFOChampionshipIntel;
+const base={modelPoints:200,books:4,agreement:.85,freshness_hours:12,totalReady:true,marketCoverage:1};
+assert.equal(C.vegasComparison({...base,vegasPoints:220}).label,'VEGAS HIGHER');
+assert.equal(C.vegasComparison({...base,vegasPoints:210}).label,'VEGAS SLIGHTLY HIGHER');
+assert.equal(C.vegasComparison({...base,vegasPoints:202}).label,'VEGAS CONSISTENT');
+assert.equal(C.vegasComparison({...base,vegasPoints:190}).label,'VEGAS SLIGHTLY LOWER');
+assert.equal(C.vegasComparison({...base,vegasPoints:180}).label,'VEGAS LOWER');
+assert.equal(C.vegasComparison({...base,vegasPoints:220,totalReady:false}).available,false,'incomplete stat markets cannot masquerade as a fantasy total');
+assert.equal(C.vegasComparison({...base,vegasPoints:220,freshness_hours:500}).available,false,'stale sportsbook lines must fail closed');
+console.log('championship and Vegas comparison tests passed');

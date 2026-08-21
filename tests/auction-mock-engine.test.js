@@ -61,4 +61,19 @@ interactive = M.userDecision(interactive, 'PASS');
 assert.equal(interactive.purchases.length, 1);
 assert.equal(interactive.nomination, null);
 
+let liveBids = stateFor(l);
+liveBids = M.step(liveBids, { autoUser:false });
+const liveNominee = M.chooseNomination(liveBids, '1');
+liveBids = M.step(liveBids, { autoUser:false, playerKey:liveNominee.key });
+const openingBid = liveBids.nomination.currentBid;
+if (openingBid + liveBids.config.minBid <= liveBids.nomination.userMaxBid) {
+  liveBids = M.userDecision(liveBids, 'BID');
+  if (liveBids.nomination) {
+    assert.ok(liveBids.nomination.currentBid > openingBid, 'a user bid and CPU response must advance the live price incrementally');
+    assert.equal(liveBids.status, 'AWAITING_USER', 'competitive bidding must return another decision instead of resolving as a sealed auction');
+  } else {
+    assert.equal(liveBids.purchases[0].teamId, liveBids.userTeamId, 'when opponents stop, the user wins at the next legal increment');
+  }
+}
+
 console.log('auction mock engine tests passed');

@@ -1,0 +1,42 @@
+{
+  "method": "auction robustness versus progressively more aggressive need-aware generic-market bidders",
+  "premiums": {
+    "0.06": {
+      "n": 48,
+      "mean_delta": 257.42,
+      "win_rate": 0.938,
+      "ci95": [
+        211.73,
+        303.1
+      ]
+    },
+    "0.10": {
+      "n": 48,
+      "mean_delta": 174.18,
+      "win_rate": 0.792,
+      "ci95": [
+        120.94,
+        227.43
+      ]
+    },
+    "0.15": {
+      "n": 48,
+      "mean_delta": 57.1,
+      "win_rate": 0.583,
+      "ci95": [
+        -3.11,
+        117.31
+      ]
+    },
+    "0.20": {
+      "n": 48,
+      "mean_delta": 51.05,
+      "win_rate": 0.625,
+      "ci95": [
+        12.26,
+        89.84
+      ]
+    }
+  },
+  "interpretation": "Auction max-bid logic is robust only if its edge persists as a competent market baseline becomes willing to exceed published AAV for roster needs."
+}

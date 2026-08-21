@@ -326,8 +326,10 @@
     const cpus = limits.filter((entry) => entry.teamId !== state.userTeamId);
     if (!autoUser && user && user.maxBid >= state.config.minBid) {
       const topCpu = cpus[0];
-      const currentBid = topCpu ? Math.min(topCpu.maxBid, Math.max(state.config.minBid, numeric(cpus[1]?.maxBid, state.config.minBid - 1) + 1)) : state.config.minBid;
-      return { ...state, nomination: { ...state.nomination, currentBid, leaderTeamId: topCpu?.teamId || state.nomination.nominatorTeamId, awaitingUser: true, userMaxBid: user.maxBid, cpuMaxBid: topCpu?.maxBid || 0 }, status: 'AWAITING_USER' };
+      const opening = numeric(state.nomination.currentBid, state.config.minBid);
+      const cpuCanRaise = topCpu && topCpu.maxBid >= opening + state.config.minBid;
+      const currentBid = cpuCanRaise ? opening + state.config.minBid : opening;
+      return { ...state, nomination: { ...state.nomination, currentBid, leaderTeamId: cpuCanRaise ? topCpu.teamId : state.nomination.leaderTeamId, awaitingUser: true, userMaxBid: user.maxBid, cpuMaxBid: topCpu?.maxBid || 0, bidCount: numeric(state.nomination.bidCount, 0) + (cpuCanRaise ? 1 : 0) }, status: 'AWAITING_USER' };
     }
     const winner = limits[0], second = limits[1];
     const price = Math.max(state.config.minBid, Math.min(winner.maxBid, numeric(second?.maxBid, state.config.minBid - 1) + 1));
@@ -339,15 +341,16 @@
     const player = state.players.find((item) => keyOf(item) === state.nomination.playerKey);
     const cpus = bidderLimits(state, player).filter((entry) => entry.teamId !== state.userTeamId);
     if (String(decision).toUpperCase() === 'PASS') {
-      const winner = cpus[0] || { teamId: state.nomination.nominatorTeamId, maxBid: state.config.minBid };
-      const second = cpus[1];
-      const price = Math.max(state.config.minBid, Math.min(winner.maxBid, numeric(second?.maxBid, state.config.minBid - 1) + 1));
-      return completePurchase(state, winner.teamId, player, price);
+      const winner = cpus.find((entry) => entry.teamId === state.nomination.leaderTeamId) || cpus[0] || { teamId: state.nomination.nominatorTeamId, maxBid: state.config.minBid };
+      return completePurchase(state, winner.teamId, player, Math.max(state.config.minBid, numeric(state.nomination.currentBid, state.config.minBid)));
     }
-    const userMax = numeric(state.nomination.userMaxBid, 0), cpu = cpus[0];
+    const userMax = numeric(state.nomination.userMaxBid, 0), cpu = cpus[0], increment = state.config.minBid;
     if (userMax < state.config.minBid) throw new Error('User has no legal bid.');
-    if (!cpu || userMax > cpu.maxBid) return completePurchase(state, state.userTeamId, player, Math.max(state.config.minBid, numeric(cpu?.maxBid, state.config.minBid - 1) + 1));
-    return completePurchase(state, cpu.teamId, player, Math.min(cpu.maxBid, userMax + 1));
+    const userBid = numeric(state.nomination.currentBid, state.config.minBid) + increment;
+    if (userBid > userMax) throw new Error(`Your roster-aware ceiling is $${userMax}. Pass or choose the comparable alternative.`);
+    if (!cpu || cpu.maxBid < userBid + increment) return completePurchase(state, state.userTeamId, player, userBid);
+    const cpuBid = userBid + increment;
+    return { ...state, nomination: { ...state.nomination, currentBid: cpuBid, leaderTeamId: cpu.teamId, awaitingUser: true, userMaxBid: userMax, cpuMaxBid: cpu.maxBid, bidCount: numeric(state.nomination.bidCount, 0) + 2 }, status: 'AWAITING_USER' };
   }
 
   function step(state, { autoUser = false, playerKey = null } = {}) {

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "projection_scope": "weekly",
+  "season": 2026,
+  "week": 1,
+  "generated_at": "2026-09-08T12:00:00Z",
+  "source": "replace_with_verified_weekly_projection_provider",
+  "players": [
+    {
+      "name": "Example Quarterback",
+      "position": "QB",
+      "projected_points": 20.4,
+      "stats": {
+        "pass_yds": 265.0,
+        "pass_td": 1.8,
+        "pass_int": 0.7,
+        "rush_yds": 24.0,
+        "rush_td": 0.2
+      }
+    }
+  ]
+}

@@ -402,13 +402,22 @@
     return { legalMax, reserve, discretionaryRemaining: excess, paceRatio: ratio, status: ratio > 1.15 ? 'UNDERSPENT' : ratio < 0.85 ? 'OVERSPENT' : 'ON_PACE' };
   }
 
-  function evaluatePlayer({ player, intrinsicPrice, expectedPrice, currentPrice, teamState, draftEvaluation = {}, scarcity = 50, tierUrgency = 50, upside = 50, capableBidders = 1, inflation = 1, opponentsNeedingPosition = 0, minBid = 1 }) {
+  function evaluatePlayer({ player, intrinsicPrice, expectedPrice, currentPrice, teamState, draftEvaluation = {}, scarcity = 50, tierUrgency = 50, upside = 50, capableBidders = 1, inflation = 1, opponentsNeedingPosition = 0, minBid = 1, availablePlayers = [], priceForPlayer = null }) {
     const need = numeric(draftEvaluation.components?.need ?? draftEvaluation.need, 50), redundancy = need < 50 ? (50 - need) * 2 : 0;
     const bidCap = maxBid({ intrinsicPrice, remainingBudget: teamState.remainingBudget, slotsLeft: teamState.slotsLeft, minBid, need, scarcity, tierUrgency, upside, redundancy });
     const clearingPrice = expectedLeaguePrice({ intrinsicPrice, position: player.position, rank: player.overallRank ?? player.rank, tier: player.tier, model: teamState.leagueModel, currentInflation: inflation, capableBidders });
     const observedPrice = currentPrice == null ? clearingPrice : numeric(currentPrice, clearingPrice);
     const surplus = acquisitionSurplus({ intrinsicPrice, price: observedPrice });
-    return { player, intrinsicPrice, expectedPrice: clearingPrice, currentPrice: observedPrice, maxBid: bidCap, surplus, recommendation: recommendation({ currentPrice: observedPrice, expectedPrice: clearingPrice, maxBid: bidCap, intrinsicPrice, surplus }), nomination: nomination({ surplus, expectedPrice: clearingPrice, maxBid: bidCap, roomInflation: inflation, need, opponentsNeedingPosition, endgame: teamState.slotsLeft <= 3 }), need, scarcity, tierUrgency, inflation };
+    const alternatives = (availablePlayers || []).filter((candidate) => candidate !== player && candidate.key !== player.key && candidate.position === player.position).map((candidate) => {
+      const price = typeof priceForPlayer === 'function' ? numeric(priceForPlayer(candidate), minBid) : numeric(candidate.intrinsicPrice, minBid);
+      return { player: candidate, price, valueDrop: Math.max(0, Math.round((intrinsicPrice - price) * 10) / 10), sameTier: numeric(candidate.tier, 99) === numeric(player.tier, 99) };
+    }).sort((a, b) => Number(b.sameTier) - Number(a.sameTier) || a.valueDrop - b.valueDrop || a.price - b.price);
+    const nextComparable = alternatives[0] || null;
+    const nextBid = Math.max(minBid, Math.round(observedPrice + minBid));
+    const dollarsToCeiling = Math.max(0, Math.round((bidCap - observedPrice) * 10) / 10);
+    let bidAdvice = nextBid > bidCap ? 'PASS TO COMPARABLE' : dollarsToCeiling <= minBid ? 'FINAL BID ONLY' : observedPrice < clearingPrice ? 'BID — BELOW MARKET' : 'BID IF NEEDED';
+    if (nextComparable && nextComparable.valueDrop <= Math.max(2, intrinsicPrice * .08) && observedPrice >= bidCap - minBid) bidAdvice = 'PASS TO COMPARABLE';
+    return { player, intrinsicPrice, expectedPrice: clearingPrice, currentPrice: observedPrice, maxBid: bidCap, surplus, recommendation: recommendation({ currentPrice: observedPrice, expectedPrice: clearingPrice, maxBid: bidCap, intrinsicPrice, surplus }), bidAdvice, nextBid, dollarsToCeiling, nextComparable, nomination: nomination({ surplus, expectedPrice: clearingPrice, maxBid: bidCap, roomInflation: inflation, need, opponentsNeedingPosition, endgame: teamState.slotsLeft <= 3 }), need, scarcity, tierUrgency, inflation };
   }
 
   return { clamp, quantile, auctionTier, rosterSlotCount, compileAuctionConfig, requiredPositionCounts, positionDemandMultiplier, normalizeHistory, leagueModel, calibrationBacktest, maximumLegalBid, buildIntrinsicPrices, roomInflation, expectedLeaguePrice, expectedLeaguePriceRange, maxBid, acquisitionSurplus, recommendation, nomination, capableBidderCount, applyPurchase, budgetHealth, evaluatePlayer };

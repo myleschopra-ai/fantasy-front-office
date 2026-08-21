@@ -1,0 +1,2605 @@
+{
+  "version": 3,
+  "season": 2025,
+  "league": {
+    "teams": 12,
+    "scoring": "half-PPR",
+    "rounds": 14,
+    "regular_season_weeks": 14,
+    "playoffs": "6 teams, Weeks 15-17"
+  },
+  "method": "paired no-lookahead replay; all teams receive same projection-based weekly management",
+  "primary_seed": 20250807,
+  "primary_random_slot": 9,
+  "primary_framework": {
+    "slot": 9,
+    "record": "10-4",
+    "wins": 10,
+    "regular_points": 1359.25,
+    "playoff_seed": 1,
+    "made_playoffs": true,
+    "champion": false,
+    "playoff_finish": 2,
+    "avg_lineup_capture": 0.896,
+    "starter_projection_mae": 5.74,
+    "starter_projection_rmse": 7.509,
+    "position_mae": {
+      "QB": 6.875,
+      "RB": 5.39,
+      "WR": 5.215,
+      "TE": 6.618
+    },
+    "waivers": [
+      {
+        "week": 2,
+        "add": "Sam Darnold",
+        "drop": "Cam Skattebo",
+        "edge": 9.83
+      },
+      {
+        "week": 3,
+        "add": "Mac Jones",
+        "drop": "Jayden Reed",
+        "edge": 10.12
+      },
+      {
+        "week": 4,
+        "add": "Rashid Shaheed",
+        "drop": "Mac Jones",
+        "edge": 6.87
+      },
+      {
+        "week": 5,
+        "add": "Kareem Hunt",
+        "drop": "Mike Evans",
+        "edge": 6.44
+      },
+      {
+        "week": 6,
+        "add": "Jaylen Warren",
+        "drop": "Christian Kirk",
+        "edge": 8.49
+      },
+      {
+        "week": 7,
+        "add": "George Kittle",
+        "drop": "Khalil Shakir",
+        "edge": 7.38
+      },
+      {
+        "week": 8,
+        "add": "Kayshon Boutte",
+        "drop": "Kyler Murray",
+        "edge": 7.38
+      },
+      {
+        "week": 10,
+        "add": "Kyle Pitts",
+        "drop": "Tony Pollard",
+        "edge": 6.4
+      },
+      {
+        "week": 12,
+        "add": "Devin Singletary",
+        "drop": "C.J. Stroud",
+        "edge": 8.0
+      },
+      {
+        "week": 13,
+        "add": "Sean Tucker",
+        "drop": "Sam LaPorta",
+        "edge": 8.2
+      },
+      {
+        "week": 14,
+        "add": "Xavier Worthy",
+        "drop": "Kayshon Boutte",
+        "edge": 6.94
+      },
+      {
+        "week": 15,
+        "add": "Blake Corum",
+        "drop": "Sean Tucker",
+        "edge": 5.31
+      },
+      {
+        "week": 16,
+        "add": "Marvin Harrison Jr.",
+        "drop": "Devin Singletary",
+        "edge": 2.91
+      },
+      {
+        "week": 17,
+        "add": "Kyle Williams",
+        "drop": "George Kittle",
+        "edge": 5.12
+      }
+    ],
+    "weekly": [
+      {
+        "week": 1,
+        "projected": 103.97,
+        "points": 94.02,
+        "best_roster_points": 98.62,
+        "capture": 0.953,
+        "actual_minus_projection": -9.95,
+        "regret": 4.6
+      },
+      {
+        "week": 2,
+        "projected": 111.72,
+        "points": 77.8,
+        "best_roster_points": 81.3,
+        "capture": 0.957,
+        "actual_minus_projection": -33.92,
+        "regret": 3.5
+      },
+      {
+        "week": 3,
+        "projected": 106.59,
+        "points": 84.56,
+        "best_roster_points": 95.72,
+        "capture": 0.883,
+        "actual_minus_projection": -22.03,
+        "regret": 11.16
+      },
+      {
+        "week": 4,
+        "projected": 109.34,
+        "points": 97.4,
+        "best_roster_points": 115.12,
+        "capture": 0.846,
+        "actual_minus_projection": -11.94,
+        "regret": 17.72
+      },
+      {
+        "week": 5,
+        "projected": 100.57,
+        "points": 125.27,
+        "best_roster_points": 147.56,
+        "capture": 0.849,
+        "actual_minus_projection": 24.7,
+        "regret": 22.29
+      },
+      {
+        "week": 6,
+        "projected": 105.41,
+        "points": 104.1,
+        "best_roster_points": 125.6,
+        "capture": 0.829,
+        "actual_minus_projection": -1.31,
+        "regret": 21.5
+      },
+      {
+        "week": 7,
+        "projected": 107.63,
+        "points": 78.42,
+        "best_roster_points": 92.56,
+        "capture": 0.847,
+        "actual_minus_projection": -29.21,
+        "regret": 14.14
+      },
+      {
+        "week": 8,
+        "projected": 84.84,
+        "points": 107.42,
+        "best_roster_points": 107.42,
+        "capture": 1.0,
+        "actual_minus_projection": 22.58,
+        "regret": 0.0
+      },
+      {
+        "week": 9,
+        "projected": 112.08,
+        "points": 119.8,
+        "best_roster_points": 133.6,
+        "capture": 0.897,
+        "actual_minus_projection": 7.72,
+        "regret": 13.8
+      },
+      {
+        "week": 10,
+        "projected": 108.47,
+        "points": 110.32,
+        "best_roster_points": 111.12,
+        "capture": 0.993,
+        "actual_minus_projection": 1.85,
+        "regret": 0.8
+      },
+      {
+        "week": 11,
+        "projected": 113.17,
+        "points": 72.4,
+        "best_roster_points": 94.76,
+        "capture": 0.764,
+        "actual_minus_projection": -40.77,
+        "regret": 22.36
+      },
+      {
+        "week": 12,
+        "projected": 95.13,
+        "points": 101.66,
+        "best_roster_points": 120.86,
+        "capture": 0.841,
+        "actual_minus_projection": 6.53,
+        "regret": 19.2
+      },
+      {
+        "week": 13,
+        "projected": 107.94,
+        "points": 76.22,
+        "best_roster_points": 85.22,
+        "capture": 0.894,
+        "actual_minus_projection": -31.72,
+        "regret": 9.0
+      },
+      {
+        "week": 14,
+        "projected": 104.57,
+        "points": 109.86,
+        "best_roster_points": 121.66,
+        "capture": 0.903,
+        "actual_minus_projection": 5.29,
+        "regret": 11.8
+      },
+      {
+        "week": 15,
+        "projected": 105.23,
+        "points": 115.74,
+        "best_roster_points": 129.24,
+        "capture": 0.896,
+        "actual_minus_projection": 10.51,
+        "regret": 13.5
+      },
+      {
+        "week": 16,
+        "projected": 103.61,
+        "points": 156.3,
+        "best_roster_points": 160.3,
+        "capture": 0.975,
+        "actual_minus_projection": 52.69,
+        "regret": 4.0
+      },
+      {
+        "week": 17,
+        "projected": 108.99,
+        "points": 52.58,
+        "best_roster_points": 58.58,
+        "capture": 0.898,
+        "actual_minus_projection": -56.41,
+        "regret": 6.0
+      }
+    ],
+    "draft": [
+      {
+        "pick": 1,
+        "team": 1,
+        "player": "Ja'Marr Chase",
+        "pos": "WR",
+        "adp": 1.5
+      },
+      {
+        "pick": 2,
+        "team": 2,
+        "player": "Jahmyr Gibbs",
+        "pos": "RB",
+        "adp": 4.0
+      },
+      {
+        "pick": 3,
+        "team": 3,
+        "player": "Bijan Robinson",
+        "pos": "RB",
+        "adp": 2.3
+      },
+      {
+        "pick": 4,
+        "team": 4,
+        "player": "Justin Jefferson",
+        "pos": "WR",
+        "adp": 5.9
+      },
+      {
+        "pick": 5,
+        "team": 5,
+        "player": "Saquon Barkley",
+        "pos": "RB",
+        "adp": 2.3
+      },
+      {
+        "pick": 6,
+        "team": 6,
+        "player": "CeeDee Lamb",
+        "pos": "WR",
+        "adp": 6.6
+      },
+      {
+        "pick": 7,
+        "team": 7,
+        "player": "Christian McCaffrey",
+        "pos": "RB",
+        "adp": 7.0
+      },
+      {
+        "pick": 8,
+        "team": 8,
+        "player": "Derrick Henry",
+        "pos": "RB",
+        "adp": 5.7
+      },
+      {
+        "pick": 9,
+        "team": 9,
+        "player": "Ashton Jeanty",
+        "pos": "RB",
+        "adp": 9.2
+      },
+      {
+        "pick": 10,
+        "team": 10,
+        "player": "Malik Nabers",
+        "pos": "WR",
+        "adp": 11.0
+      },
+      {
+        "pick": 11,
+        "team": 11,
+        "player": "Josh Jacobs",
+        "pos": "RB",
+        "adp": 12.5
+      },
+      {
+        "pick": 12,
+        "team": 12,
+        "player": "Nico Collins",
+        "pos": "WR",
+        "adp": 10.2
+      },
+      {
+        "pick": 13,
+        "team": 12,
+        "player": "Jonathan Taylor",
+        "pos": "RB",
+        "adp": 14.2
+      },
+      {
+        "pick": 14,
+        "team": 11,
+        "player": "Puka Nacua",
+        "pos": "WR",
+        "adp": 12.9
+      },
+      {
+        "pick": 15,
+        "team": 10,
+        "player": "Brian Thomas Jr.",
+        "pos": "WR",
+        "adp": 13.9
+      },
+      {
+        "pick": 16,
+        "team": 9,
+        "player": "De'Von Achane",
+        "pos": "RB",
+        "adp": 14.9
+      },
+      {
+        "pick": 17,
+        "team": 8,
+        "player": "Drake London",
+        "pos": "WR",
+        "adp": 18.3
+      },
+      {
+        "pick": 18,
+        "team": 7,
+        "player": "Kyren Williams",
+        "pos": "RB",
+        "adp": 16.4
+      },
+      {
+        "pick": 19,
+        "team": 6,
+        "player": "Amon-Ra St. Brown",
+        "pos": "WR",
+        "adp": 16.3
+      },
+      {
+        "pick": 20,
+        "team": 5,
+        "player": "Bucky Irving",
+        "pos": "RB",
+        "adp": 19.7
+      },
+      {
+        "pick": 21,
+        "team": 4,
+        "player": "Chase Brown",
+        "pos": "RB",
+        "adp": 20.8
+      },
+      {
+        "pick": 22,
+        "team": 3,
+        "player": "A.J. Brown",
+        "pos": "WR",
+        "adp": 21.7
+      },
+      {
+        "pick": 23,
+        "team": 2,
+        "player": "Lamar Jackson",
+        "pos": "QB",
+        "adp": 20.7
+      },
+      {
+        "pick": 24,
+        "team": 1,
+        "player": "Josh Allen",
+        "pos": "QB",
+        "adp": 23.1
+      },
+      {
+        "pick": 25,
+        "team": 1,
+        "player": "Ladd McConkey",
+        "pos": "WR",
+        "adp": 26.4
+      },
+      {
+        "pick": 26,
+        "team": 2,
+        "player": "Tee Higgins",
+        "pos": "WR",
+        "adp": 25.1
+      },
+      {
+        "pick": 27,
+        "team": 3,
+        "player": "Jayden Daniels",
+        "pos": "QB",
+        "adp": 27.4
+      },
+      {
+        "pick": 28,
+        "team": 4,
+        "player": "Davante Adams",
+        "pos": "WR",
+        "adp": 29.0
+      },
+      {
+        "pick": 29,
+        "team": 5,
+        "player": "Joe Burrow",
+        "pos": "QB",
+        "adp": 28.0
+      },
+      {
+        "pick": 30,
+        "team": 6,
+        "player": "Omarion Hampton",
+        "pos": "RB",
+        "adp": 31.8
+      },
+      {
+        "pick": 31,
+        "team": 7,
+        "player": "Tyreek Hill",
+        "pos": "WR",
+        "adp": 29.5
+      },
+      {
+        "pick": 32,
+        "team": 8,
+        "player": "James Cook III",
+        "pos": "RB",
+        "adp": 29.2
+      },
+      {
+        "pick": 33,
+        "team": 9,
+        "player": "Mike Evans",
+        "pos": "WR",
+        "adp": 30.5
+      },
+      {
+        "pick": 34,
+        "team": 10,
+        "player": "Jalen Hurts",
+        "pos": "QB",
+        "adp": 33.7
+      },
+      {
+        "pick": 35,
+        "team": 11,
+        "player": "Marvin Harrison Jr.",
+        "pos": "WR",
+        "adp": 34.5
+      },
+      {
+        "pick": 36,
+        "team": 12,
+        "player": "DK Metcalf",
+        "pos": "WR",
+        "adp": 33.6
+      },
+      {
+        "pick": 37,
+        "team": 12,
+        "player": "Brock Bowers",
+        "pos": "TE",
+        "adp": 33.6
+      },
+      {
+        "pick": 38,
+        "team": 11,
+        "player": "Chuba Hubbard",
+        "pos": "RB",
+        "adp": 37.8
+      },
+      {
+        "pick": 39,
+        "team": 10,
+        "player": "Terry McLaurin",
+        "pos": "WR",
+        "adp": 35.3
+      },
+      {
+        "pick": 40,
+        "team": 9,
+        "player": "Jaxon Smith-Njigba",
+        "pos": "WR",
+        "adp": 39.5
+      },
+      {
+        "pick": 41,
+        "team": 8,
+        "player": "Alvin Kamara",
+        "pos": "RB",
+        "adp": 39.4
+      },
+      {
+        "pick": 42,
+        "team": 7,
+        "player": "James Conner",
+        "pos": "RB",
+        "adp": 39.4
+      },
+      {
+        "pick": 43,
+        "team": 6,
+        "player": "Trey McBride",
+        "pos": "TE",
+        "adp": 41.8
+      },
+      {
+        "pick": 44,
+        "team": 5,
+        "player": "Garrett Wilson",
+        "pos": "WR",
+        "adp": 44.0
+      },
+      {
+        "pick": 45,
+        "team": 4,
+        "player": "Kenneth Walker",
+        "pos": "RB",
+        "adp": 43.4
+      },
+      {
+        "pick": 46,
+        "team": 3,
+        "player": "DJ Moore",
+        "pos": "WR",
+        "adp": 46.6
+      },
+      {
+        "pick": 47,
+        "team": 2,
+        "player": "Xavier Worthy",
+        "pos": "WR",
+        "adp": 45.6
+      },
+      {
+        "pick": 48,
+        "team": 1,
+        "player": "George Kittle",
+        "pos": "TE",
+        "adp": 45.8
+      },
+      {
+        "pick": 49,
+        "team": 1,
+        "player": "TreVeyon Henderson",
+        "pos": "RB",
+        "adp": 47.6
+      },
+      {
+        "pick": 50,
+        "team": 2,
+        "player": "Breece Hall",
+        "pos": "RB",
+        "adp": 46.3
+      },
+      {
+        "pick": 51,
+        "team": 3,
+        "player": "Tetairoa McMillan",
+        "pos": "WR",
+        "adp": 49.7
+      },
+      {
+        "pick": 52,
+        "team": 4,
+        "player": "Courtland Sutton",
+        "pos": "WR",
+        "adp": 47.5
+      },
+      {
+        "pick": 53,
+        "team": 5,
+        "player": "DeVonta Smith",
+        "pos": "WR",
+        "adp": 49.9
+      },
+      {
+        "pick": 54,
+        "team": 6,
+        "player": "Baker Mayfield",
+        "pos": "QB",
+        "adp": 50.8
+      },
+      {
+        "pick": 55,
+        "team": 7,
+        "player": "Jameson Williams",
+        "pos": "WR",
+        "adp": 53.1
+      },
+      {
+        "pick": 56,
+        "team": 8,
+        "player": "Patrick Mahomes",
+        "pos": "QB",
+        "adp": 57.9
+      },
+      {
+        "pick": 57,
+        "team": 9,
+        "player": "Tony Pollard",
+        "pos": "RB",
+        "adp": 55.4
+      },
+      {
+        "pick": 58,
+        "team": 10,
+        "player": "D'Andre Swift",
+        "pos": "RB",
+        "adp": 59.3
+      },
+      {
+        "pick": 59,
+        "team": 11,
+        "player": "Calvin Ridley",
+        "pos": "WR",
+        "adp": 58.3
+      },
+      {
+        "pick": 60,
+        "team": 12,
+        "player": "David Montgomery",
+        "pos": "RB",
+        "adp": 58.9
+      },
+      {
+        "pick": 61,
+        "team": 12,
+        "player": "Bo Nix",
+        "pos": "QB",
+        "adp": 64.3
+      },
+      {
+        "pick": 62,
+        "team": 11,
+        "player": "Jerry Jeudy",
+        "pos": "WR",
+        "adp": 60.1
+      },
+      {
+        "pick": 63,
+        "team": 10,
+        "player": "RJ Harvey",
+        "pos": "RB",
+        "adp": 60.8
+      },
+      {
+        "pick": 64,
+        "team": 9,
+        "player": "Sam LaPorta",
+        "pos": "TE",
+        "adp": 67.0
+      },
+      {
+        "pick": 65,
+        "team": 8,
+        "player": "George Pickens",
+        "pos": "WR",
+        "adp": 62.0
+      },
+      {
+        "pick": 66,
+        "team": 7,
+        "player": "Zay Flowers",
+        "pos": "WR",
+        "adp": 62.0
+      },
+      {
+        "pick": 67,
+        "team": 6,
+        "player": "Isiah Pacheco",
+        "pos": "RB",
+        "adp": 63.4
+      },
+      {
+        "pick": 68,
+        "team": 5,
+        "player": "Aaron Jones Sr.",
+        "pos": "RB",
+        "adp": 63.3
+      },
+      {
+        "pick": 69,
+        "team": 4,
+        "player": "Travis Kelce",
+        "pos": "TE",
+        "adp": 70.5
+      },
+      {
+        "pick": 70,
+        "team": 3,
+        "player": "Tyrone Tracy Jr.",
+        "pos": "RB",
+        "adp": 73.4
+      },
+      {
+        "pick": 71,
+        "team": 2,
+        "player": "Jaylen Waddle",
+        "pos": "WR",
+        "adp": 66.5
+      },
+      {
+        "pick": 72,
+        "team": 1,
+        "player": "Deebo Samuel Sr.",
+        "pos": "WR",
+        "adp": 67.0
+      },
+      {
+        "pick": 73,
+        "team": 1,
+        "player": "Kaleb Johnson",
+        "pos": "RB",
+        "adp": 73.1
+      },
+      {
+        "pick": 74,
+        "team": 2,
+        "player": "Ricky Pearsall",
+        "pos": "WR",
+        "adp": 70.6
+      },
+      {
+        "pick": 75,
+        "team": 3,
+        "player": "Matthew Golden",
+        "pos": "WR",
+        "adp": 74.1
+      },
+      {
+        "pick": 76,
+        "team": 4,
+        "player": "Brock Purdy",
+        "pos": "QB",
+        "adp": 72.2
+      },
+      {
+        "pick": 77,
+        "team": 5,
+        "player": "Chris Olave",
+        "pos": "WR",
+        "adp": 74.6
+      },
+      {
+        "pick": 78,
+        "team": 6,
+        "player": "Travis Hunter",
+        "pos": "WR",
+        "adp": 70.8
+      },
+      {
+        "pick": 79,
+        "team": 7,
+        "player": "T.J. Hockenson",
+        "pos": "TE",
+        "adp": 80.9
+      },
+      {
+        "pick": 80,
+        "team": 8,
+        "player": "Jaylen Warren",
+        "pos": "RB",
+        "adp": 78.9
+      },
+      {
+        "pick": 81,
+        "team": 9,
+        "player": "Kyler Murray",
+        "pos": "QB",
+        "adp": 82.5
+      },
+      {
+        "pick": 82,
+        "team": 10,
+        "player": "Mark Andrews",
+        "pos": "TE",
+        "adp": 82.8
+      },
+      {
+        "pick": 83,
+        "team": 11,
+        "player": "Jakobi Meyers",
+        "pos": "WR",
+        "adp": 79.0
+      },
+      {
+        "pick": 84,
+        "team": 12,
+        "player": "Rome Odunze",
+        "pos": "WR",
+        "adp": 78.9
+      },
+      {
+        "pick": 85,
+        "team": 12,
+        "player": "Stefon Diggs",
+        "pos": "WR",
+        "adp": 81.0
+      },
+      {
+        "pick": 86,
+        "team": 11,
+        "player": "Dak Prescott",
+        "pos": "QB",
+        "adp": 83.9
+      },
+      {
+        "pick": 87,
+        "team": 10,
+        "player": "Emeka Egbuka",
+        "pos": "WR",
+        "adp": 81.9
+      },
+      {
+        "pick": 88,
+        "team": 9,
+        "player": "Khalil Shakir",
+        "pos": "WR",
+        "adp": 85.8
+      },
+      {
+        "pick": 89,
+        "team": 8,
+        "player": "Michael Pittman Jr.",
+        "pos": "WR",
+        "adp": 87.0
+      },
+      {
+        "pick": 90,
+        "team": 7,
+        "player": "J.K. Dobbins",
+        "pos": "RB",
+        "adp": 90.6
+      },
+      {
+        "pick": 91,
+        "team": 6,
+        "player": "Austin Ekeler",
+        "pos": "RB",
+        "adp": 89.2
+      },
+      {
+        "pick": 92,
+        "team": 5,
+        "player": "Rashee Rice",
+        "pos": "WR",
+        "adp": 94.6
+      },
+      {
+        "pick": 93,
+        "team": 4,
+        "player": "Keon Coleman",
+        "pos": "WR",
+        "adp": 92.3
+      },
+      {
+        "pick": 94,
+        "team": 3,
+        "player": "Jordan Mason",
+        "pos": "RB",
+        "adp": 93.3
+      },
+      {
+        "pick": 95,
+        "team": 2,
+        "player": "Josh Downs",
+        "pos": "WR",
+        "adp": 94.2
+      },
+      {
+        "pick": 96,
+        "team": 1,
+        "player": "Cooper Kupp",
+        "pos": "WR",
+        "adp": 93.6
+      },
+      {
+        "pick": 97,
+        "team": 1,
+        "player": "Jordan Addison",
+        "pos": "WR",
+        "adp": 100.7
+      },
+      {
+        "pick": 98,
+        "team": 2,
+        "player": "Tucker Kraft",
+        "pos": "TE",
+        "adp": 99.1
+      },
+      {
+        "pick": 99,
+        "team": 3,
+        "player": "Tyler Warren",
+        "pos": "TE",
+        "adp": 102.3
+      },
+      {
+        "pick": 100,
+        "team": 4,
+        "player": "Jared Goff",
+        "pos": "QB",
+        "adp": 97.6
+      },
+      {
+        "pick": 101,
+        "team": 5,
+        "player": "Chris Godwin Jr.",
+        "pos": "WR",
+        "adp": 104.2
+      },
+      {
+        "pick": 102,
+        "team": 6,
+        "player": "Zach Charbonnet",
+        "pos": "RB",
+        "adp": 100.1
+      },
+      {
+        "pick": 103,
+        "team": 7,
+        "player": "Caleb Williams",
+        "pos": "QB",
+        "adp": 100.0
+      },
+      {
+        "pick": 104,
+        "team": 8,
+        "player": "Jacory Croskey-Merritt",
+        "pos": "RB",
+        "adp": 101.6
+      },
+      {
+        "pick": 105,
+        "team": 9,
+        "player": "Jayden Reed",
+        "pos": "WR",
+        "adp": 104.3
+      },
+      {
+        "pick": 106,
+        "team": 10,
+        "player": "J.J. McCarthy",
+        "pos": "QB",
+        "adp": 105.7
+      },
+      {
+        "pick": 107,
+        "team": 11,
+        "player": "Evan Engram",
+        "pos": "TE",
+        "adp": 115.1
+      },
+      {
+        "pick": 108,
+        "team": 12,
+        "player": "Travis Etienne Jr.",
+        "pos": "RB",
+        "adp": 111.2
+      },
+      {
+        "pick": 109,
+        "team": 12,
+        "player": "Drake Maye",
+        "pos": "QB",
+        "adp": 108.8
+      },
+      {
+        "pick": 110,
+        "team": 11,
+        "player": "Justin Herbert",
+        "pos": "QB",
+        "adp": 111.1
+      },
+      {
+        "pick": 111,
+        "team": 10,
+        "player": "Keenan Allen",
+        "pos": "WR",
+        "adp": 115.0
+      },
+      {
+        "pick": 112,
+        "team": 9,
+        "player": "Christian Kirk",
+        "pos": "WR",
+        "adp": 113.3
+      },
+      {
+        "pick": 113,
+        "team": 8,
+        "player": "Marvin Mims Jr.",
+        "pos": "WR",
+        "adp": 116.5
+      },
+      {
+        "pick": 114,
+        "team": 7,
+        "player": "Cedric Tillman",
+        "pos": "WR",
+        "adp": 118.2
+      },
+      {
+        "pick": 115,
+        "team": 6,
+        "player": "Justin Fields",
+        "pos": "QB",
+        "adp": 114.8
+      },
+      {
+        "pick": 116,
+        "team": 5,
+        "player": "Javonte Williams",
+        "pos": "RB",
+        "adp": 117.0
+      },
+      {
+        "pick": 117,
+        "team": 4,
+        "player": "Rashod Bateman",
+        "pos": "WR",
+        "adp": 120.8
+      },
+      {
+        "pick": 118,
+        "team": 3,
+        "player": "Rhamondre Stevenson",
+        "pos": "RB",
+        "adp": 117.2
+      },
+      {
+        "pick": 119,
+        "team": 2,
+        "player": "Dallas Goedert",
+        "pos": "TE",
+        "adp": 123.5
+      },
+      {
+        "pick": 120,
+        "team": 1,
+        "player": "Jake Ferguson",
+        "pos": "TE",
+        "adp": 124.2
+      },
+      {
+        "pick": 121,
+        "team": 1,
+        "player": "Tank Bigsby",
+        "pos": "RB",
+        "adp": 127.3
+      },
+      {
+        "pick": 122,
+        "team": 2,
+        "player": "Jayden Higgins",
+        "pos": "WR",
+        "adp": 124.4
+      },
+      {
+        "pick": 123,
+        "team": 3,
+        "player": "Trevor Lawrence",
+        "pos": "QB",
+        "adp": 122.4
+      },
+      {
+        "pick": 124,
+        "team": 4,
+        "player": "Jerome Ford",
+        "pos": "RB",
+        "adp": 129.3
+      },
+      {
+        "pick": 125,
+        "team": 5,
+        "player": "Jordan Love",
+        "pos": "QB",
+        "adp": 122.4
+      },
+      {
+        "pick": 126,
+        "team": 6,
+        "player": "Nick Chubb",
+        "pos": "RB",
+        "adp": 127.5
+      },
+      {
+        "pick": 127,
+        "team": 7,
+        "player": "Quinshon Judkins",
+        "pos": "RB",
+        "adp": 127.4
+      },
+      {
+        "pick": 128,
+        "team": 8,
+        "player": "Dalton Kincaid",
+        "pos": "TE",
+        "adp": 136.2
+      },
+      {
+        "pick": 129,
+        "team": 9,
+        "player": "Cam Skattebo",
+        "pos": "RB",
+        "adp": 130.5
+      },
+      {
+        "pick": 130,
+        "team": 10,
+        "player": "Trey Benson",
+        "pos": "RB",
+        "adp": 135.1
+      },
+      {
+        "pick": 131,
+        "team": 11,
+        "player": "Joe Mixon",
+        "pos": "RB",
+        "adp": 135.5
+      },
+      {
+        "pick": 132,
+        "team": 12,
+        "player": "Xavier Legette",
+        "pos": "WR",
+        "adp": 133.0
+      },
+      {
+        "pick": 133,
+        "team": 12,
+        "player": "DeMario Douglas",
+        "pos": "WR",
+        "adp": 135.6
+      },
+      {
+        "pick": 134,
+        "team": 11,
+        "player": "Joshua Palmer",
+        "pos": "WR",
+        "adp": 136.9
+      },
+      {
+        "pick": 135,
+        "team": 10,
+        "player": "Colston Loveland",
+        "pos": "TE",
+        "adp": 147.2
+      },
+      {
+        "pick": 136,
+        "team": 9,
+        "player": "C.J. Stroud",
+        "pos": "QB",
+        "adp": 136.9
+      },
+      {
+        "pick": 137,
+        "team": 8,
+        "player": "Luther Burden III",
+        "pos": "WR",
+        "adp": 148.5
+      },
+      {
+        "pick": 138,
+        "team": 7,
+        "player": "Ollie Gordon II",
+        "pos": "RB",
+        "adp": 150.8
+      },
+      {
+        "pick": 139,
+        "team": 6,
+        "player": "Brandon Aiyuk",
+        "pos": "WR",
+        "adp": 149.6
+      },
+      {
+        "pick": 140,
+        "team": 5,
+        "player": "Kyle Pitts Sr.",
+        "pos": "TE",
+        "adp": 154.0
+      },
+      {
+        "pick": 141,
+        "team": 4,
+        "player": "Najee Harris",
+        "pos": "RB",
+        "adp": 153.1
+      },
+      {
+        "pick": 142,
+        "team": 3,
+        "player": "Adam Thielen",
+        "pos": "WR",
+        "adp": 152.3
+      },
+      {
+        "pick": 143,
+        "team": 2,
+        "player": "Braelon Allen",
+        "pos": "RB",
+        "adp": 154.0
+      },
+      {
+        "pick": 144,
+        "team": 1,
+        "player": "Brian Robinson",
+        "pos": "RB",
+        "adp": 159.4
+      }
+    ]
+  },
+  "primary_baseline": {
+    "slot": 9,
+    "record": "6-8",
+    "wins": 6,
+    "regular_points": 1176.75,
+    "playoff_seed": 9,
+    "made_playoffs": false,
+    "champion": false,
+    "playoff_finish": null,
+    "avg_lineup_capture": 0.8,
+    "starter_projection_mae": 5.729,
+    "starter_projection_rmse": 7.175,
+    "position_mae": {
+      "QB": 6.882,
+      "RB": 5.331,
+      "WR": 5.868
+    },
+    "waivers": [
+      {
+        "week": 2,
+        "add": "Travis Etienne",
+        "drop": "Cam Skattebo",
+        "edge": 9.36
+      },
+      {
+        "week": 3,
+        "add": "Elic Ayomanor",
+        "drop": "Jayden Reed",
+        "edge": 8.27
+      },
+      {
+        "week": 5,
+        "add": "Kareem Hunt",
+        "drop": "James Conner",
+        "edge": 6.74
+      },
+      {
+        "week": 6,
+        "add": "Rico Dowdle",
+        "drop": "Mike Evans",
+        "edge": 9.78
+      },
+      {
+        "week": 7,
+        "add": "Kimani Vidal",
+        "drop": "Zay Flowers",
+        "edge": 8.69
+      },
+      {
+        "week": 8,
+        "add": "Marcus Mariota",
+        "drop": "Travis Etienne",
+        "edge": 11.53
+      },
+      {
+        "week": 9,
+        "add": "Kyle Monangai",
+        "drop": "Marcus Mariota",
+        "edge": 11.69
+      },
+      {
+        "week": 10,
+        "add": "Alec Pierce",
+        "drop": "Elic Ayomanor",
+        "edge": 7.94
+      },
+      {
+        "week": 11,
+        "add": "Cam Ward",
+        "drop": "Alec Pierce",
+        "edge": 6.68
+      },
+      {
+        "week": 12,
+        "add": "Michael Wilson",
+        "drop": "C.J. Stroud",
+        "edge": 10.27
+      },
+      {
+        "week": 13,
+        "add": "Max Brosmer",
+        "drop": "Kimani Vidal",
+        "edge": 3.18
+      },
+      {
+        "week": 14,
+        "add": "Chris Rodriguez Jr.",
+        "drop": "Max Brosmer",
+        "edge": 9.75
+      },
+      {
+        "week": 15,
+        "add": "Wan'Dale Robinson",
+        "drop": "Rome Odunze",
+        "edge": 10.63
+      },
+      {
+        "week": 16,
+        "add": "Gardner Minshew",
+        "drop": "Chris Rodriguez Jr.",
+        "edge": 3.68
+      },
+      {
+        "week": 17,
+        "add": "Max Brosmer",
+        "drop": "Gardner Minshew",
+        "edge": 9.36
+      }
+    ],
+    "weekly": [
+      {
+        "week": 1,
+        "projected": 97.2,
+        "points": 107.42,
+        "best_roster_points": 117.12,
+        "capture": 0.917,
+        "actual_minus_projection": 10.22,
+        "regret": 9.7
+      },
+      {
+        "week": 2,
+        "projected": 100.14,
+        "points": 101.95,
+        "best_roster_points": 115.25,
+        "capture": 0.885,
+        "actual_minus_projection": 1.81,
+        "regret": 13.3
+      },
+      {
+        "week": 3,
+        "projected": 97.17,
+        "points": 64.0,
+        "best_roster_points": 89.7,
+        "capture": 0.713,
+        "actual_minus_projection": -33.17,
+        "regret": 25.7
+      },
+      {
+        "week": 4,
+        "projected": 101.09,
+        "points": 85.12,
+        "best_roster_points": 125.72,
+        "capture": 0.677,
+        "actual_minus_projection": -15.97,
+        "regret": 40.6
+      },
+      {
+        "week": 5,
+        "projected": 91.69,
+        "points": 82.94,
+        "best_roster_points": 106.46,
+        "capture": 0.779,
+        "actual_minus_projection": -8.75,
+        "regret": 23.52
+      },
+      {
+        "week": 6,
+        "projected": 95.52,
+        "points": 89.36,
+        "best_roster_points": 116.63,
+        "capture": 0.766,
+        "actual_minus_projection": -6.16,
+        "regret": 27.27
+      },
+      {
+        "week": 7,
+        "projected": 94.0,
+        "points": 65.7,
+        "best_roster_points": 75.5,
+        "capture": 0.87,
+        "actual_minus_projection": -28.3,
+        "regret": 9.8
+      },
+      {
+        "week": 8,
+        "projected": 86.56,
+        "points": 107.48,
+        "best_roster_points": 118.68,
+        "capture": 0.906,
+        "actual_minus_projection": 20.92,
+        "regret": 11.2
+      },
+      {
+        "week": 9,
+        "projected": 101.95,
+        "points": 89.8,
+        "best_roster_points": 121.0,
+        "capture": 0.742,
+        "actual_minus_projection": -12.15,
+        "regret": 31.2
+      },
+      {
+        "week": 10,
+        "projected": 94.99,
+        "points": 122.0,
+        "best_roster_points": 130.6,
+        "capture": 0.934,
+        "actual_minus_projection": 27.01,
+        "regret": 8.6
+      },
+      {
+        "week": 11,
+        "projected": 105.5,
+        "points": 51.24,
+        "best_roster_points": 73.76,
+        "capture": 0.695,
+        "actual_minus_projection": -54.26,
+        "regret": 22.52
+      },
+      {
+        "week": 12,
+        "projected": 75.05,
+        "points": 96.84,
+        "best_roster_points": 113.24,
+        "capture": 0.855,
+        "actual_minus_projection": 21.79,
+        "regret": 16.4
+      },
+      {
+        "week": 13,
+        "projected": 98.41,
+        "points": 58.14,
+        "best_roster_points": 76.14,
+        "capture": 0.764,
+        "actual_minus_projection": -40.27,
+        "regret": 18.0
+      },
+      {
+        "week": 14,
+        "projected": 89.62,
+        "points": 54.76,
+        "best_roster_points": 115.18,
+        "capture": 0.475,
+        "actual_minus_projection": -34.86,
+        "regret": 60.42
+      },
+      {
+        "week": 15,
+        "projected": 87.59,
+        "points": 73.1,
+        "best_roster_points": 97.1,
+        "capture": 0.753,
+        "actual_minus_projection": -14.49,
+        "regret": 24.0
+      },
+      {
+        "week": 16,
+        "projected": 91.9,
+        "points": 104.6,
+        "best_roster_points": 115.6,
+        "capture": 0.905,
+        "actual_minus_projection": 12.7,
+        "regret": 11.0
+      },
+      {
+        "week": 17,
+        "projected": 92.01,
+        "points": 88.14,
+        "best_roster_points": 91.04,
+        "capture": 0.968,
+        "actual_minus_projection": -3.87,
+        "regret": 2.9
+      }
+    ],
+    "draft": [
+      {
+        "pick": 1,
+        "team": 1,
+        "player": "Ja'Marr Chase",
+        "pos": "WR",
+        "adp": 1.5
+      },
+      {
+        "pick": 2,
+        "team": 2,
+        "player": "Jahmyr Gibbs",
+        "pos": "RB",
+        "adp": 4.0
+      },
+      {
+        "pick": 3,
+        "team": 3,
+        "player": "Bijan Robinson",
+        "pos": "RB",
+        "adp": 2.3
+      },
+      {
+        "pick": 4,
+        "team": 4,
+        "player": "Justin Jefferson",
+        "pos": "WR",
+        "adp": 5.9
+      },
+      {
+        "pick": 5,
+        "team": 5,
+        "player": "Saquon Barkley",
+        "pos": "RB",
+        "adp": 2.3
+      },
+      {
+        "pick": 6,
+        "team": 6,
+        "player": "CeeDee Lamb",
+        "pos": "WR",
+        "adp": 6.6
+      },
+      {
+        "pick": 7,
+        "team": 7,
+        "player": "Christian McCaffrey",
+        "pos": "RB",
+        "adp": 7.0
+      },
+      {
+        "pick": 8,
+        "team": 8,
+        "player": "Derrick Henry",
+        "pos": "RB",
+        "adp": 5.7
+      },
+      {
+        "pick": 9,
+        "team": 9,
+        "player": "Ashton Jeanty",
+        "pos": "RB",
+        "adp": 9.2
+      },
+      {
+        "pick": 10,
+        "team": 10,
+        "player": "Malik Nabers",
+        "pos": "WR",
+        "adp": 11.0
+      },
+      {
+        "pick": 11,
+        "team": 11,
+        "player": "Josh Jacobs",
+        "pos": "RB",
+        "adp": 12.5
+      },
+      {
+        "pick": 12,
+        "team": 12,
+        "player": "Nico Collins",
+        "pos": "WR",
+        "adp": 10.2
+      },
+      {
+        "pick": 13,
+        "team": 12,
+        "player": "Jonathan Taylor",
+        "pos": "RB",
+        "adp": 14.2
+      },
+      {
+        "pick": 14,
+        "team": 11,
+        "player": "Puka Nacua",
+        "pos": "WR",
+        "adp": 12.9
+      },
+      {
+        "pick": 15,
+        "team": 10,
+        "player": "Brian Thomas Jr.",
+        "pos": "WR",
+        "adp": 13.9
+      },
+      {
+        "pick": 16,
+        "team": 9,
+        "player": "De'Von Achane",
+        "pos": "RB",
+        "adp": 14.9
+      },
+      {
+        "pick": 17,
+        "team": 8,
+        "player": "Drake London",
+        "pos": "WR",
+        "adp": 18.3
+      },
+      {
+        "pick": 18,
+        "team": 7,
+        "player": "Kyren Williams",
+        "pos": "RB",
+        "adp": 16.4
+      },
+      {
+        "pick": 19,
+        "team": 6,
+        "player": "Amon-Ra St. Brown",
+        "pos": "WR",
+        "adp": 16.3
+      },
+      {
+        "pick": 20,
+        "team": 5,
+        "player": "Bucky Irving",
+        "pos": "RB",
+        "adp": 19.7
+      },
+      {
+        "pick": 21,
+        "team": 4,
+        "player": "Chase Brown",
+        "pos": "RB",
+        "adp": 20.8
+      },
+      {
+        "pick": 22,
+        "team": 3,
+        "player": "A.J. Brown",
+        "pos": "WR",
+        "adp": 21.7
+      },
+      {
+        "pick": 23,
+        "team": 2,
+        "player": "Lamar Jackson",
+        "pos": "QB",
+        "adp": 20.7
+      },
+      {
+        "pick": 24,
+        "team": 1,
+        "player": "Josh Allen",
+        "pos": "QB",
+        "adp": 23.1
+      },
+      {
+        "pick": 25,
+        "team": 1,
+        "player": "Ladd McConkey",
+        "pos": "WR",
+        "adp": 26.4
+      },
+      {
+        "pick": 26,
+        "team": 2,
+        "player": "Tee Higgins",
+        "pos": "WR",
+        "adp": 25.1
+      },
+      {
+        "pick": 27,
+        "team": 3,
+        "player": "Jayden Daniels",
+        "pos": "QB",
+        "adp": 27.4
+      },
+      {
+        "pick": 28,
+        "team": 4,
+        "player": "Davante Adams",
+        "pos": "WR",
+        "adp": 29.0
+      },
+      {
+        "pick": 29,
+        "team": 5,
+        "player": "Joe Burrow",
+        "pos": "QB",
+        "adp": 28.0
+      },
+      {
+        "pick": 30,
+        "team": 6,
+        "player": "Omarion Hampton",
+        "pos": "RB",
+        "adp": 31.8
+      },
+      {
+        "pick": 31,
+        "team": 7,
+        "player": "Tyreek Hill",
+        "pos": "WR",
+        "adp": 29.5
+      },
+      {
+        "pick": 32,
+        "team": 8,
+        "player": "James Cook III",
+        "pos": "RB",
+        "adp": 29.2
+      },
+      {
+        "pick": 33,
+        "team": 9,
+        "player": "Mike Evans",
+        "pos": "WR",
+        "adp": 30.5
+      },
+      {
+        "pick": 34,
+        "team": 10,
+        "player": "Jalen Hurts",
+        "pos": "QB",
+        "adp": 33.7
+      },
+      {
+        "pick": 35,
+        "team": 11,
+        "player": "Marvin Harrison Jr.",
+        "pos": "WR",
+        "adp": 34.5
+      },
+      {
+        "pick": 36,
+        "team": 12,
+        "player": "DK Metcalf",
+        "pos": "WR",
+        "adp": 33.6
+      },
+      {
+        "pick": 37,
+        "team": 12,
+        "player": "Brock Bowers",
+        "pos": "TE",
+        "adp": 33.6
+      },
+      {
+        "pick": 38,
+        "team": 11,
+        "player": "Chuba Hubbard",
+        "pos": "RB",
+        "adp": 37.8
+      },
+      {
+        "pick": 39,
+        "team": 10,
+        "player": "Terry McLaurin",
+        "pos": "WR",
+        "adp": 35.3
+      },
+      {
+        "pick": 40,
+        "team": 9,
+        "player": "James Conner",
+        "pos": "RB",
+        "adp": 39.4
+      },
+      {
+        "pick": 41,
+        "team": 8,
+        "player": "Jaxon Smith-Njigba",
+        "pos": "WR",
+        "adp": 39.5
+      },
+      {
+        "pick": 42,
+        "team": 7,
+        "player": "Alvin Kamara",
+        "pos": "RB",
+        "adp": 39.4
+      },
+      {
+        "pick": 43,
+        "team": 6,
+        "player": "Trey McBride",
+        "pos": "TE",
+        "adp": 41.8
+      },
+      {
+        "pick": 44,
+        "team": 5,
+        "player": "Garrett Wilson",
+        "pos": "WR",
+        "adp": 44.0
+      },
+      {
+        "pick": 45,
+        "team": 4,
+        "player": "Kenneth Walker",
+        "pos": "RB",
+        "adp": 43.4
+      },
+      {
+        "pick": 46,
+        "team": 3,
+        "player": "DJ Moore",
+        "pos": "WR",
+        "adp": 46.6
+      },
+      {
+        "pick": 47,
+        "team": 2,
+        "player": "Xavier Worthy",
+        "pos": "WR",
+        "adp": 45.6
+      },
+      {
+        "pick": 48,
+        "team": 1,
+        "player": "George Kittle",
+        "pos": "TE",
+        "adp": 45.8
+      },
+      {
+        "pick": 49,
+        "team": 1,
+        "player": "TreVeyon Henderson",
+        "pos": "RB",
+        "adp": 47.6
+      },
+      {
+        "pick": 50,
+        "team": 2,
+        "player": "Breece Hall",
+        "pos": "RB",
+        "adp": 46.3
+      },
+      {
+        "pick": 51,
+        "team": 3,
+        "player": "Tetairoa McMillan",
+        "pos": "WR",
+        "adp": 49.7
+      },
+      {
+        "pick": 52,
+        "team": 4,
+        "player": "Courtland Sutton",
+        "pos": "WR",
+        "adp": 47.5
+      },
+      {
+        "pick": 53,
+        "team": 5,
+        "player": "DeVonta Smith",
+        "pos": "WR",
+        "adp": 49.9
+      },
+      {
+        "pick": 54,
+        "team": 6,
+        "player": "Baker Mayfield",
+        "pos": "QB",
+        "adp": 50.8
+      },
+      {
+        "pick": 55,
+        "team": 7,
+        "player": "Jameson Williams",
+        "pos": "WR",
+        "adp": 53.1
+      },
+      {
+        "pick": 56,
+        "team": 8,
+        "player": "Patrick Mahomes",
+        "pos": "QB",
+        "adp": 57.9
+      },
+      {
+        "pick": 57,
+        "team": 9,
+        "player": "Tony Pollard",
+        "pos": "RB",
+        "adp": 55.4
+      },
+      {
+        "pick": 58,
+        "team": 10,
+        "player": "D'Andre Swift",
+        "pos": "RB",
+        "adp": 59.3
+      },
+      {
+        "pick": 59,
+        "team": 11,
+        "player": "Calvin Ridley",
+        "pos": "WR",
+        "adp": 58.3
+      },
+      {
+        "pick": 60,
+        "team": 12,
+        "player": "David Montgomery",
+        "pos": "RB",
+        "adp": 58.9
+      },
+      {
+        "pick": 61,
+        "team": 12,
+        "player": "Bo Nix",
+        "pos": "QB",
+        "adp": 64.3
+      },
+      {
+        "pick": 62,
+        "team": 11,
+        "player": "Jerry Jeudy",
+        "pos": "WR",
+        "adp": 60.1
+      },
+      {
+        "pick": 63,
+        "team": 10,
+        "player": "RJ Harvey",
+        "pos": "RB",
+        "adp": 60.8
+      },
+      {
+        "pick": 64,
+        "team": 9,
+        "player": "Zay Flowers",
+        "pos": "WR",
+        "adp": 62.0
+      },
+      {
+        "pick": 65,
+        "team": 8,
+        "player": "Sam LaPorta",
+        "pos": "TE",
+        "adp": 67.0
+      },
+      {
+        "pick": 66,
+        "team": 7,
+        "player": "George Pickens",
+        "pos": "WR",
+        "adp": 62.0
+      },
+      {
+        "pick": 67,
+        "team": 6,
+        "player": "Isiah Pacheco",
+        "pos": "RB",
+        "adp": 63.4
+      },
+      {
+        "pick": 68,
+        "team": 5,
+        "player": "Aaron Jones Sr.",
+        "pos": "RB",
+        "adp": 63.3
+      },
+      {
+        "pick": 69,
+        "team": 4,
+        "player": "Travis Kelce",
+        "pos": "TE",
+        "adp": 70.5
+      },
+      {
+        "pick": 70,
+        "team": 3,
+        "player": "Tyrone Tracy Jr.",
+        "pos": "RB",
+        "adp": 73.4
+      },
+      {
+        "pick": 71,
+        "team": 2,
+        "player": "Jaylen Waddle",
+        "pos": "WR",
+        "adp": 66.5
+      },
+      {
+        "pick": 72,
+        "team": 1,
+        "player": "Deebo Samuel Sr.",
+        "pos": "WR",
+        "adp": 67.0
+      },
+      {
+        "pick": 73,
+        "team": 1,
+        "player": "Kaleb Johnson",
+        "pos": "RB",
+        "adp": 73.1
+      },
+      {
+        "pick": 74,
+        "team": 2,
+        "player": "Ricky Pearsall",
+        "pos": "WR",
+        "adp": 70.6
+      },
+      {
+        "pick": 75,
+        "team": 3,
+        "player": "Matthew Golden",
+        "pos": "WR",
+        "adp": 74.1
+      },
+      {
+        "pick": 76,
+        "team": 4,
+        "player": "Brock Purdy",
+        "pos": "QB",
+        "adp": 72.2
+      },
+      {
+        "pick": 77,
+        "team": 5,
+        "player": "Chris Olave",
+        "pos": "WR",
+        "adp": 74.6
+      },
+      {
+        "pick": 78,
+        "team": 6,
+        "player": "Travis Hunter",
+        "pos": "WR",
+        "adp": 70.8
+      },
+      {
+        "pick": 79,
+        "team": 7,
+        "player": "T.J. Hockenson",
+        "pos": "TE",
+        "adp": 80.9
+      },
+      {
+        "pick": 80,
+        "team": 8,
+        "player": "Jaylen Warren",
+        "pos": "RB",
+        "adp": 78.9
+      },
+      {
+        "pick": 81,
+        "team": 9,
+        "player": "Rome Odunze",
+        "pos": "WR",
+        "adp": 78.9
+      },
+      {
+        "pick": 82,
+        "team": 10,
+        "player": "Mark Andrews",
+        "pos": "TE",
+        "adp": 82.8
+      },
+      {
+        "pick": 83,
+        "team": 11,
+        "player": "Dak Prescott",
+        "pos": "QB",
+        "adp": 83.9
+      },
+      {
+        "pick": 84,
+        "team": 12,
+        "player": "Jakobi Meyers",
+        "pos": "WR",
+        "adp": 79.0
+      },
+      {
+        "pick": 85,
+        "team": 12,
+        "player": "Stefon Diggs",
+        "pos": "WR",
+        "adp": 81.0
+      },
+      {
+        "pick": 86,
+        "team": 11,
+        "player": "Emeka Egbuka",
+        "pos": "WR",
+        "adp": 81.9
+      },
+      {
+        "pick": 87,
+        "team": 10,
+        "player": "Kyler Murray",
+        "pos": "QB",
+        "adp": 82.5
+      },
+      {
+        "pick": 88,
+        "team": 9,
+        "player": "Khalil Shakir",
+        "pos": "WR",
+        "adp": 85.8
+      },
+      {
+        "pick": 89,
+        "team": 8,
+        "player": "Michael Pittman Jr.",
+        "pos": "WR",
+        "adp": 87.0
+      },
+      {
+        "pick": 90,
+        "team": 7,
+        "player": "J.K. Dobbins",
+        "pos": "RB",
+        "adp": 90.6
+      },
+      {
+        "pick": 91,
+        "team": 6,
+        "player": "Austin Ekeler",
+        "pos": "RB",
+        "adp": 89.2
+      },
+      {
+        "pick": 92,
+        "team": 5,
+        "player": "Rashee Rice",
+        "pos": "WR",
+        "adp": 94.6
+      },
+      {
+        "pick": 93,
+        "team": 4,
+        "player": "Keon Coleman",
+        "pos": "WR",
+        "adp": 92.3
+      },
+      {
+        "pick": 94,
+        "team": 3,
+        "player": "Jordan Mason",
+        "pos": "RB",
+        "adp": 93.3
+      },
+      {
+        "pick": 95,
+        "team": 2,
+        "player": "Josh Downs",
+        "pos": "WR",
+        "adp": 94.2
+      },
+      {
+        "pick": 96,
+        "team": 1,
+        "player": "Cooper Kupp",
+        "pos": "WR",
+        "adp": 93.6
+      },
+      {
+        "pick": 97,
+        "team": 1,
+        "player": "Jordan Addison",
+        "pos": "WR",
+        "adp": 100.7
+      },
+      {
+        "pick": 98,
+        "team": 2,
+        "player": "Tucker Kraft",
+        "pos": "TE",
+        "adp": 99.1
+      },
+      {
+        "pick": 99,
+        "team": 3,
+        "player": "Tyler Warren",
+        "pos": "TE",
+        "adp": 102.3
+      },
+      {
+        "pick": 100,
+        "team": 4,
+        "player": "Jared Goff",
+        "pos": "QB",
+        "adp": 97.6
+      },
+      {
+        "pick": 101,
+        "team": 5,
+        "player": "Chris Godwin Jr.",
+        "pos": "WR",
+        "adp": 104.2
+      },
+      {
+        "pick": 102,
+        "team": 6,
+        "player": "Zach Charbonnet",
+        "pos": "RB",
+        "adp": 100.1
+      },
+      {
+        "pick": 103,
+        "team": 7,
+        "player": "Caleb Williams",
+        "pos": "QB",
+        "adp": 100.0
+      },
+      {
+        "pick": 104,
+        "team": 8,
+        "player": "Jacory Croskey-Merritt",
+        "pos": "RB",
+        "adp": 101.6
+      },
+      {
+        "pick": 105,
+        "team": 9,
+        "player": "Jayden Reed",
+        "pos": "WR",
+        "adp": 104.3
+      },
+      {
+        "pick": 106,
+        "team": 10,
+        "player": "Travis Etienne Jr.",
+        "pos": "RB",
+        "adp": 111.2
+      },
+      {
+        "pick": 107,
+        "team": 11,
+        "player": "Evan Engram",
+        "pos": "TE",
+        "adp": 115.1
+      },
+      {
+        "pick": 108,
+        "team": 12,
+        "player": "J.J. McCarthy",
+        "pos": "QB",
+        "adp": 105.7
+      },
+      {
+        "pick": 109,
+        "team": 12,
+        "player": "Christian Kirk",
+        "pos": "WR",
+        "adp": 113.3
+      },
+      {
+        "pick": 110,
+        "team": 11,
+        "player": "Drake Maye",
+        "pos": "QB",
+        "adp": 108.8
+      },
+      {
+        "pick": 111,
+        "team": 10,
+        "player": "Keenan Allen",
+        "pos": "WR",
+        "adp": 115.0
+      },
+      {
+        "pick": 112,
+        "team": 9,
+        "player": "Justin Herbert",
+        "pos": "QB",
+        "adp": 111.1
+      },
+      {
+        "pick": 113,
+        "team": 8,
+        "player": "Marvin Mims Jr.",
+        "pos": "WR",
+        "adp": 116.5
+      },
+      {
+        "pick": 114,
+        "team": 7,
+        "player": "Cedric Tillman",
+        "pos": "WR",
+        "adp": 118.2
+      },
+      {
+        "pick": 115,
+        "team": 6,
+        "player": "Rashod Bateman",
+        "pos": "WR",
+        "adp": 120.8
+      },
+      {
+        "pick": 116,
+        "team": 5,
+        "player": "Javonte Williams",
+        "pos": "RB",
+        "adp": 117.0
+      },
+      {
+        "pick": 117,
+        "team": 4,
+        "player": "Rhamondre Stevenson",
+        "pos": "RB",
+        "adp": 117.2
+      },
+      {
+        "pick": 118,
+        "team": 3,
+        "player": "Justin Fields",
+        "pos": "QB",
+        "adp": 114.8
+      },
+      {
+        "pick": 119,
+        "team": 2,
+        "player": "Dallas Goedert",
+        "pos": "TE",
+        "adp": 123.5
+      },
+      {
+        "pick": 120,
+        "team": 1,
+        "player": "Jordan Love",
+        "pos": "QB",
+        "adp": 122.4
+      },
+      {
+        "pick": 121,
+        "team": 1,
+        "player": "Jake Ferguson",
+        "pos": "TE",
+        "adp": 124.2
+      },
+      {
+        "pick": 122,
+        "team": 2,
+        "player": "Trevor Lawrence",
+        "pos": "QB",
+        "adp": 122.4
+      },
+      {
+        "pick": 123,
+        "team": 3,
+        "player": "Jayden Higgins",
+        "pos": "WR",
+        "adp": 124.4
+      },
+      {
+        "pick": 124,
+        "team": 4,
+        "player": "Jerome Ford",
+        "pos": "RB",
+        "adp": 129.3
+      },
+      {
+        "pick": 125,
+        "team": 5,
+        "player": "Tank Bigsby",
+        "pos": "RB",
+        "adp": 127.3
+      },
+      {
+        "pick": 126,
+        "team": 6,
+        "player": "Quinshon Judkins",
+        "pos": "RB",
+        "adp": 127.4
+      },
+      {
+        "pick": 127,
+        "team": 7,
+        "player": "Nick Chubb",
+        "pos": "RB",
+        "adp": 127.5
+      },
+      {
+        "pick": 128,
+        "team": 8,
+        "player": "Xavier Legette",
+        "pos": "WR",
+        "adp": 133.0
+      },
+      {
+        "pick": 129,
+        "team": 9,
+        "player": "Cam Skattebo",
+        "pos": "RB",
+        "adp": 130.5
+      },
+      {
+        "pick": 130,
+        "team": 10,
+        "player": "DeMario Douglas",
+        "pos": "WR",
+        "adp": 135.6
+      },
+      {
+        "pick": 131,
+        "team": 11,
+        "player": "Joe Mixon",
+        "pos": "RB",
+        "adp": 135.5
+      },
+      {
+        "pick": 132,
+        "team": 12,
+        "player": "Trey Benson",
+        "pos": "RB",
+        "adp": 135.1
+      },
+      {
+        "pick": 133,
+        "team": 12,
+        "player": "Dalton Kincaid",
+        "pos": "TE",
+        "adp": 136.2
+      },
+      {
+        "pick": 134,
+        "team": 11,
+        "player": "Joshua Palmer",
+        "pos": "WR",
+        "adp": 136.9
+      },
+      {
+        "pick": 135,
+        "team": 10,
+        "player": "Colston Loveland",
+        "pos": "TE",
+        "adp": 147.2
+      },
+      {
+        "pick": 136,
+        "team": 9,
+        "player": "C.J. Stroud",
+        "pos": "QB",
+        "adp": 136.9
+      },
+      {
+        "pick": 137,
+        "team": 8,
+        "player": "Ollie Gordon II",
+        "pos": "RB",
+        "adp": 150.8
+      },
+      {
+        "pick": 138,
+        "team": 7,
+        "player": "Luther Burden III",
+        "pos": "WR",
+        "adp": 148.5
+      },
+      {
+        "pick": 139,
+        "team": 6,
+        "player": "Brandon Aiyuk",
+        "pos": "WR",
+        "adp": 149.6
+      },
+      {
+        "pick": 140,
+        "team": 5,
+        "player": "Kyle Pitts Sr.",
+        "pos": "TE",
+        "adp": 154.0
+      },
+      {
+        "pick": 141,
+        "team": 4,
+        "player": "Adam Thielen",
+        "pos": "WR",
+        "adp": 152.3
+      },
+      {
+        "pick": 142,
+        "team": 3,
+        "player": "Braelon Allen",
+        "pos": "RB",
+        "adp": 154.0
+      },
+      {
+        "pick": 143,
+        "team": 2,
+        "player": "Najee Harris",
+        "pos": "RB",
+        "adp": 153.1
+      },
+      {
+        "pick": 144,
+        "team": 1,
+        "player": "Brian Robinson",
+        "pos": "RB",
+        "adp": 159.4
+      }
+    ]
+  },
+  "cohort": {
+    "framework": {
+      "n": 48,
+      "avg_regular_points": 1294.8,
+      "avg_wins": 7.29,
+      "playoff_rate": 0.583,
+      "title_rate": 0.229,
+      "avg_lineup_capture": 0.893,
+      "starter_projection_mae": 5.831
+    },
+    "baseline": {
+      "n": 48,
+      "avg_regular_points": 1202.82,
+      "avg_wins": 6.29,
+      "playoff_rate": 0.333,
+      "title_rate": 0.083,
+      "avg_lineup_capture": 0.876,
+      "starter_projection_mae": 5.758
+    },
+    "paired_delta": {
+      "regular_points": 91.98,
+      "regular_points_ci95": [
+        50.046,
+        133.918
+      ],
+      "wins": 1,
+      "playoff_rate": 0.25,
+      "title_rate": 0.146,
+      "paired_points_win_rate": 0.708,
+      "weekly_scorecard_hit_rate": 0.588,
+      "weekly_scorecard_avg_edge": 6.41
+    }
+  },
+  "gated_signals": [
+    {
+      "signal": "Vegas player props",
+      "status": "zero weight",
+      "reason": "No timestamped 2025 historical snapshots retained."
+    },
+    {
+      "signal": "referee/crew",
+      "status": "zero weight",
+      "reason": "No pre-2025 fitted, controlled weekly assignment model yet."
+    }
+  ],
+  "interpretation": "Premium requires a plausible baseline environment plus stable paired uplift; one championship or one random slot is insufficient."
+}

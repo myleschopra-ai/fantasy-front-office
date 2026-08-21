@@ -119,7 +119,13 @@ def parse(raw_html: str, source_url: str | None = None) -> dict:
         if current_market and looks_like_name(lines[i]):
             player = lines[i]
             # BetMGM typically emits player, O line, over price, U line, under price.
-            window = lines[i + 1 : i + 8]
+            # Stop at the next market heading so one player's look-ahead can
+            # never absorb the following market's line and prices.
+            window = []
+            for token in lines[i + 1 : i + 8]:
+                if market_for(token):
+                    break
+                window.append(token)
             over_line = under_line = over_odds = under_odds = None
             for j, token in enumerate(window):
                 m = LINE_RE.match(token)
@@ -134,6 +140,8 @@ def parse(raw_html: str, source_url: str | None = None) -> dict:
                     over_line, over_odds = val, price
                 else:
                     under_line, under_odds = val, price
+                if over_line is not None and under_line is not None:
+                    break
             if over_line is not None or under_line is not None:
                 line = over_line if over_line is not None else under_line
                 if over_line is not None and under_line is not None and abs(over_line - under_line) > 0.01:
@@ -153,7 +161,7 @@ def parse(raw_html: str, source_url: str | None = None) -> dict:
                         "source_type": "public_scrape",
                     }
                 )
-                i += max(1, len(window))
+                i += 1
                 continue
         i += 1
 

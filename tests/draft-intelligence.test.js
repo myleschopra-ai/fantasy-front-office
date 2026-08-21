@@ -886,3 +886,45 @@ console.log('draft-intelligence.js tests passed');
   assert.ok(completed.lineup.starters.some((slot) => slot.slot === 'K' && slot.player), 'completed lineup seats kicker');
   assert.ok(completed.lineup.starters.some((slot) => slot.slot === 'DST' && slot.player), 'completed lineup seats defense');
 })();
+
+(() => {
+  const sparse = { key:'sparse',name:'Sparse Player',position:'WR',overallRank:120,adp:130,consensusScore:55,schemeFit:{score:65} };
+  const modeled = { ...sparse,key:'modeled',projectedPoints:180,depthChartOrder:1,snapShare:.78,targetShare:.22,yardsPerRouteRun:72,injuryStatus:'Healthy',ageCurveScore:80,pedigreeScore:74 };
+  const context = { round:10,totalRounds:16,teams:12,league:{roster:{QB:1,RB:2,WR:2,TE:1,FLEX:2}},poolSize:250 };
+  const sparseEvidence = D.playerEvidenceProfile(sparse, context), modeledEvidence = D.playerEvidenceProfile(modeled, context);
+  assert.ok(sparseEvidence.score < 40, 'market and scheme alone must not masquerade as production-grade evidence');
+  assert.ok(modeledEvidence.score >= 85, 'projection, role, production, health and upside inputs should earn strong evidence coverage');
+  assert.equal(D.breakoutCandidateScore(sparse, context).reliable, false, 'breakout labels must fail closed when supporting evidence is absent');
+  assert.equal(D.breakoutCandidateScore(modeled, context).reliable, true, 'well-supported mid-round profiles may receive a breakout classification');
+})();
+
+// Live room context: market best available stays separate from the roster-aware recommendation.
+(() => {
+  const league = { teams: 12, roster: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, SUPER_FLEX: 1 }, scoring: { reception: 0.5 } };
+  const player = (name, position, overallRank, posRank, tier = 1) => ({ key: name, name, position, overallRank, rank: overallRank, adp: overallRank, posRank, tier, consensusScore: 101 - overallRank, projectedPoints: 300 - overallRank });
+  const roomPicks = [player('RB1','RB',1,1), player('RB2','RB',2,2), player('RB3','RB',3,3)];
+  const pool = [player('WR1','WR',4,1), player('QB1','QB',7,1), player('RB4','RB',8,4,2), player('QB2','QB',12,2), player('WR2','WR',9,2)];
+  const board = D.recommendationBoard(pool, { league, teams:12, picks:[], counts:{}, roomPicks, round:1, totalRounds:15, poolSize:100, strategy:'adaptive' });
+  assert.equal(board.bestAvailable[0].player.name, 'WR1', 'ADP best available must remain a pure market list');
+  assert.ok(board.runs.find((run) => run.position === 'RB').active, 'three early RBs must be detected as an active run');
+  assert.equal(board.recommended[0].player.position, 'QB', 'an open Superflex roster must elevate scarce starting QB supply');
+  assert.match(board.strategyImpact, /Superflex pressure/, 'Superflex recommendation must explain the lineup-rule consequence');
+  assert.ok(board.recommended[0].comparables.length, 'top recommendation must include the next positional comparable');
+  assert.ok(board.recommended[0].scenario, 'each recommendation must include a take-now versus wait scenario');
+  assert.match(board.recommended[0].scenario.whyWait, /expected value lost/, 'scenario must price the consequence of waiting');
+})();
+
+// Late rounds prioritize asymmetric, evidence-backed upside without allowing
+// thin data to masquerade as certainty.
+(() => {
+  const context = { round: 13, totalRounds: 16, teams: 12, league: { roster: { QB:1,RB:2,WR:2,TE:1,FLEX:2 } }, counts: { QB:1,RB:3,WR:4,TE:1 }, picks: [], survival: 40 };
+  const upside = { key:'upside-rb', name:'Upside RB', position:'RB', overallRank:145, adp:150, tier:8, posRank:48, projectedPoints:120, depthChartOrder:2, snapShare:.52, targetShare:.1, contingentValue:86, ceilingScore:88, earlyRoleClarity:78, opportunityScore:72, ageCurveScore:80, pedigreeScore:76, injuryStatus:'Healthy' };
+  const flat = { ...upside, key:'flat-rb', name:'Flat RB', depthChartOrder:4, contingentValue:38, ceilingScore:45, earlyRoleClarity:42, opportunityScore:40 };
+  const upsideProfile = D.optionValueProfile(upside, context);
+  const flatProfile = D.optionValueProfile(flat, context);
+  assert.equal(D.draftPhase(context), 'upside', 'round 13 of 16 must use the upside phase objective');
+  assert.ok(upsideProfile.score > flatProfile.score + 15, 'late-round role path and contingent ceiling must materially separate candidates');
+  const scenario = D.decisionScenario(upside, [upside, flat], { ...context, survival: 20 });
+  assert.ok(['DRAFT NOW','TARGET'].includes(scenario.decision), 'low-survival late upside should not be presented as a passive wait');
+  assert.ok(Number.isFinite(scenario.expectedWaitLoss), 'wait decision must expose a finite expected loss');
+})();

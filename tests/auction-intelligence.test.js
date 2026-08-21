@@ -89,4 +89,13 @@ const evalRedundant=A.evaluatePlayer({
 assert.equal(evalNeed.intrinsicPrice,evalRedundant.intrinsicPrice);
 assert.ok(evalNeed.maxBid>evalRedundant.maxBid);
 
+const evalWithComparable=A.evaluatePlayer({
+  player:{key:'rb1',name:'Lead RB',position:'RB',rank:10,tier:1},intrinsicPrice:50,currentPrice:52,
+  teamState:{remainingBudget:100,slotsLeft:8,leagueModel:null},draftEvaluation:{components:{need:70}},
+  availablePlayers:[{key:'rb1',position:'RB'},{key:'rb2',name:'Next RB',position:'RB',tier:1,intrinsicPrice:47}],
+  priceForPlayer:(player)=>player.intrinsicPrice||50,minBid:1,
+});
+assert.equal(evalWithComparable.nextComparable.player.name,'Next RB');
+assert.match(evalWithComparable.bidAdvice,/PASS|FINAL|BID/);
+
 console.log('auction-intelligence.js tests passed');
