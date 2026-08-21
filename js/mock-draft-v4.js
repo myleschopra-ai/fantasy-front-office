@@ -650,9 +650,10 @@
   }
 
   function equityFor(player, detailed = true) {
-    // Twenty-five room simulations give the decision layer 4-point
-    // probability resolution while remaining bounded for an on-clock render.
-    const survives = detailed ? survival(player, 25) : approximateSurvival(player);
+    // Twelve room simulations more than double the prior five-run sample while
+    // keeping the complete eight-player on-clock refresh inside the browser's
+    // interaction budget. The result has 8.3-point probability resolution.
+    const survives = detailed ? survival(player, 12) : approximateSurvival(player);
     const model = D.scorePlayer(
       player,
       scoreContext(player, state.slot, state.picks, survives),

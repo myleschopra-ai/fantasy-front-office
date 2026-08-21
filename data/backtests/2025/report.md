@@ -1,4 +1,4 @@
-# 2025 Front Office Manager Replay — Fairness Pass
+# 2025 Front Office Manager Replay - Fairness Pass
 
 Primary random slot: **9/12**.
 
