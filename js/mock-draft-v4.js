@@ -51,6 +51,7 @@
     providerSyncInFlight: false,
     recommendationCache: null,
     recommendationError: null,
+    renderPending: false,
   };
 
   const esc = (value) =>
@@ -840,21 +841,56 @@
     );
   }
 
+  function renderModeUi() {
+    const complete = state.picks.length >= state.teams * state.rounds;
+    const currentTeam = complete ? null : ownerForPick(state.picks.length + 1);
+    const companion = state.mode === "companion";
+    const guide = $("companion-guide");
+    if (guide) guide.hidden = !companion;
+    if ($("companion-current")) $("companion-current").textContent = complete ? "Draft complete" : `Team ${currentTeam} on the clock · ${roundPick(state.picks.length + 1)}`;
+    const advance = $("advance");
+    if (advance) {
+      advance.hidden = state.mode !== "sim";
+      advance.disabled = state.mode !== "sim" || complete || state.renderPending;
+      advance.textContent = complete ? "Draft complete" : "To My Pick";
+    }
+    if ($("undo")) $("undo").disabled = !state.picks.length || state.renderPending || state.mode === "live";
+    document.body.dataset.draftMode = state.mode;
+  }
+
+  function scheduleDraftRender(team) {
+    if (state.renderPending) return;
+    state.renderPending = true;
+    document.body.setAttribute("aria-busy", "true");
+    if ($("clock")) $("clock").textContent = "UPDATING STRATEGY…";
+    renderModeUi();
+    window.requestAnimationFrame(() => {
+      state.renderPending = false;
+      document.body.removeAttribute("aria-busy");
+      render();
+      if (state.mode === "sim" && team === state.slot) window.setTimeout(simulateToUser, 80);
+    });
+  }
   function renderRecommendation() {
     const recommendationState = recommendations();
     const ranked = recommendationState.recommended;
     const best = ranked[0];
     const nextPick = state.picks.length + 1;
     const draftComplete = state.picks.length >= state.teams * state.rounds;
+    if ($("draft-complete-panel")) $("draft-complete-panel").hidden = !draftComplete;
     if (draftComplete) {
       const completed = D.validateCompletedRoster(teamPicks(state.slot), state.activeLeague || DEFAULT_LEAGUE);
       const filled = completed.lineup.starters.filter((slot) => slot.player).length;
       const total = completed.lineup.starters.length;
       $("pick-label").textContent = "Draft complete";
-      $("clock").textContent = "";
+      $("clock").textContent = "DRAFT COMPLETE";
       $("best").textContent = `Lineup set · ${filled}/${total} starters · ${completed.lineup.bench.length} bench`;
       const review = window.FFODraftReview?.analyze(sessionPayload(), D);
       if (review) window.FFODraftReview.archive(localStorage, sessionPayload(), review);
+      if ($("draft-grade")) $("draft-grade").textContent = review?.grade || (completed.valid ? "A" : "—");
+      if ($("draft-grade-score")) $("draft-grade-score").textContent = review ? `${review.gradeScore}/100 process score` : `${filled}/${total} starters filled`;
+      if ($("draft-complete-title")) $("draft-complete-title").textContent = `Draft complete · ${filled}/${total} starters · ${completed.lineup.bench.length} bench`;
+      if ($("draft-complete-copy")) $("draft-complete-copy").textContent = completed.valid ? "Your optimized lineup is valid. Review steals, reaches and every decision." : `Review needed: ${completed.issues.join(" · ") || "check remaining starter gaps"}.`;
       $("why").innerHTML = `${completed.valid
         ? "Optimized starting lineup is ready."
         : `Roster review: ${esc(completed.issues.join(" · ") || "check remaining starter gaps")}.`} <a href="draft-review.html">Open post-draft review &amp; replay</a>`;
@@ -862,8 +898,9 @@
     }
     $("pick-label").textContent =
       `${roundPick(nextPick)} · Team ${ownerForPick(nextPick)}`;
-    $("clock").textContent =
-      ownerForPick(nextPick) === state.slot ? "YOU ARE ON THE CLOCK" : "";
+    $("clock").textContent = ownerForPick(nextPick) === state.slot
+      ? "YOU ARE ON THE CLOCK"
+      : `TEAM ${ownerForPick(nextPick)} ON THE CLOCK`;
     if (!best) {
       $("best").textContent = "Draft complete — player pool exhausted.";
       return;
@@ -1242,8 +1279,10 @@
     }
     html += "</div>";
     $("draft-grid").innerHTML = html;
-    $("board-summary").textContent =
-      `${state.picks.length} of ${state.teams * state.rounds} selections · Team ${ownerForPick(Math.min(state.picks.length + 1, state.teams * state.rounds))} on the clock`;
+    const draftComplete = state.picks.length >= state.teams * state.rounds;
+    $("board-summary").textContent = draftComplete
+      ? `${state.picks.length} of ${state.teams * state.rounds} selections · Draft complete`
+      : `${state.picks.length} of ${state.teams * state.rounds} selections · Team ${ownerForPick(state.picks.length + 1)} on the clock`;
     document.querySelectorAll("#draft-grid [data-team]").forEach((element) => {
       element.onclick = () => {
         state.selectedTeam = numeric(element.dataset.team, state.slot);
@@ -1452,13 +1491,14 @@
     const validation = D.validateCompletedRoster(teamPicks(state.slot), league);
     const openSlots = validation.lineup.starters.filter((entry) => !entry.player).map((entry) => entry.slot.replace("SUPER_FLEX", "SFLEX"));
     const round = Math.min(state.rounds, Math.floor(state.picks.length / state.teams) + 1);
-    const upcoming = nextUserPick(state.picks.length);
+    const complete = state.picks.length >= state.teams * state.rounds;
+    const upcoming = complete ? null : nextUserPick(state.picks.length);
     const picksAway = Math.max(0, numeric(upcoming, state.picks.length + 1) - state.picks.length - 1);
     const format = roster.SUPER_FLEX ? "SUPERFLEX" : numeric(roster.QB, 1) > 1 ? "2QB" : numeric(roster.WR, 2) >= 3 ? "3WR" : "1QB";
     const ppr = numeric(league.scoring?.reception, 0);
     const pprLabel = ppr === 1 ? "FULL PPR" : ppr === 0.5 ? "HALF PPR" : ppr === 0 ? "STANDARD" : `${ppr} PPR`;
-    const nextLabel = picksAway === 0 ? "ON THE CLOCK" : `${picksAway} PICK${picksAway === 1 ? "" : "S"} AWAY`;
-    target.innerHTML = `<div><span>FORMAT</span><strong>${state.teams}-TEAM · ${format}</strong><small>${pprLabel}${numeric(league.scoring?.te_premium, 0) ? ` · +${numeric(league.scoring.te_premium, 0)} TEP` : ""}</small></div><div><span>DRAFT PHASE</span><strong>ROUND ${round} OF ${state.rounds}</strong><small>${state.picks.length} selections made</small></div><div class="${picksAway === 0 ? "is-live" : ""}"><span>NEXT TURN</span><strong>${nextLabel}</strong><small>${upcoming ? roundPick(upcoming) : "Draft complete"}</small></div><div><span>LINEUP PLAN</span><strong>${openSlots.length ? `${openSlots.length} STARTER${openSlots.length === 1 ? "" : "S"} OPEN` : "STARTERS SET"}</strong><small>${openSlots.length ? openSlots.slice(0, 4).join(" · ") : "Build high-upside depth"}</small></div>`;
+    const nextLabel = complete ? "DRAFT COMPLETE" : picksAway === 0 ? "ON THE CLOCK" : `${picksAway} PICK${picksAway === 1 ? "" : "S"} AWAY`;
+    target.innerHTML = `<div><span>FORMAT</span><strong>${state.teams}-TEAM · ${format}</strong><small>${pprLabel}${numeric(league.scoring?.te_premium, 0) ? ` · +${numeric(league.scoring.te_premium, 0)} TEP` : ""}</small></div><div><span>DRAFT PHASE</span><strong>ROUND ${round} OF ${state.rounds}</strong><small>${state.picks.length} selections made</small></div><div class="${!complete && picksAway === 0 ? "is-live" : complete ? "is-complete" : ""}"><span>NEXT TURN</span><strong>${nextLabel}</strong><small>${upcoming ? roundPick(upcoming) : "Draft complete"}</small></div><div><span>LINEUP PLAN</span><strong>${openSlots.length ? `${openSlots.length} STARTER${openSlots.length === 1 ? "" : "S"} OPEN` : "STARTERS SET"}</strong><small>${openSlots.length ? openSlots.slice(0, 4).join(" · ") : "Build high-upside depth"}</small></div>`;
     target.classList.toggle("is-recovered", Boolean(state.recommendationError));
     target.title = state.recommendationError ? `Recommendation recovery active: ${state.recommendationError}` : "Live league, turn and roster context";
   }
@@ -1467,6 +1507,7 @@
       renderIntelligence();
       return;
     }
+    renderModeUi();
     renderRecommendation();
     renderDraftContext();
     renderBoard();
@@ -1503,7 +1544,7 @@
       );
     if (team === state.slot) {
       const ranked = recommendations();
-      const selected = equityFor(player);
+      const selected = equityFor(player, false);
       const recommended = ranked.recommended?.[0] || selected;
       selection.decision = {
         capturedAt: new Date().toISOString(),
@@ -1520,9 +1561,7 @@
     state.selectedTeam = team;
     state.survivalCache.clear();
     save();
-    render();
-    if (state.mode === "sim" && team === state.slot)
-      window.setTimeout(simulateToUser, 120);
+    scheduleDraftRender(team);
   }
 
   function syncInputs() {
@@ -1749,7 +1788,7 @@
       ? SourceHealth.assessRuntime({
           intelligence: state.intelligence,
           marketOk: marketResult.status === "fulfilled",
-          scoutingOk: scoutingResult.status === "fulfilled",
+          scoutingOk: scoutingResult.status === "fulfilled" && Object.keys(scoutingResult.value?.players || {}).length > 0,
           newsOk: fpResult.status === "fulfilled",
         })
       : null;
@@ -1930,8 +1969,9 @@
   Object.values(ROSTER_INPUTS).forEach((id)=>$(id)?.addEventListener("input",()=>{document.querySelectorAll("[data-draft-preset]").forEach((button)=>button.classList.remove("active"));updateLineupPreview();}));
   ["setupPPR","setupPassTD","setupTEP","setup3RR"].forEach((id)=>$(id)?.addEventListener("change",()=>document.querySelectorAll("[data-draft-preset]").forEach((button)=>button.classList.remove("active"))));
   $("settings-done").addEventListener("click",start);
-  $("advance").onclick = () => state.mode === "live" ? syncSleeperDraft({ manual: true }) : simulateToUser();
+  $("advance").onclick = () => { if (state.mode === "sim") simulateToUser(); };
   if ($("provider-sync")) $("provider-sync").onclick = () => syncSleeperDraft({ manual: true });
+  if ($("companion-current-pick")) $("companion-current-pick").onclick = () => $("board-current")?.click();
   $("undo").onclick = () => {
     if (state.mode === "live") {
       state.providerIssues = ["Confirmed Sleeper picks cannot be undone locally. Correct them in Sleeper and sync again."];

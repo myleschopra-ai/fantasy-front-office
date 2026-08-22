@@ -31,7 +31,7 @@ const requiredIds = [
   'decision-now','decision-wait','upside-case',
   'wwpa','team-ppg','weekly-edge','expected-record','draft-fit',
   'player-modal-backdrop','player-modal-title','close-player-modal','player-blurb','player-scheme','player-compare'
-  ,'session-status','provider-sync-status','provider-sync','draft-context','setup-error'
+  ,'session-status','provider-sync-status','provider-sync','draft-context','setup-error','companion-guide','companion-current','companion-current-pick','draft-complete-panel','draft-grade'
 ];
 for (const id of requiredIds) {
   assert.match(room, new RegExp(`id=["']${id}["']`), `redesigned room must preserve engine DOM contract #${id}`);
@@ -63,6 +63,11 @@ assert.match(room, /js\/draft-room-ios-v5\.js/, 'room must load the bounded iOS 
 assert.match(room, /css\/draft-room-sleeper-v6\.css/, 'room must load the Sleeper-inspired responsive hierarchy');
 assert.match(room, /css\/draft-room-quality-v8\.css/, 'room must load the quality and context layer');
 assert.match(runtime, /function renderDraftContext\(/, 'room must expose live format, phase, turn and lineup context');
+assert.match(runtime, /function renderModeUi\(/, 'mode-specific controls must not expose dead Companion actions');
+assert.match(runtime, /function scheduleDraftRender\(/, 'pick commits must provide immediate updating feedback');
+assert.match(runtime, /const selected = equityFor\(player, false\)/, 'decision history must not block pick commits on detailed Monte Carlo');
+assert.match(runtime, /DRAFT COMPLETE/, 'completed drafts must have an explicit primary clock state');
+assert.match(runtime, /TEAM .* ON THE CLOCK/, 'non-user turns must remain explicit in Companion mode');
 assert.match(runtime, /function validateLeagueSetup\(/, 'custom league setup must reject impossible configurations');
 assert.match(runtime, /recommendationCacheKey/, 'recommendations must be cached by draft and league state');
 assert.match(runtime, /safe market and roster-fit ranking/, 'recommendation failures must recover to a safe ranking');
