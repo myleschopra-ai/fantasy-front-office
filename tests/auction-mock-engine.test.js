@@ -62,19 +62,28 @@ interactive = M.userDecision(interactive, 'PASS');
 assert.equal(interactive.purchases.length, 1);
 assert.equal(interactive.nomination, null);
 
-let liveBids = stateFor(l);
-liveBids = M.step(liveBids, { autoUser:false });
-const liveNominee = M.chooseNomination(liveBids, '1');
-liveBids = M.step(liveBids, { autoUser:false, playerKey:liveNominee.key });
-const openingBid = liveBids.nomination.currentBid;
-if (openingBid + liveBids.config.minBid <= liveBids.nomination.userMaxBid) {
-  liveBids = M.userDecision(liveBids, 'BID');
-  if (liveBids.nomination) {
-    assert.ok(liveBids.nomination.currentBid > openingBid, 'a user bid and CPU response must advance the live price incrementally');
-    assert.equal(liveBids.status, 'AWAITING_USER', 'competitive bidding must return another decision instead of resolving as a sealed auction');
-  } else {
-    assert.equal(liveBids.purchases[0].teamId, liveBids.userTeamId, 'when opponents stop, the user wins at the next legal increment');
-  }
-}
+let live = stateFor(l);
+const livePlayer = M.chooseNomination(live, '1');
+live = M.startNomination(live, { teamId:'1', playerKey:livePlayer.key });
+assert.equal(live.status, 'BIDDING');
+assert.equal(live.nomination.currentBid, 1, 'nomination opens at the league minimum');
+assert.equal(live.nomination.secondsRemaining, 20, 'opening clock uses the configured live-auction window');
+const firstOpponent = M.bidderLimits(live, livePlayer).find(entry => entry.teamId !== '1' && entry.maxBid >= 2);
+assert.ok(firstOpponent, 'at least one opponent must be able to bid');
+live = M.placeBid(live, { teamId:firstOpponent.teamId, amount:2 });
+assert.equal(live.nomination.currentBid, 2);
+assert.equal(live.nomination.leaderTeamId, firstOpponent.teamId);
+live = { ...live, nomination:{ ...live.nomination, secondsRemaining:4 } };
+const counterBidder = M.bidderLimits(live, livePlayer).find(entry => entry.teamId !== firstOpponent.teamId && entry.maxBid >= 3);
+assert.ok(counterBidder, 'a second solvent team must be able to counter');
+live = M.placeBid(live, { teamId:counterBidder.teamId, amount:3 });
+assert.equal(live.nomination.secondsRemaining, 10, 'a late bid resets the wrap-up clock to ten seconds');
+const winningTeam = live.nomination.leaderTeamId;
+const budgetBefore = live.teams[winningTeam].remainingBudget;
+live = M.advanceClock(live, { seconds:10, allowCpuBid:false });
+assert.equal(live.purchases.length, 1, 'the high bidder wins when the clock reaches zero');
+assert.equal(live.teams[winningTeam].roster.length, 1, 'the sold player is rostered to the winner');
+assert.equal(live.teams[winningTeam].remainingBudget, budgetBefore - 3, 'the winning price is deducted atomically');
+assert.equal(live.nomination, null);
 
 console.log('auction mock engine tests passed');

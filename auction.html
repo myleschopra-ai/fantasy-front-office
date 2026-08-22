@@ -21,6 +21,8 @@
     <label>My team<input id="userTeam" type="number" value="7" min="1" max="12"></label>
     <label>Budget/team<input id="budget" type="number" value="200" min="1"></label>
     <label>Minimum bid<input id="minbid" type="number" value="1" min="1"></label>
+    <label>Opening clock<input id="biddingSeconds" type="number" value="20" min="10" max="60"></label>
+    <label>Bid reset<input id="bidResetSeconds" type="number" value="10" min="5" max="30"></label>
     <label>Mode<select id="auctionMode"><option value="mock">CPU Mock</option><option value="manual">Manual Companion</option></select></label>
   </div>
   <details id="formatDetails"><summary>Starting lineup, scoring and bench</summary><div class="format-fields"><label>QB<input id="rosterQB" type="number" value="1" min="0" max="4"></label><label>RB<input id="rosterRB" type="number" value="2" min="0" max="6"></label><label>WR<input id="rosterWR" type="number" value="2" min="0" max="8"></label><label>TE<input id="rosterTE" type="number" value="1" min="0" max="4"></label><label>FLEX<input id="rosterFLEX" type="number" value="2" min="0" max="6"></label><label>Superflex<input id="rosterSF" type="number" value="0" min="0" max="3"></label><label>RB/WR flex<input id="rosterRBWR" type="number" value="0" min="0" max="3"></label><label>WR/TE flex<input id="rosterWRTE" type="number" value="0" min="0" max="3"></label><label>K<input id="rosterK" type="number" value="1" min="0" max="2"></label><label>DST<input id="rosterDST" type="number" value="1" min="0" max="2"></label><label>Bench<input id="rosterBench" type="number" value="6" min="0" max="12"></label><label>Reception PPR<input id="scoringPpr" type="number" value="0.5" min="0" max="2" step="0.5"></label><label>Passing TD<input id="passingTd" type="number" value="4" min="3" max="8" step="1"></label><label>TE premium<input id="tePremium" type="number" value="0" min="0" max="2" step="0.5"></label></div></details>
@@ -35,8 +37,9 @@
 <div class="grid" style="margin-top:14px">
 <div class="stack">
 <section id="lotPanel" class="panel lot-panel">
-  <div class="toolbar"><div><span class="eyebrow">CURRENT NOMINATION</span><h2 id="lotPlayer">Waiting to start</h2><div id="lotMeta" class="muted">Start a new auction to enter the room.</div></div><div class="lot-price"><span>Current bid</span><strong id="lotBid">—</strong><small id="lotLeader"></small></div></div>
-  <div class="lot-actions"><button id="nominateSelected" class="btn">Nominate Selected</button><button id="bidLot" class="btn good-btn">Bid</button><button id="passLot" class="btn danger">Pass</button></div>
+  <div class="toolbar"><div><span class="eyebrow">CURRENT NOMINATION</span><h2 id="lotPlayer">Waiting to start</h2><div id="lotMeta" class="muted">Start a new auction to enter the room.</div></div><div class="lot-live"><div class="auction-clock"><span>Time remaining</span><strong id="lotClock">—</strong><small>late bids reset the clock</small></div><div class="lot-price"><span>Current bid</span><strong id="lotBid">—</strong><small id="lotLeader"></small></div></div></div>
+  <div id="bidHistory" class="bid-history muted">Nominate a player to open bidding.</div>
+  <div class="lot-actions"><button id="nominateSelected" class="btn">Nominate Selected</button><label class="custom-bid">Your bid<input id="customBid" type="number" min="1" value="2"></label><button id="bidLot" class="btn good-btn">Bid +$1</button><button id="passLot" class="btn danger">Pass This Player</button></div>
 </section>
 <section class="panel">
   <div class="toolbar"><div><strong>Available players</strong><div id="source" class="muted">Loading calibrated draft intelligence…</div></div><div><span class="meta">Room inflation</span> <span id="infl" class="score">1.00×</span></div></div>

@@ -143,7 +143,7 @@
     { id: 'scarcity', aggression: 1.02, stars: 1.02, value: 1.02 },
   ];
 
-  function createState({ league = {}, players = [], userTeamId = '1', seed = 17, priceMap = {}, expectedPriceMap = {}, leagueModel = null, projectionCoverage = null } = {}) {
+  function createState({ league = {}, players = [], userTeamId = '1', seed = 17, priceMap = {}, expectedPriceMap = {}, leagueModel = null, projectionCoverage = null, biddingSeconds = 20, bidResetSeconds = 10 } = {}) {
     if (!Auction) throw new Error('FFOAuction is required before FFOAuctionMock.');
     const config = Auction.compileAuctionConfig({ league });
     const required = { QB:0, RB:0, WR:0, TE:0, K:0, DST:0 };
@@ -184,6 +184,10 @@
       nomination: null,
       status: 'READY',
       seed: Math.abs(Math.round(seed)) || 17,
+      auctionClock: {
+        biddingSeconds: Math.max(10, Math.round(numeric(biddingSeconds, 20))),
+        bidResetSeconds: Math.max(5, Math.round(numeric(bidResetSeconds, 10))),
+      },
     };
   }
 
@@ -388,8 +392,78 @@
     if (nominator !== next.id) throw new Error(`It is ${state.teams[next.id].name}'s nomination.`);
     const player = playerKey ? availablePlayers(state).find((item) => keyOf(item) === String(playerKey)) : chooseNomination(state, nominator);
     if (!player) throw new Error(`${state.teams[nominator].name} has no legal nomination.`);
-    return { ...state, nomination: { playerKey: keyOf(player), nominatorTeamId: nominator, currentBid: state.config.minBid, leaderTeamId: nominator, passedTeamIds: [], awaitingUser: false }, status: 'BIDDING' };
+    const clock = state.auctionClock || { biddingSeconds:20, bidResetSeconds:10 };
+    return { ...state, nomination: {
+      playerKey: keyOf(player), nominatorTeamId: nominator,
+      openingBid: state.config.minBid, currentBid: state.config.minBid,
+      leaderTeamId: nominator, passedTeamIds: [], awaitingUser: false,
+      secondsRemaining: clock.biddingSeconds,
+      bidHistory: [{ teamId:nominator, amount:state.config.minBid, kind:'NOMINATION' }],
+    }, status: 'BIDDING' };
   }
+
+  function nextBidAmount(state, amount = null) {
+    const current = numeric(state.nomination?.currentBid, state.config.minBid - 1);
+    return amount == null ? current + 1 : Math.max(current + 1, Math.round(numeric(amount, current + 1)));
+  }
+
+  function placeBid(state, { teamId, amount = null, kind = 'BID' } = {}) {
+    if (!state.nomination || !['BIDDING','AWAITING_USER'].includes(state.status)) throw new Error('No player is open for bidding.');
+    const id = String(teamId || '');
+    const player = state.players.find((item) => keyOf(item) === state.nomination.playerKey);
+    if (!player) throw new Error('Nominated player is unavailable.');
+    if (!state.teams[id]) throw new Error('Unknown bidding team.');
+    if ((state.nomination.passedTeamIds || []).includes(id)) throw new Error(`${state.teams[id].name} already passed on this player.`);
+    if (id === String(state.nomination.leaderTeamId)) throw new Error(`${state.teams[id].name} already has the high bid.`);
+    const bid = nextBidAmount(state, amount);
+    const legal = teamBidLimit(state, id, player);
+    if (bid > legal) throw new Error(`${state.teams[id].name}'s maximum legal bid is $${legal}.`);
+    const reset = numeric(state.auctionClock?.bidResetSeconds, 10);
+    const secondsRemaining = numeric(state.nomination.secondsRemaining, reset) <= reset ? reset : state.nomination.secondsRemaining;
+    return { ...state, nomination: {
+      ...state.nomination,
+      currentBid: bid,
+      leaderTeamId: id,
+      awaitingUser: false,
+      secondsRemaining,
+      bidHistory: [...(state.nomination.bidHistory || []), { teamId:id, amount:bid, kind }],
+    }, status:'BIDDING' };
+  }
+
+  function passBid(state, teamId) {
+    if (!state.nomination) throw new Error('No player is open for bidding.');
+    const id = String(teamId || '');
+    if (id === String(state.nomination.leaderTeamId)) throw new Error('The current high bidder cannot pass.');
+    const passed = new Set(state.nomination.passedTeamIds || []); passed.add(id);
+    return { ...state, nomination:{ ...state.nomination, passedTeamIds:[...passed], awaitingUser:false }, status:'BIDDING' };
+  }
+
+  function cpuBidder(state) {
+    if (!state.nomination) return null;
+    const player = state.players.find((item) => keyOf(item) === state.nomination.playerKey);
+    const current = numeric(state.nomination.currentBid, state.config.minBid);
+    const passed = new Set(state.nomination.passedTeamIds || []);
+    return bidderLimits(state, player)
+      .filter((entry) => entry.teamId !== state.userTeamId && entry.teamId !== String(state.nomination.leaderTeamId) && !passed.has(entry.teamId) && entry.maxBid > current)
+      .sort((a, b) => b.maxBid - a.maxBid || Number(a.teamId) - Number(b.teamId))[0] || null;
+  }
+
+  function advanceClock(state, { seconds = 1, allowCpuBid = true } = {}) {
+    if (!state.nomination || state.status === 'COMPLETE') return state;
+    let next = state;
+    const cpu = allowCpuBid ? cpuBidder(next) : null;
+    if (cpu) {
+      const current = numeric(next.nomination.currentBid, next.config.minBid);
+      const increment = current >= 50 ? 3 : current >= 20 ? 2 : 1;
+      next = placeBid(next, { teamId:cpu.teamId, amount:Math.min(cpu.maxBid, current + increment), kind:'CPU_BID' });
+    }
+    const remaining = Math.max(0, numeric(next.nomination.secondsRemaining, 0) - Math.max(1, numeric(seconds, 1)));
+    next = { ...next, nomination:{ ...next.nomination, secondsRemaining:remaining } };
+    if (remaining > 0) return next;
+    const player = next.players.find((item) => keyOf(item) === next.nomination.playerKey);
+    return completePurchase(next, next.nomination.leaderTeamId, player, next.nomination.currentBid);
+  }
+
 
   function completePurchase(state, teamId, player, price) {
     const ceilingAtPurchase = teamBidLimit(state, teamId, player);
@@ -494,5 +568,5 @@
     return { valid: issues.length === 0, issues, drafted: seen.size, projectedPointsByTeam: Object.fromEntries(Object.values(state.teams || {}).map((team) => [team.id, optimalStarterPoints(team.roster, state.league)])) };
   }
 
-  return { keyOf, rosterSlots, eligible, assignRoster, canRoster, optimalStarterPoints, marginalStarterPoints, positionalNeed, createState, availablePlayers, intrinsicPrice, expectedPrice, preservesRequiredSupply, teamBidLimit, nextNominator, chooseNomination, bidderLimits, startNomination, resolveNomination, userDecision, recordPurchase, step, simulateComplete, validateState };
+  return { keyOf, rosterSlots, eligible, assignRoster, canRoster, optimalStarterPoints, marginalStarterPoints, positionalNeed, createState, availablePlayers, intrinsicPrice, expectedPrice, preservesRequiredSupply, teamBidLimit, nextNominator, chooseNomination, bidderLimits, startNomination, nextBidAmount, placeBid, passBid, cpuBidder, advanceClock, resolveNomination, userDecision, recordPurchase, step, simulateComplete, validateState };
 });
