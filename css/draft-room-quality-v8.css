@@ -1,0 +1,18 @@
+.draft-context{display:grid;grid-template-columns:1.15fr 1fr 1fr 1.45fr;gap:1px;margin:-18px -18px 18px;background:var(--line,#243048);border-bottom:1px solid var(--line,#243048)}
+.draft-context>div{min-width:0;padding:12px 14px;background:linear-gradient(180deg,rgba(18,29,48,.98),rgba(13,22,37,.98))}
+.draft-context span,.draft-context small{display:block;color:var(--muted,#91a0b8);font-size:10px;letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.draft-context strong{display:block;margin:4px 0;color:#f7f9fc;font-size:13px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.draft-context .is-live{background:linear-gradient(180deg,rgba(20,71,57,.98),rgba(13,43,37,.98));box-shadow:inset 0 -2px #35d49a}
+.draft-context .is-live strong{color:#67f0bd}
+.draft-context.is-recovered{box-shadow:inset 0 3px #f2b84b}
+.setup-error{margin:12px 0 0;padding:11px 13px;border:1px solid rgba(248,113,113,.5);border-radius:10px;background:rgba(127,29,29,.25);color:#fecaca;font-weight:700}
+.setup-error[hidden]{display:none}
+.ffo2-bench-grid{grid-template-columns:minmax(0,1fr)!important}
+.ffo2-bench-card{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;align-items:center;gap:12px;width:100%;min-height:42px}
+.ffo2-bench-card>strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ffo2-bench-card>span{text-align:right;white-space:nowrap}
+.decision,.players,.sidecard{box-shadow:0 14px 34px rgba(0,0,0,.14)}
+.player-row:focus-within,.ffo2-bench-card:focus-visible{outline:2px solid var(--accent,#5b8cff);outline-offset:2px}
+@media(max-width:900px){.draft-context{grid-template-columns:1fr 1fr}.draft-context>div:nth-child(3),.draft-context>div:nth-child(4){border-top:1px solid var(--line,#243048)}}
+@media(max-width:540px){.draft-context{margin:-14px -14px 14px}.draft-context>div{padding:10px}.draft-context strong{font-size:12px}.draft-context small{font-size:9px}.ffo2-bench-card{grid-template-columns:minmax(0,1fr)!important}.ffo2-bench-card>span{text-align:left;white-space:normal}}
+@media(prefers-reduced-motion:no-preference){.decision,.players,.sidecard{transition:border-color .18s ease,box-shadow .18s ease}.draft-context .is-live strong{animation:quality-pulse 2s ease-in-out infinite}@keyframes quality-pulse{50%{opacity:.72}}}
