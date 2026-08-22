@@ -9,7 +9,7 @@ const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
 
 const positions = ['WR','RB','WR','RB','QB','TE','K','DST'];
-const mockMarket = Array.from({ length: 160 }, (_, index) => ({
+const mockMarket = Array.from({ length: 360 }, (_, index) => ({
   player: {
     sleeperId: `e2e-${index + 1}`,
     id: `e2e-${index + 1}`,
@@ -103,6 +103,8 @@ try {
 
   await assertSurface('cold boot');
   await timedClick(page.locator('#start'), 'start/reset');
+  const startState = await page.evaluate(() => ({ clock: document.querySelector('#clock')?.textContent, error: document.querySelector('#setup-error')?.textContent, errorHidden: document.querySelector('#setup-error')?.hidden, teams: document.querySelector('#teams')?.value, rounds: document.querySelector('#rounds')?.value, mode: document.querySelector('#mode')?.value }));
+  console.log('start state:', JSON.stringify(startState));
   await page.waitForFunction(() => /YOU ARE ON THE CLOCK/i.test(document.querySelector('#clock')?.textContent || ''), null, { timeout: 8000 });
   await assertSurface('after start and CPU opening picks');
 

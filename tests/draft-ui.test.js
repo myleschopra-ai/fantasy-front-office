@@ -9,6 +9,7 @@ const iosRuntime = fs.readFileSync(path.join(__dirname, '..', 'js', 'draft-room-
 const sleeperRuntime = fs.readFileSync(path.join(__dirname, '..', 'js', 'draft-room-sleeper-v6.js'), 'utf8');
 const boardPanRuntime = fs.readFileSync(path.join(__dirname, '..', 'js', 'draft-room-board-pan-v7.js'), 'utf8');
 const sleeperStyles = fs.readFileSync(path.join(__dirname, '..', 'css', 'draft-room-sleeper-v6.css'), 'utf8');
+const qualityStyles = fs.readFileSync(path.join(__dirname, '..', 'css', 'draft-room-quality-v8.css'), 'utf8');
 const runtime = fs.readFileSync(path.join(__dirname, '..', 'js', 'mock-draft-v4.js'), 'utf8');
 const auctionRuntime = fs.readFileSync(path.join(__dirname, '..', 'js', 'auction-room.js'), 'utf8');
 const leagueSwitcher = fs.readFileSync(path.join(__dirname, '..', 'js', 'league-switcher.js'), 'utf8');
@@ -30,7 +31,7 @@ const requiredIds = [
   'decision-now','decision-wait','upside-case',
   'wwpa','team-ppg','weekly-edge','expected-record','draft-fit',
   'player-modal-backdrop','player-modal-title','close-player-modal','player-blurb','player-scheme','player-compare'
-  ,'session-status','provider-sync-status','provider-sync'
+  ,'session-status','provider-sync-status','provider-sync','draft-context','setup-error','companion-guide','companion-current','companion-current-pick','draft-complete-panel','draft-grade'
 ];
 for (const id of requiredIds) {
   assert.match(room, new RegExp(`id=["']${id}["']`), `redesigned room must preserve engine DOM contract #${id}`);
@@ -60,6 +61,17 @@ assert.match(room, /js\/mock-draft-v4\.js/, 'room must use validated draft-state
 assert.match(room, /css\/draft-room-ios-v5\.css/, 'room must load the iOS-first responsive stylesheet');
 assert.match(room, /js\/draft-room-ios-v5\.js/, 'room must load the bounded iOS interaction helper');
 assert.match(room, /css\/draft-room-sleeper-v6\.css/, 'room must load the Sleeper-inspired responsive hierarchy');
+assert.match(room, /css\/draft-room-quality-v8\.css/, 'room must load the quality and context layer');
+assert.match(runtime, /function renderDraftContext\(/, 'room must expose live format, phase, turn and lineup context');
+assert.match(runtime, /function renderModeUi\(/, 'mode-specific controls must not expose dead Companion actions');
+assert.match(runtime, /function scheduleDraftRender\(/, 'pick commits must provide immediate updating feedback');
+assert.match(runtime, /const selected = equityFor\(player, false\)/, 'decision history must not block pick commits on detailed Monte Carlo');
+assert.match(runtime, /DRAFT COMPLETE/, 'completed drafts must have an explicit primary clock state');
+assert.match(runtime, /TEAM .* ON THE CLOCK/, 'non-user turns must remain explicit in Companion mode');
+assert.match(runtime, /function validateLeagueSetup\(/, 'custom league setup must reject impossible configurations');
+assert.match(runtime, /recommendationCacheKey/, 'recommendations must be cached by draft and league state');
+assert.match(runtime, /safe market and roster-fit ranking/, 'recommendation failures must recover to a safe ranking');
+assert.match(qualityStyles, /grid-template-columns:1\.15fr 1fr 1fr 1\.45fr/, 'desktop decision context must remain scannable');
 assert.match(room, /js\/draft-room-sleeper-v6\.js/, 'room must load the bounded draft-room navigation enhancement');
 assert.match(room, /id="board-current"/, 'draftboard must provide a jump-to-current control');
 assert.match(room, /js\/draft-room-board-pan-v7\.js/, 'draftboard must load touch and mouse panning controls');

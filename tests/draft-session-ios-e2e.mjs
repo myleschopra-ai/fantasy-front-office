@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const base = process.env.DRAFT_SESSION_IOS_URL || 'http://127.0.0.1:4175/draft.html';
 const positions = ['WR','RB','WR','RB','QB','TE','K','DST'];
-const market = Array.from({ length: 180 }, (_, index) => ({
+const market = Array.from({ length: 360 }, (_, index) => ({
   player: {
     sleeperId: `ios-resume-${index + 1}`,
     id: `ios-resume-${index + 1}`,
