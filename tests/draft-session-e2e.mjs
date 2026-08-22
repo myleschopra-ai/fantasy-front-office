@@ -4,7 +4,7 @@ const base = process.env.DRAFT_SESSION_E2E_URL || 'http://127.0.0.1:4173/draft.h
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
 const positions = ['WR','RB','WR','RB','QB','TE','K','DST'];
-const mockMarket = Array.from({ length: 180 }, (_, index) => ({
+const mockMarket = Array.from({ length: 360 }, (_, index) => ({
   player: {
     sleeperId: `resume-${index + 1}`,
     id: `resume-${index + 1}`,
