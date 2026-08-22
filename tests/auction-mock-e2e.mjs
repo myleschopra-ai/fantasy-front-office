@@ -47,23 +47,35 @@ try {
 
     await page.locator('#board [data-k]').first().click();
     if ((await page.locator('#intrinsic').textContent() || '').trim() === '—') throw new Error(`${profile.name}: live valuation did not render`);
+    await page.locator('#userTeam').fill('1');
+    await page.locator('#biddingSeconds').fill('10');
+    await page.locator('#bidResetSeconds').fill('5');
     await page.locator('#startMock').click();
-    await page.waitForFunction(() => ['AWAITING_USER','AWAITING_NOMINATION'].includes(document.querySelector('#mockStatus')?.textContent), null, { timeout: 30000 });
-    if (await page.locator('#passLot').isEnabled()) await page.locator('#passLot').click();
-    else {
-      await page.locator('#board [data-k]').first().click();
-      await page.locator('#nominateSelected').click();
-      await page.waitForFunction(() => document.querySelector('#mockStatus')?.textContent === 'AWAITING_USER');
-      await page.locator('#passLot').click();
-    }
-    await page.waitForFunction(() => JSON.parse(localStorage.getItem('ffo_auction_session_v4') || 'null')?.payload?.sold?.length >= 1, null, { timeout: 30000 });
+    await page.waitForFunction(() => document.querySelector('#mockStatus')?.textContent === 'AWAITING_NOMINATION', null, { timeout: 30000 });
+    await page.locator('#search').fill('Bijan');
+    const bijan = page.locator('#board [data-k]').first();
+    if (!(await bijan.count())) throw new Error(`${profile.name}: Bijan Robinson was not available for the first nomination`);
+    await bijan.click();
+    await page.locator('#nominateSelected').click();
+    await page.waitForFunction(() => document.querySelector('#mockStatus')?.textContent === 'BIDDING');
+    const openingBid = await page.evaluate(() => JSON.parse(localStorage.getItem('ffo_auction_session_v4')).payload.mockState.nomination?.bidHistory?.[0]?.amount);
+    if (openingBid !== 1) throw new Error(`${profile.name}: nomination did not open at $1`);
+    await page.waitForFunction(() => Number((document.querySelector('#lotBid')?.textContent || '').replace(/\D/g,'')) >= 2, null, { timeout:15000 });
+    if (await page.locator('#bidLot').isEnabled()) await page.locator('#bidLot').click();
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem('ffo_auction_session_v4') || 'null')?.payload?.sold?.length >= 1, null, { timeout: 60000 });
+    const firstSale = await page.evaluate(() => {
+      const payload = JSON.parse(localStorage.getItem('ffo_auction_session_v4')).payload;
+      const sale = payload.mockState.purchases[0], team = payload.mockState.teams[sale.teamId];
+      return { name:sale.player.name, price:sale.price, rostered:team.roster.some(player => player.key === sale.player.key), remaining:team.remainingBudget };
+    });
+    if (!/Bijan/i.test(firstSale.name) || firstSale.price < 1 || !firstSale.rostered || firstSale.remaining !== 200-firstSale.price) throw new Error(`${profile.name}: first timed auction sale did not reconcile`);
 
     const beforeTen = await page.evaluate(() => JSON.parse(localStorage.getItem('ffo_auction_session_v4')).payload.sold.length);
     await page.locator('#autoTen').click();
     await page.waitForFunction(before => JSON.parse(localStorage.getItem('ffo_auction_session_v4') || 'null')?.payload?.sold?.length >= before + 10, beforeTen, { timeout: 30000 });
 
     if (profile.complete) {
-      await page.locator('#finishMock').click();
+      await page.locator('#finishMock').click({ timeout: 120000 });
       await page.waitForFunction(() => document.querySelector('#mockStatus')?.textContent === 'COMPLETE', null, { timeout: 60000 });
       const completion = await page.evaluate(() => {
         const payload = JSON.parse(localStorage.getItem('ffo_auction_session_v4')).payload;
