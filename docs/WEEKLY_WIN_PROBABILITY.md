@@ -138,11 +138,20 @@ Before labeling WWPA as empirically superior, replay at least two historical sea
 1. Normalize preseason projections, ADP, known injuries, league settings, and actual weekly results.
 2. Simulate every snake slot, third-round reversal, and auction across 8-, 10-, 12-, 14-, and 16-team formats.
 3. Compare ADP, ECR, raw projection, static VORP, named roster strategies, and WWPA.
+
 4. Optimize only legal lineups with information available at that historical week.
 5. Report H2H win rate, all-play win rate, top-half rate, expected wins, confidence intervals, and results by format/slot.
 6. Reject any experiment with future-data leakage.
 
 Success requires repeatable average improvement—not the best simulated season—across both snake and auction formats.
+
+## Forward evidence ledger
+
+The Draft Room now writes one deduplicated audit record whenever the user is on the clock. Each record freezes the source generation time, league and roster context, recommendation, projected win rate and interval, WWPA, confidence, next comparable, and eventual selection. The ledger is included in the session export so outcomes can be added without reconstructing what the model knew at draft time.
+
+`scripts/reconcile_wwpa_decisions.py` scores resolved exports with Brier score, expected calibration error, a source-time audit, and a paired season-points confidence interval. It does not rewrite production status. WWPA can be promoted only through review after at least 100 resolved decisions are all time-locked, expected calibration error is at most 5%, and the lower bound of the paired 95% interval is positive.
+
+The available 2025 projection archive was inspected and excluded from WWPA validation because its Week 1 projections were committed after the Week 1 games. Deterministic tests remain useful engineering evidence, but they are not a substitute for a clean forward sample.
 
 ## Decision confidence and promotion contract
 

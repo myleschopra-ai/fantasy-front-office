@@ -58,6 +58,23 @@ assert.equal(walkForward.overall.n,2);
 assert.ok(walkForward.overall.mae>=0&&walkForward.position.RB.n===2,'walk-forward error must report by position');
 assert.equal(A.calibrationBacktest(history).sufficient,false,'one season cannot claim held-out validation');
 
+const liveSales=Array.from({length:8},(_,index)=>({
+  player:{key:`live-rb-${index}`,position:'RB',rank:index+1,tier:1},
+  price:60,
+  intrinsicPrice:50,
+}));
+const coldPulse=A.liveAuctionPulse(liveSales.slice(0,2));
+assert.equal(coldPulse.active,false,'one or two sales must not move room pricing');
+const adaptive=A.adaptiveLeagueModel(null,liveSales,{budget:200});
+assert.equal(adaptive.live.status,'ACTIVE');
+assert.equal(adaptive.live.samples,8);
+assert.ok(adaptive.live.position.RB.median_ratio>1&&adaptive.live.position.RB.median_ratio<=1.18,'live overspending should be shrunk and bounded');
+const liveExpected=A.expectedLeaguePrice({intrinsicPrice:50,position:'RB',rank:10,tier:1,model:adaptive,currentInflation:1});
+assert.ok(liveExpected>50&&liveExpected<=59,'live prices should move the estimate without permitting a runaway multiplier');
+const liveRange=A.expectedLeaguePriceRange({intrinsicPrice:50,position:'RB',rank:10,tier:1,model:adaptive,currentInflation:1});
+assert.equal(liveRange.evidence,8);
+assert.ok(liveRange.low<=liveExpected&&liveRange.high>=liveExpected);
+
 const strongBid=A.maxBid({intrinsicPrice:50,remainingBudget:80,slotsLeft:5,minBid:1,need:90,scarcity:85,tierUrgency:80,upside:70,redundancy:0});
 const redundantBid=A.maxBid({intrinsicPrice:50,remainingBudget:80,slotsLeft:5,minBid:1,need:10,scarcity:85,tierUrgency:80,upside:70,redundancy:80});
 assert.ok(strongBid>redundantBid,'roster need must change max bid without changing intrinsic price');
@@ -91,6 +108,15 @@ assert.ok(evalNeed.maxBid>evalRedundant.maxBid);
 assert.equal(evalNeed.priceConfidence,'UNMODELED');
 assert.ok(evalNeed.maxBid<=Math.round(evalNeed.intrinsicPrice*1.12),'unmodeled auction advice must cap premiums until real clearing-price evidence exists');
 assert.ok(evalNeed.rawMaxBid>=evalNeed.maxBid,'evidence cap may constrain but never inflate the raw roster-aware maximum');
+
+const evalLive=A.evaluatePlayer({
+  player:{key:'live-target',position:'RB',rank:10,tier:1},intrinsicPrice:50,
+  teamState:{remainingBudget:100,slotsLeft:8,leagueModel:adaptive},draftEvaluation:{components:{need:70}},
+  scarcity:70,tierUrgency:70,upside:60,inflation:1,minBid:1,
+});
+assert.equal(evalLive.priceConfidence,'LIVE-ADAPTING');
+assert.equal(evalLive.livePriceEvidence,8);
+assert.ok(evalLive.maxBid<=58,'live room evidence must retain the non-calibrated premium safeguard');
 
 const evalHighWwpa=A.evaluatePlayer({
   player:{key:'wwpa-rb',position:'RB',rank:20},intrinsicPrice:45,teamState:{remainingBudget:100,slotsLeft:3,leagueModel:null},

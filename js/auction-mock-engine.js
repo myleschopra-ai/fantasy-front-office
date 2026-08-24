@@ -143,7 +143,7 @@
     { id: 'scarcity', aggression: 1.02, stars: 1.02, value: 1.02 },
   ];
 
-  function createState({ league = {}, players = [], userTeamId = '1', seed = 17, priceMap = {}, expectedPriceMap = {}, leagueModel = null, projectionCoverage = null, biddingSeconds = 20, bidResetSeconds = 10 } = {}) {
+  function createState({ league = {}, players = [], userTeamId = '1', seed = 17, priceMap = {}, expectedPriceMap = {}, expectedPriceMapSales = null, leagueModel = null, projectionCoverage = null, biddingSeconds = 20, bidResetSeconds = 10 } = {}) {
     if (!Auction) throw new Error('FFOAuction is required before FFOAuctionMock.');
     const config = Auction.compileAuctionConfig({ league });
     const required = { QB:0, RB:0, WR:0, TE:0, K:0, DST:0 };
@@ -174,6 +174,7 @@
       remainingSupplyByPosition: { ...supply },
       priceMap: { ...priceMap },
       expectedPriceMap: { ...expectedPriceMap },
+      expectedPriceMapSales,
       leagueModel,
       projectionCoverage,
       userTeamId: String(userTeamId),
@@ -202,7 +203,8 @@
 
   function expectedPrice(state, player) {
     const explicit = numeric(state.expectedPriceMap[keyOf(player)], null);
-    if (explicit != null) return Math.max(state.config.minBid, explicit);
+    const currentSales = (state.purchases || []).length;
+    if (explicit != null && (state.expectedPriceMapSales == null || numeric(state.expectedPriceMapSales, 0) === currentSales)) return Math.max(state.config.minBid, explicit);
     return Auction.expectedLeaguePrice({ intrinsicPrice: intrinsicPrice(state, player), position: player.position, rank: player.overallRank ?? player.rank, tier: player.tier, model: state.leagueModel });
   }
 

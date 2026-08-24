@@ -2,7 +2,9 @@ import { webkit, devices } from 'playwright';
 
 const base = process.env.DRAFT_E2E_URL || 'http://127.0.0.1:4173/draft.html';
 const positions = ['WR','RB','WR','RB','QB','TE','K','DST'];
-const mockMarket = Array.from({ length: 180 }, (_, index) => ({
+// Keep enough depth for every supported custom roster; the current default
+// exercises 12 teams x 21 rounds (252 unique selections).
+const mockMarket = Array.from({ length: 360 }, (_, index) => ({
   player: {
     sleeperId: `ios-${index + 1}`,
     id: `ios-${index + 1}`,
@@ -63,7 +65,7 @@ try {
     if (cssLoaded.tabHeight < 45) throw new Error(`${profile.name}: bottom navigation too small (${cssLoaded.tabHeight}px)`);
     if (!cssLoaded.turnVisible) throw new Error(`${profile.name}: centered turn state is hidden`);
 
-    const navLabels = await page.locator('.nav-btn').allTextContents();
+    const navLabels = await page.locator('.nav-btn').evaluateAll(buttons => buttons.map(button => button.getAttribute('aria-label') || button.textContent?.trim() || ''));
     const expectedNav = ['Players','Queue','My Team','Board','Picks'];
     if (navLabels.length < expectedNav.length || expectedNav.some((label, i) => navLabels[i]?.trim() !== label)) {
       throw new Error(`${profile.name}: navigation labels mismatch (${navLabels.join(' / ')})`);
@@ -92,7 +94,16 @@ try {
 
     await assertAdvisorAndRoster('cold boot');
     await page.locator('#start').click();
-    await page.waitForFunction(() => /YOU ARE ON THE CLOCK/i.test(document.querySelector('#clock')?.textContent || ''), null, { timeout: 10000 });
+    try {
+      await page.waitForFunction(() => /YOU ARE ON THE CLOCK/i.test(document.querySelector('#clock')?.textContent || ''), null, { timeout: 10000 });
+    } catch (error) {
+      const state = await page.evaluate(() => ({
+        clock: document.querySelector('#clock')?.textContent || '',
+        setupError: document.querySelector('#setup-error')?.textContent || '',
+        setupErrorHidden: document.querySelector('#setup-error')?.hidden,
+      }));
+      throw new Error(`${profile.name}: start did not return to the user pick (${JSON.stringify(state)}; browser errors: ${errors.join(' | ') || 'none'})`, { cause: error });
+    }
 
     for (let i = 0; i < 4; i += 1) {
       const first = page.locator('#board [data-k]').first();

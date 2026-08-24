@@ -107,6 +107,19 @@ try {
   console.log('start state:', JSON.stringify(startState));
   await page.waitForFunction(() => /YOU ARE ON THE CLOCK/i.test(document.querySelector('#clock')?.textContent || ''), null, { timeout: 8000 });
   await assertSurface('after start and CPU opening picks');
+  const openingAudit = await page.evaluate(() => {
+    const rows = JSON.parse(localStorage.getItem('ffo_decision_ledger_v1') || '[]');
+    const sessionId = rows.at(-1)?.sessionId;
+    const current = rows.filter(row => row.sessionId === sessionId);
+    return { captured:current.length, locked:current.filter(row => row.timeLock?.valid).length };
+  });
+  if (openingAudit.captured !== 1 || openingAudit.locked !== 1) throw new Error(`opening recommendation was not captured and time-locked (${JSON.stringify(openingAudit)})`);
+  const workspaceGeometry = await page.evaluate(() => Object.fromEntries(['.app','.board-shell','.main','.workspace','.decision','.players','#board','#board [data-k]','.tabbar'].map(selector => {
+    const rect = document.querySelector(selector)?.getBoundingClientRect();
+    return [selector,rect ? { top:rect.top,bottom:rect.bottom,left:rect.left,right:rect.right,height:rect.height } : null];
+  })));
+  if (workspaceGeometry['.decision']?.bottom > workspaceGeometry['.players']?.top + 1) throw new Error(`decision surface overlaps the player drawer (${JSON.stringify(workspaceGeometry)})`);
+  if (workspaceGeometry['#board [data-k]']?.bottom > workspaceGeometry['.tabbar']?.top) throw new Error(`first player action starts behind bottom navigation (${JSON.stringify(workspaceGeometry)})`);
 
   for (let i = 1; i <= 4; i += 1) {
     const before = await page.locator('#board-summary').textContent();
@@ -118,6 +131,14 @@ try {
     const after = await page.locator('#board-summary').textContent();
     if (after === before) throw new Error(`after pick ${i}: board summary did not advance`);
   }
+
+  const forwardAudit = await page.evaluate(() => {
+    const rows = JSON.parse(localStorage.getItem('ffo_decision_ledger_v1') || '[]');
+    const sessionId = rows.at(-1)?.sessionId;
+    const current = rows.filter(row => row.sessionId === sessionId);
+    return { captured:current.length,selected:current.filter(row => row.selectedKey).length,unique:new Set(current.map(row => row.id)).size,proof:document.querySelector('#decision-trust')?.textContent || '' };
+  });
+  if (forwardAudit.captured !== 5 || forwardAudit.selected !== 4 || forwardAudit.unique !== 5 || !/FORWARD AUDIT/i.test(forwardAudit.proof)) throw new Error(`forward decision evidence is incomplete or duplicated (${JSON.stringify(forwardAudit)})`);
 
   await page.locator('.nav-btn', { hasText: 'Team' }).click();
   await page.waitForSelector('#team-roster-view', { state: 'visible', timeout: 5000 });

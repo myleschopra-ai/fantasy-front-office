@@ -38,7 +38,8 @@ The draft assistant currently supports:
 - Local post-draft starter/bench grading, strategy review, and replay artifacts
 - Small-sample-guarded historical ADP and auction-manager calibration
 - Auction confidence ranges with leave-one-season-out pricing error
-- Complete auction simulation across every team and roster slot, with legal bids, rotating nominations, CPU strategy profiles, and reload-safe state
+- Complete auction simulation across every team and roster slot, with legal bids, rotating nominations, CPU strategy profiles, reload-safe state, and bounded current-room price learning after each sale
+- Source-timestamped forward recommendation ledger with fail-closed WWPA calibration gates and exportable decision evidence
 - Format-sensitive auction values for 1QB, Superflex, 2WR/3WR, PPR, TE premium, custom roster sizes, budget, and minimum bid
 - Roster-aware maximum bids that preserve future minimum bids and prevent CPU overpayment beyond its calculated ceiling
 - Archived mock comparisons by slot, format, and strategy

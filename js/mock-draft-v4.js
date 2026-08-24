@@ -9,6 +9,7 @@
   const Calibration = window.FFODraftCalibration;
   const Championship = window.FFOChampionshipIntel;
   const DecisionConfidence = window.FFODecisionConfidence;
+  const DecisionLedger = window.FFODecisionLedger;
   const $ = (id) => document.getElementById(id);
   const LS = "ffo_mock_draft_v4";
   const POSITIONS = ["QB", "RB", "WR", "TE", "K", "DST"];
@@ -54,6 +55,8 @@
     recommendationCache: null,
     recommendationError: null,
     renderPending: false,
+    decisionSessionId: DecisionLedger ? DecisionLedger.newSessionId("snake") : null,
+    activeDecisionId: null,
   };
 
   const esc = (value) =>
@@ -274,6 +277,8 @@
         ageHours: Number.isFinite(state.sourceHealth?.ageHours) ? Number(state.sourceHealth.ageHours.toFixed(2)) : null,
       },
       leagueSnapshot: Session ? Session.sanitize(state.activeLeague || DEFAULT_LEAGUE) : (state.activeLeague || DEFAULT_LEAGUE),
+      decisionSessionId: state.decisionSessionId,
+      decisionLedger: DecisionLedger ? DecisionLedger.sessionSnapshot(state.decisionSessionId) : null,
       savedStatus: state.sessionStatus,
     };
   }
@@ -893,6 +898,10 @@
       if ($("draft-grade-score")) $("draft-grade-score").textContent = review ? `${review.gradeScore}/100 process score` : `${filled}/${total} starters filled`;
       if ($("draft-complete-title")) $("draft-complete-title").textContent = `Draft complete · ${filled}/${total} starters · ${completed.lineup.bench.length} bench`;
       if ($("draft-complete-copy")) $("draft-complete-copy").textContent = completed.valid ? "Your optimized lineup is valid. Review steals, reaches and every decision." : `Review needed: ${completed.issues.join(" · ") || "check remaining starter gaps"}.`;
+      if ($("decision-trust") && DecisionLedger) {
+        const audit = DecisionLedger.sessionSnapshot(state.decisionSessionId).summary;
+        $("decision-trust").innerHTML = `<strong>FORWARD AUDIT</strong><span class="trust-chip">${audit.captured} captured</span><span>${audit.followed}/${audit.selected} recommendations followed · ${audit.resolved} outcomes resolved</span><span>Calibration remains pending until at least 100 time-locked outcomes pass the published gates.</span>`;
+      }
       $("why").innerHTML = `${completed.valid
         ? "Optimized starting lineup is ready."
         : `Roster review: ${esc(completed.issues.join(" · ") || "check remaining starter gaps")}.`} <a href="draft-review.html">Open post-draft review &amp; replay</a>`;
@@ -928,6 +937,32 @@
       comparable,
       scenario: best.scenario,
     }) : null;
+    if (DecisionLedger && ownerForPick(nextPick) === state.slot) {
+      const record = DecisionLedger.capture({
+        sessionId: state.decisionSessionId,
+        kind: "snake",
+        decisionNumber: nextPick,
+        sourceGeneratedAt: state.intelligence?.generated_at || state.intelligence?.meta?.generated_at || null,
+        sourceProfile: state.intelProfile?.id || null,
+        sourceHealth: state.sourceHealth?.level || null,
+        league: Session ? Session.sanitize(state.activeLeague || DEFAULT_LEAGUE) : state.activeLeague,
+        context: {
+          pick: nextPick,
+          round: Math.floor(state.picks.length / state.teams) + 1,
+          teamCount: state.teams,
+          slot: state.slot,
+          strategy: state.strategy,
+          rosterBefore: teamPicks(state.slot).map((pick) => pick.key),
+        },
+        recommendation: { key: best.key, name: best.name, position: best.position, utility: numeric(best.pickUtility, best.score) },
+        predictedWinRate: wwpa?.winRateAfter ?? null,
+        predictedRange: decisionCard?.range || null,
+        wwpa: wwpa?.deltaPercentagePoints ?? null,
+        confidence: decisionCard?.trust || null,
+        comparable: comparable ? { key: comparable.player?.key, name: comparable.player?.name, position: comparable.player?.position, valueDrop: comparable.valueDrop } : null,
+      });
+      state.activeDecisionId = record.id;
+    }
     $("equity").textContent = wwpa ? `${wwpa.winRateAfter.toFixed(1)}%` : (best.contextualScore ?? best.score);
     if ($("wwpa")) $("wwpa").textContent = wwpa ? `${wwpa.deltaPercentagePoints >= 0 ? "+" : ""}${wwpa.deltaPercentagePoints.toFixed(1)} pp` : "—";
     if ($("win-range")) $("win-range").textContent = decisionCard ? `${decisionCard.range.low.toFixed(1)}–${decisionCard.range.high.toFixed(1)}%` : "—";
@@ -946,7 +981,8 @@
       `${actionFor(best, best)} · ${needLabel(best)} — ${needReason(best)}. ${wwpa ? `${wwpa.explanation} Expected weekly win rate moves from ${wwpa.winRateBefore.toFixed(1)}% to ${wwpa.winRateAfter.toFixed(1)}% (${wwpa.deltaPercentagePoints >= 0 ? "+" : ""}${wwpa.deltaPercentagePoints.toFixed(1)} pp WWPA; ${wwpa.model.toLowerCase()} inputs).` : ""} ${componentSummary(best)}. ${best.vegasComparison?.available ? `${best.vegasComparison.label}: ${best.vegasComparison.delta >= 0 ? "+" : ""}${best.vegasComparison.delta} projected points versus the fantasy model (${best.vegasComparison.books} book${best.vegasComparison.books===1?"":"s"}).` : "No complete, fresh Vegas total is available for this player."} ${best.evidence?.productionReady ? `${best.breakout?.label || "Production profile modeled"}.` : `Evidence ${best.evidence?.grade || "insufficient"}; missing ${best.evidence?.missing?.slice(0,2).join(" + ") || "production inputs"}, so no speculative breakout boost is applied.`} ${directive.directive}`;
     if ($("decision-trust") && decisionCard) {
       const reasons = decisionCard.trust.reasons.length ? decisionCard.trust.reasons.slice(0, 2).join(" · ") : "fresh complete evidence";
-      $("decision-trust").innerHTML = `<strong>MODEL CHECK</strong><span class="trust-chip ${decisionCard.trust.label.toLowerCase().replace(/\s+/g, "-")}">${esc(decisionCard.trust.label)} ${decisionCard.trust.score}/100</span><span>${esc(decisionCard.proof)}</span><span>${esc(reasons)}</span>`;
+      const audit = DecisionLedger ? DecisionLedger.sessionSnapshot(state.decisionSessionId).summary : null;
+      $("decision-trust").innerHTML = `<strong>MODEL CHECK</strong><span class="trust-chip ${decisionCard.trust.label.toLowerCase().replace(/\s+/g, "-")}">${esc(decisionCard.trust.label)} ${decisionCard.trust.score}/100</span><span>${esc(decisionCard.proof)}</span><span>${esc(reasons)}</span>${audit ? `<span>FORWARD AUDIT · ${audit.captured} captured · ${audit.resolved} resolved</span>` : ""}`;
     }
     if ($("room-impact")) $("room-impact").textContent = recommendationState.strategyImpact;
     if ($("decision-now")) $("decision-now").innerHTML = `<strong>${esc(best.scenario?.decision || actionFor(best, best))}</strong><span>${esc(best.scenario?.whyNow || needReason(best))}</span>`;
@@ -1565,6 +1601,7 @@
       const recommended = ranked.recommended?.[0] || selected;
       selection.decision = {
         capturedAt: new Date().toISOString(),
+        auditId: state.activeDecisionId,
         recommendedKey: recommended.key || player.key,
         recommendedName: recommended.name || player.name,
         recommendedUtility: numeric(recommended.pickUtility, recommended.score),
@@ -1573,6 +1610,7 @@
         selectedWeights: selected.weights,
         context: { pick, round: selection.round, strategy: state.strategy, rosterBefore: teamPicks(state.slot).map((p) => p.key) },
       };
+      if (DecisionLedger && state.activeDecisionId) DecisionLedger.markSelection(state.activeDecisionId, player.key);
     }
     state.picks.push(selection);
     state.selectedTeam = team;
@@ -1690,6 +1728,8 @@
     state.mode = $("mode").value;
     state.variance = $("variance").value;
     state.picks = [];
+    state.decisionSessionId = DecisionLedger ? DecisionLedger.newSessionId("snake") : null;
+    state.activeDecisionId = null;
     state.survivalCache.clear();
     state.selectedTeam = state.slot;
     initProfiles();

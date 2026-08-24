@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fantasyfrontoffice.app/schemas/decision_ledger.schema.json",
+  "title": "Fantasy Front Office forward decision ledger",
+  "type": "object",
+  "required": ["schemaVersion", "sessionId", "summary", "records"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "sessionId": { "type": "string", "minLength": 1 },
+    "summary": { "type": "object" },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "sessionId", "kind", "decisionNumber", "capturedAt", "timeLock", "recommendation"],
+        "properties": {
+          "id": { "type": "string" },
+          "sessionId": { "type": "string" },
+          "kind": { "enum": ["snake", "auction"] },
+          "decisionNumber": { "type": "integer", "minimum": 1 },
+          "capturedAt": { "type": "string", "format": "date-time" },
+          "sourceGeneratedAt": { "type": ["string", "null"], "format": "date-time" },
+          "timeLock": {
+            "type": "object",
+            "required": ["status", "valid"],
+            "properties": { "status": { "enum": ["LOCKED", "FAILED", "UNVERIFIED"] }, "valid": { "type": "boolean" } }
+          },
+          "recommendation": { "type": ["object", "null"] },
+          "predictedWinRate": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+          "predictedRange": { "type": ["object", "null"] },
+          "wwpa": { "type": ["number", "null"] },
+          "selectedKey": { "type": ["string", "null"] },
+          "outcome": { "type": ["object", "null"] }
+        }
+      }
+    }
+  }
+}
