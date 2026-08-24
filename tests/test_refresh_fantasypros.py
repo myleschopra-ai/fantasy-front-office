@@ -76,6 +76,31 @@ class FantasyProsRefreshTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "draftable-player minimum"):
             refresh.validate_snapshot(snapshot)
 
+    def test_partial_direct_snapshot_is_accepted_only_when_explicit(self):
+        rankings = {
+            key: [
+                {"name": f"{key} Player {index}", "rank": index + 1}
+                for index in range(refresh.PARTIAL_MINIMUM_RANKINGS[key])
+            ]
+            for key in refresh.MINIMUM_RANKINGS
+        }
+        snapshot = {
+            "season": refresh.SEASON,
+            "scoring": refresh.SCORING,
+            "rankings": rankings,
+            "projections": {
+                key: [
+                    {"name": f"{key} Projection {index}", "projected_points": 100 - index}
+                    for index in range(refresh.PARTIAL_MINIMUM_PROJECTIONS[key])
+                ]
+                for key in refresh.MINIMUM_PROJECTIONS
+            },
+        }
+        refresh.validate_snapshot(snapshot, allow_partial=True)
+        coverage = refresh.coverage_report(snapshot)
+        self.assertEqual(coverage["status"], "partial")
+        self.assertTrue(coverage["issues"])
+
     def test_compact_projection_preserves_scoring_variants_and_stats(self):
         row = refresh.compact_projection(
             {

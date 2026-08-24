@@ -5,6 +5,8 @@ on:
     paths:
       - 'js/draft-review.js'
       - 'js/draft-calibration.js'
+      - 'js/backtest-intelligence.js'
+      - 'js/decision-confidence.js'
       - 'js/auction-intelligence.js'
       - 'js/provider-contract.js'
       - 'js/draft-session.js'
@@ -12,6 +14,9 @@ on:
       - 'schemas/draft_history.schema.json'
       - 'tests/draft-review.test.js'
       - 'tests/draft-calibration.test.js'
+      - 'tests/backtest-intelligence.test.js'
+      - 'tests/decision-confidence.test.js'
+      - 'data/model_validation.json'
       - 'tests/auction-intelligence.test.js'
       - 'tests/draft-learning-e2e.mjs'
       - 'tests/provider-contract.test.js'
@@ -23,9 +28,12 @@ on:
     paths:
       - 'js/draft-review.js'
       - 'js/draft-calibration.js'
+      - 'js/backtest-intelligence.js'
+      - 'js/decision-confidence.js'
       - 'js/auction-intelligence.js'
       - 'js/provider-contract.js'
       - 'js/draft-session.js'
+      - 'data/model_validation.json'
       - 'scripts/import_draft_history.py'
       - 'schemas/draft_history.schema.json'
       - 'tests/**'
@@ -48,6 +56,8 @@ jobs:
         run: |
           node tests/draft-review.test.js
           node tests/draft-calibration.test.js
+          node tests/backtest-intelligence.test.js
+          node tests/decision-confidence.test.js
           node tests/auction-intelligence.test.js
           node tests/provider-contract.test.js
           node tests/draft-session.test.js

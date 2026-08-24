@@ -8,16 +8,34 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: fantasypros-refresh
+  cancel-in-progress: false
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Run refresh script
         env:
           FANTASYPROS_API_KEY: ${{ secrets.FANTASYPROS_API_KEY }}
+          FANTASYPROS_REFRESH_REPORT: artifacts/fantasypros-refresh-report.json
         run: python3 scripts/refresh_fantasypros.py
+
+      - name: Upload provider diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fantasypros-refresh-diagnostics-${{ github.run_id }}
+          path: artifacts/fantasypros-refresh-report.json
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Commit updated snapshot
         run: |

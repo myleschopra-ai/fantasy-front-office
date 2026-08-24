@@ -8,6 +8,7 @@
   const SleeperDraft = window.FFOSleeperDraftClient;
   const Calibration = window.FFODraftCalibration;
   const Championship = window.FFOChampionshipIntel;
+  const DecisionConfidence = window.FFODecisionConfidence;
   const $ = (id) => document.getElementById(id);
   const LS = "ffo_mock_draft_v4";
   const POSITIONS = ["QB", "RB", "WR", "TE", "K", "DST"];
@@ -41,6 +42,7 @@
     recoveryIssues: [],
     recoveredSession: false,
     sourceHealth: null,
+    modelValidation: null,
     projectionCoverage: null,
     providerSyncStatus: ProviderSync ? ProviderSync.STATUS.IDLE : "IDLE",
     providerDraftId: null,
@@ -916,12 +918,24 @@
     $("best").innerHTML =
       `<span class="player-link" data-player="${esc(best.key)}" tabindex="0">${esc(best.name)} · ${best.position}</span>`;
     const wwpa = best.wwpa;
+    const comparable = best.comparables?.[0];
+    const decisionCard = DecisionConfidence ? DecisionConfidence.snakeCard({
+      player: best,
+      evaluation: best,
+      sourceHealth: state.sourceHealth,
+      projectionCoverage: state.projectionCoverage,
+      validation: state.modelValidation,
+      comparable,
+      scenario: best.scenario,
+    }) : null;
     $("equity").textContent = wwpa ? `${wwpa.winRateAfter.toFixed(1)}%` : (best.contextualScore ?? best.score);
     if ($("wwpa")) $("wwpa").textContent = wwpa ? `${wwpa.deltaPercentagePoints >= 0 ? "+" : ""}${wwpa.deltaPercentagePoints.toFixed(1)} pp` : "—";
+    if ($("win-range")) $("win-range").textContent = decisionCard ? `${decisionCard.range.low.toFixed(1)}–${decisionCard.range.high.toFixed(1)}%` : "—";
     if ($("team-ppg")) $("team-ppg").textContent = wwpa ? wwpa.after.teamMean.toFixed(1) : "—";
     if ($("weekly-edge")) $("weekly-edge").textContent = wwpa ? `${wwpa.after.weeklyEdge >= 0 ? "+" : ""}${wwpa.after.weeklyEdge.toFixed(1)}` : "—";
     if ($("expected-record")) $("expected-record").textContent = wwpa ? `${wwpa.after.expectedWins.toFixed(1)}–${wwpa.after.expectedLosses.toFixed(1)}` : "—";
     if ($("draft-fit")) $("draft-fit").textContent = best.contextualScore ?? best.score;
+    if ($("decision-confidence")) $("decision-confidence").textContent = decisionCard ? `${decisionCard.trust.label} ${decisionCard.trust.score}` : "—";
     $("delta").textContent = formatSigned(marketDelta(best));
     $("ceiling").textContent = `T${numeric(best.tier, 99)}`;
     $("breakout").textContent = `${Math.round(numeric(best.agreement, 50))}%`;
@@ -930,7 +944,10 @@
     if ($("evidence")) $("evidence").textContent = `${best.evidence?.grade || "—"} · ${best.evidence?.score || 0}%`;
     $("why").textContent =
       `${actionFor(best, best)} · ${needLabel(best)} — ${needReason(best)}. ${wwpa ? `${wwpa.explanation} Expected weekly win rate moves from ${wwpa.winRateBefore.toFixed(1)}% to ${wwpa.winRateAfter.toFixed(1)}% (${wwpa.deltaPercentagePoints >= 0 ? "+" : ""}${wwpa.deltaPercentagePoints.toFixed(1)} pp WWPA; ${wwpa.model.toLowerCase()} inputs).` : ""} ${componentSummary(best)}. ${best.vegasComparison?.available ? `${best.vegasComparison.label}: ${best.vegasComparison.delta >= 0 ? "+" : ""}${best.vegasComparison.delta} projected points versus the fantasy model (${best.vegasComparison.books} book${best.vegasComparison.books===1?"":"s"}).` : "No complete, fresh Vegas total is available for this player."} ${best.evidence?.productionReady ? `${best.breakout?.label || "Production profile modeled"}.` : `Evidence ${best.evidence?.grade || "insufficient"}; missing ${best.evidence?.missing?.slice(0,2).join(" + ") || "production inputs"}, so no speculative breakout boost is applied.`} ${directive.directive}`;
-    const comparable = best.comparables?.[0];
+    if ($("decision-trust") && decisionCard) {
+      const reasons = decisionCard.trust.reasons.length ? decisionCard.trust.reasons.slice(0, 2).join(" · ") : "fresh complete evidence";
+      $("decision-trust").innerHTML = `<strong>MODEL CHECK</strong><span class="trust-chip ${decisionCard.trust.label.toLowerCase().replace(/\s+/g, "-")}">${esc(decisionCard.trust.label)} ${decisionCard.trust.score}/100</span><span>${esc(decisionCard.proof)}</span><span>${esc(reasons)}</span>`;
+    }
     if ($("room-impact")) $("room-impact").textContent = recommendationState.strategyImpact;
     if ($("decision-now")) $("decision-now").innerHTML = `<strong>${esc(best.scenario?.decision || actionFor(best, best))}</strong><span>${esc(best.scenario?.whyNow || needReason(best))}</span>`;
     if ($("decision-wait")) $("decision-wait").innerHTML = `<strong>${best.scenario?.expectedWaitLoss || 0} value at risk</strong><span>${esc(best.scenario?.whyWait || "No reliable fallback comparison available.")}</span>`;
@@ -1311,7 +1328,7 @@
       return slotRow(label, entry.player);
     }).join("");
     html += `<div class="ffo2-section-head" style="margin-top:14px"><strong>Starting lineup</strong><span>${lineup.starters.filter(entry => entry.player).length}/${lineup.starters.length} filled</span></div><div class="ffo2-lineup-board">${starterRows || '<div class="muted">No starter slots configured.</div>'}</div>`;
-    html += `<section class="ffo2-bench-section"><div class="ffo2-section-head"><strong>BENCH · Position-aware reserves</strong><span>${lineup.bench.length} drafted</span></div><div class="ffo2-bench-grid">${lineup.bench.map((pick) => `<div class="ffo2-bench-card player-link" data-player="${esc(pick.key)}" tabindex="0" style="cursor:pointer"><strong>${esc(pick.name)}</strong><span>${esc(pick.position)}${pick.nflTeam ? ` · ${esc(pick.nflTeam)}` : ""} · drafted ${roundPick(pick.pick)}</span></div>`).join("") || '<div class="muted">Bench empty.</div>'}</div></section>`;
+    html += `<section class="ffo2-bench-section"><div class="ffo2-section-head"><strong>Bench and reserves <span class="meta">· BENCH</span></strong><span>${lineup.bench.length} drafted · position-aware depth</span></div><div class="ffo2-bench-grid">${lineup.bench.map((pick) => `<div class="ffo2-bench-card player-link" data-player="${esc(pick.key)}" tabindex="0" style="cursor:pointer"><strong>${esc(pick.name)}</strong><span>${esc(pick.position)}${pick.nflTeam ? ` · ${esc(pick.nflTeam)}` : ""} · drafted ${roundPick(pick.pick)}</span></div>`).join("") || '<div class="muted">Bench empty.</div>'}</div></section>`;
     html += `<div class="notice" style="margin-top:10px">This simulated class never modifies the real league roster.</div>`;
     $("team-roster-view").innerHTML = html;
     $("team-select").onchange = (event) => {
@@ -1770,7 +1787,7 @@
       String(league.league_type || league.type || "").toLowerCase() ===
       "dynasty";
     $("source").textContent = "Loading consensus rankings and live market…";
-    const [intelligenceResult, marketResult, scoutingResult, fpResult, vegasResult] = await Promise.allSettled([
+    const [intelligenceResult, marketResult, scoutingResult, fpResult, vegasResult, validationResult] = await Promise.allSettled([
       fetchJson(`data/draft_intelligence.json?ts=${Date.now()}`),
       fetchJson(
         `https://api.fantasycalc.com/values/current?isDynasty=${dynasty}&numQbs=${qbs}&numTeams=${state.teams}&ppr=${ppr}`,
@@ -1778,12 +1795,14 @@
       fetchJson(`data/scouting_signals.json?ts=${Date.now()}`),
       fetchJson(`fantasypros.json?ts=${Date.now()}`),
       fetchJson(`data/vegas/consensus.json?ts=${Date.now()}`),
+      fetchJson(`data/model_validation.json?ts=${Date.now()}`),
     ]);
     if (token !== state.loadToken) return;
     state.intelligence =
       intelligenceResult.status === "fulfilled"
         ? intelligenceResult.value
         : null;
+    state.modelValidation = validationResult.status === "fulfilled" ? validationResult.value : null;
     state.sourceHealth = SourceHealth
       ? SourceHealth.assessRuntime({
           intelligence: state.intelligence,

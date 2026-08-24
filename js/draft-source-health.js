@@ -72,10 +72,21 @@
     else if (stale.length) issues.push(`${stale.length} ranking source${stale.length === 1 ? '' : 's'} stale`);
 
     const hasProfiles = data.profiles && typeof data.profiles === 'object' && Object.keys(data.profiles).length > 0;
+    const profileRows = hasProfiles ? Object.values(data.profiles) : [];
+    const projectionRows = profileRows.map((profile) => profile?.projection_coverage || profile?.projectionCoverage || {});
+    const completeProjectionProfiles = projectionRows.filter((coverage) => coverage.status === 'complete').length;
+    const minimumProjectionCoverage = projectionRows.length
+      ? Math.min(...projectionRows.map((coverage) => Number(coverage.eligible_rate ?? coverage.eligibleRate ?? 0) || 0))
+      : 0;
+    const directProjectionAssignments = projectionRows.reduce((sum, coverage) => sum + (Number(coverage.direct_players ?? coverage.directPlayers ?? 0) || 0), 0);
+    const openModelProjectionAssignments = projectionRows.reduce((sum, coverage) => sum + (Number(coverage.open_model_players ?? coverage.openModelPlayers ?? 0) || 0), 0);
     let level = rootFreshness.level;
     if (!hasProfiles) {
       level = LEVELS.UNAVAILABLE;
       issues.push('Consensus dataset contains no usable profiles');
+    } else if (projectionRows.length && completeProjectionProfiles < projectionRows.length) {
+      issues.push(`${projectionRows.length - completeProjectionProfiles} projection profile${projectionRows.length - completeProjectionProfiles === 1 ? '' : 's'} incomplete`);
+      if (level === LEVELS.FRESH) level = LEVELS.DEGRADED;
     } else if (level === LEVELS.FRESH && (failed.length || stale.length || expired.length)) {
       level = LEVELS.DEGRADED;
     }
@@ -89,6 +100,11 @@
       sources,
       healthySources: sources.filter((source) => source.ok && source.level === LEVELS.FRESH).length,
       totalSources: sources.length,
+      projectionProfiles: projectionRows.length,
+      completeProjectionProfiles,
+      minimumProjectionCoverage,
+      directProjectionAssignments,
+      openModelProjectionAssignments,
     };
   }
 
@@ -132,7 +148,10 @@
     if (!report) return 'SOURCE UNKNOWN';
     const age = Number.isFinite(report.ageHours) ? ` · ${report.ageHours.toFixed(1)}h old` : '';
     const coverage = report.totalSources ? ` · ${report.healthySources}/${report.totalSources} fresh sources` : '';
-    return `${report.level}${age}${coverage}`;
+    const projections = report.projectionProfiles
+      ? ` · ${report.completeProjectionProfiles}/${report.projectionProfiles} projection profiles`
+      : '';
+    return `${report.level}${age}${coverage}${projections}`;
   }
 
   return {

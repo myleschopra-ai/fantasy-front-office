@@ -155,6 +155,23 @@ class DraftIntelligenceBuilderTests(unittest.TestCase):
         self.assertEqual(coverage["direct_players"], 0)
         self.assertEqual(coverage["open_model_players"], len(players))
 
+    def test_quality_contract_can_distinguish_direct_and_open_model_depth(self):
+        players = []
+        for position, minimum in builder.DRAFTABLE_PROJECTION_MINIMUMS.items():
+            for index in range(minimum):
+                players.append({
+                    "name": f"{position} Player {index}",
+                    "position": position,
+                    "overall_rank": len(players) + 1,
+                    "projected_points": 250 - index,
+                    "projection_mode": "DIRECT_PROJECTION" if index < 10 else "OPEN_MODEL_PROJECTION",
+                })
+        coverage = builder.projection_coverage(players)
+        self.assertEqual(coverage["status"], "complete")
+        self.assertGreater(coverage["direct_players"], 0)
+        self.assertGreater(coverage["open_model_players"], 0)
+        self.assertEqual(coverage["eligible_rate"], 1)
+
     def test_sleeper_candidates_fill_and_survive_positional_pool_floor(self):
         players = []
         candidates = []

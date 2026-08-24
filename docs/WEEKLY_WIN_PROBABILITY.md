@@ -143,3 +143,20 @@ Before labeling WWPA as empirically superior, replay at least two historical sea
 6. Reject any experiment with future-data leakage.
 
 Success requires repeatable average improvement—not the best simulated season—across both snake and auction formats.
+
+## Decision confidence and promotion contract
+
+The live rooms now display a confidence grade and a win-rate range beside the point estimate. The grade combines source freshness, complete draftable-player projection coverage, player-level evidence, and the published model-validation state in `data/model_validation.json`.
+
+The range is deliberately wider when direct projection coverage is partial, the open model supplies more of the pool, player evidence is thin, or WWPA calibration is pending. It is an uncertainty disclosure, not a confidence interval manufactured from unavailable historical observations.
+
+The reusable backtest layer now calculates Brier score, calibration buckets, expected calibration error, paired outcome deltas, confidence intervals, and time-lock violations. WWPA remains labeled `estimated` until a holdout contains at least 100 time-locked probability decisions, expected calibration error is at most five percentage points, and the paired scoring interval is positive. Auction price calibration remains `limited` until at least two seasons of matched league purchases are supplied.
+
+The live decision contract is:
+
+1. Recommendation and ADP best available stay separate.
+2. `Why now` must identify roster, tier, scarcity, or survival pressure.
+3. `If you wait` must identify the next comparable player and expected value loss.
+4. Auction advice must show both `bid through` and `walk away` prices.
+5. The interface must disclose whether the probability is calibrated or estimated.
+6. No backtest may pass promotion when an input timestamp occurs after its decision boundary.

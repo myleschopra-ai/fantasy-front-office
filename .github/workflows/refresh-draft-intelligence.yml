@@ -5,8 +5,12 @@ on:
   push:
     branches: [main]
     paths:
+      - "fantasypros.json"
       - "scripts/build_draft_intelligence.py"
       - "scripts/validate_draft_intelligence.py"
+      - "scripts/open_projection_engine.py"
+      - "scripts/collectors/nflverse.py"
+      - "scripts/collectors/sleeper_players.py"
       - "config/coaching_sources.json"
       - ".github/workflows/refresh-draft-intelligence.yml"
   schedule:
@@ -23,24 +27,41 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install pinned data dependencies
-        run: python -m pip install nflreadpy==0.1.5 beautifulsoup4==4.13.4
+        run: python -m pip install -r requirements-data.txt beautifulsoup4==4.13.4
       - name: Run model and parser regression tests
         run: |
           node tests/draft-intelligence.test.js
           python -m unittest discover -s tests
       - name: Select the current draft season
         run: echo "NFL_SEASON=$(date -u +%Y)" >> "$GITHUB_ENV"
+      - name: Collect time-locked open projection inputs
+        shell: bash
+        run: |
+          python scripts/collectors/nflverse.py \
+            --seasons "$((NFL_SEASON-3))" "$((NFL_SEASON-2))" "$((NFL_SEASON-1))" \
+            --datasets seasonal_stats snap_counts injuries depth_charts ff_opportunity
+          python scripts/collectors/sleeper_players.py
       - name: Build ranking, tier, and scheme-fit snapshot
         run: python scripts/build_draft_intelligence.py --season "$NFL_SEASON" --teams 12
       - name: Validate snapshot before publishing
-        run: python scripts/validate_draft_intelligence.py data/draft_intelligence.json
+        run: python scripts/validate_draft_intelligence.py data/draft_intelligence.json --report artifacts/draft-intelligence-validation.json
+      - name: Upload collection and validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: draft-intelligence-evidence-${{ github.run_id }}
+          path: |
+            artifacts/draft-intelligence-validation.json
+            data/raw/nflverse/manifest.json
+          if-no-files-found: warn
+          retention-days: 14
       - name: Commit a changed verified snapshot
         run: |
           if git diff --quiet -- data/draft_intelligence.json; then
