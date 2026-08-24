@@ -1126,7 +1126,14 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
         "https://www.fantasypros.com/api-data/",
         "ok" if projection_count >= sum(DRAFTABLE_PROJECTION_MINIMUMS.values()) else "incomplete",
         projection_count,
-        None if projection_count else "No usable season projections in repository snapshot",
+        None
+        if projection_count >= sum(DRAFTABLE_PROJECTION_MINIMUMS.values())
+        else (
+            f"Direct provider coverage is partial ({projection_count} players); "
+            "open-model projections must complete the validated draftable pool"
+            if projection_count
+            else "No usable season projections in repository snapshot"
+        ),
     )
     sources["open_nflverse_model"] = source_meta(
         "open_nflverse_model",
@@ -1241,6 +1248,11 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
         time.sleep(0.25)
 
     healthy = [source for source in sources.values() if source["status"] == "ok"]
+    coverage_rows = [profile.get("projection_coverage") or {} for profile in profiles.values()]
+    complete_profiles = sum(coverage.get("status") == "complete" for coverage in coverage_rows)
+    eligible_rates = [float(coverage.get("eligible_rate") or 0) for coverage in coverage_rows]
+    direct_players = sum(int(coverage.get("direct_players") or 0) for coverage in coverage_rows)
+    modeled_players = sum(int(coverage.get("open_model_players") or 0) for coverage in coverage_rows)
     return {
         "schema_version": 1,
         "generated_at": generated_at,
@@ -1249,6 +1261,17 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
         "sources": list(sources.values()),
         "profiles": profiles,
         "team_profiles": team_profiles,
+        "quality": {
+            "status": "publishable" if complete_profiles == len(profiles) and len(healthy) >= 2 else "degraded",
+            "complete_projection_profiles": complete_profiles,
+            "required_projection_profiles": len(profiles),
+            "minimum_projection_coverage": round(min(eligible_rates), 3) if eligible_rates else 0,
+            "direct_projection_assignments": direct_players,
+            "open_model_projection_assignments": modeled_players,
+            "healthy_sources": len(healthy),
+            "total_sources": len(sources),
+            "confidence_policy": "Direct and open-model projections remain separately labeled; incomplete profiles cannot be published.",
+        },
         "methodology": {
             "rank_fusion": "Source-weighted percentile rank fusion; available-source weights are renormalized per player.",
             "tiers": "Position-specific score-gap detection using median absolute deviation; no fixed player counts per tier.",

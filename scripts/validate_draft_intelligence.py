@@ -128,12 +128,51 @@ def validate(path: Path, max_age_days: int = 7) -> list[str]:
     return errors
 
 
+def build_report(path: Path, errors: list[str], max_age_days: int) -> dict:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        payload = {}
+    profiles = payload.get("profiles") or {}
+    coverage = {
+        profile_id: {
+            "status": (profile.get("projection_coverage") or {}).get("status", "missing"),
+            "eligible_rate": (profile.get("projection_coverage") or {}).get("eligible_rate", 0),
+            "direct_players": (profile.get("projection_coverage") or {}).get("direct_players", 0),
+            "open_model_players": (profile.get("projection_coverage") or {}).get("open_model_players", 0),
+        }
+        for profile_id, profile in profiles.items()
+    }
+    sources = payload.get("sources") or []
+    return {
+        "schema_version": 1,
+        "validated_at": datetime.now(timezone.utc).isoformat(),
+        "status": "passed" if not errors else "failed",
+        "path": str(path),
+        "snapshot_generated_at": payload.get("generated_at"),
+        "season": payload.get("season"),
+        "max_age_days": max_age_days,
+        "errors": errors,
+        "source_summary": {
+            "total": len(sources),
+            "healthy": sum(1 for source in sources if source.get("status") == "ok"),
+            "failed": [source.get("id") for source in sources if source.get("status") not in {"ok", "ready", "success"}],
+        },
+        "projection_coverage": coverage,
+        "team_profiles": len(payload.get("team_profiles") or {}),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("path", nargs="?", type=Path, default=Path("data/draft_intelligence.json"))
     parser.add_argument("--max-age-days", type=int, default=7)
+    parser.add_argument("--report", type=Path)
     args = parser.parse_args()
     errors = validate(args.path, args.max_age_days)
+    if args.report:
+        args.report.parent.mkdir(parents=True, exist_ok=True)
+        args.report.write_text(json.dumps(build_report(args.path, errors, args.max_age_days), indent=2) + "\n", encoding="utf-8")
     if errors:
         print("Draft intelligence validation failed:", file=sys.stderr)
         for error in errors:
