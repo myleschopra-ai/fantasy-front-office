@@ -3,13 +3,13 @@
   window.FFOAuctionRoomV2 = true;
 
   const $ = (id) => document.getElementById(id);
-  const A = window.FFOAuction, M = window.FFOAuctionMock, D = window.FFODraftIntelligence;
+  const A = window.FFOAuction, M = window.FFOAuctionMock, D = window.FFODraftIntelligence, DecisionConfidence = window.FFODecisionConfidence;
   const Session = window.FFODraftSession, SourceHealth = window.FFODraftSourceHealth;
   const HISTORY_KEY = 'ffo_auction_history_v2', SESSION_KEY = 'ffo_auction_session_v4';
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[char]));
   const money = (value) => `$${Math.max(0, Math.round(Number(value) || 0))}`;
   const numeric = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
-  const state = { intelligence:null, sourceHealth:null, projectionCoverage:null, league:null, profile:null, players:[], priceRows:new Map(), auction:null, selectedKey:null, history:null, model:null, pendingRestore:null, clockTimer:null };
+  const state = { intelligence:null, sourceHealth:null, projectionCoverage:null, modelValidation:null, league:null, profile:null, players:[], priceRows:new Map(), auction:null, selectedKey:null, history:null, model:null, pendingRestore:null, clockTimer:null };
 
   function defaultLeague() {
     return { name:'12-team Half-PPR Auction', league_type:'redraft', teams:12, scoring:{ reception:.5, pass_td:4, te_premium:0 }, roster:{ QB:1,RB:2,WR:2,TE:1,FLEX:2,SUPER_FLEX:0,WRRB_FLEX:0,REC_FLEX:0,K:1,DST:1,BENCH:6 }, draft:{ format:'auction',budget:200,minimum_bid:1 } };
@@ -162,13 +162,14 @@
 
   function renderValuation() {
     const player=selectedPlayer();
-    if(!player){$('selected').textContent='Select a player from the board.';['intrinsic','leagueprice','currentbid','maxbid','auctionWwpa','auctionWinRate','surplus','pointgain'].forEach((id)=>$(id).textContent='—');$('decision').textContent='';$('nomination').textContent='';$('why').textContent='';if($('auctionComparable'))$('auctionComparable').textContent='Select a player to compare the next option.';return}
+    if(!player){$('selected').textContent='Select a player from the board.';['intrinsic','leagueprice','currentbid','maxbid','auctionWalkAway','auctionWwpa','auctionWinRate','auctionWinRange','auctionConfidence','surplus','pointgain'].forEach((id)=>$(id).textContent='—');$('decision').textContent='';$('nomination').textContent='';$('why').textContent='';if($('auctionComparable'))$('auctionComparable').textContent='Select a player to compare the next option.';return}
     const a=userAnalysis(player),range=a.range.confidence==='UNMODELED'?money(a.expected):`${money(a.expected)} · ${money(range.low)}–${money(range.high)}`;
     $('selected').innerHTML=`<strong>${esc(player.name)}</strong> · ${esc(player.position)}<br><span class="meta">Consensus ${numeric(player.overallRank,player.rank)} · League Value ${numeric(a.draft.leagueValue).toFixed(1)} · ${a.scarcity.remainingSupply} remain</span>`;
-    const wwpa=a.draft.wwpa;$('intrinsic').textContent=money(a.intrinsic);$('leagueprice').textContent=range;$('currentbid').textContent=money(a.current);$('maxbid').textContent=money(a.maxBid);$('auctionWwpa').textContent=wwpa?`${wwpa.deltaPercentagePoints>=0?'+':''}${wwpa.deltaPercentagePoints.toFixed(1)} pp`:'—';$('auctionWwpa').className=wwpa&&wwpa.deltaPercentagePoints>0?'good':'';$('auctionWinRate').textContent=wwpa?`${wwpa.winRateAfter.toFixed(1)}%`:'—';$('surplus').textContent=`${a.surplus>=0?'+':''}${money(a.surplus)}`;$('surplus').className=a.surplus>=0?'good':'risk';$('pointgain').textContent=a.pointGain>0?`+${a.pointGain.toFixed(1)}`:'Depth';$('decision').textContent=a.recommendation;
+    const wwpa=a.draft.wwpa,decisionCard=DecisionConfidence?DecisionConfidence.auctionCard({evaluation:a,sourceHealth:state.sourceHealth,projectionCoverage:state.projectionCoverage,validation:state.modelValidation,minBid:state.auction.config.minBid}):null;$('intrinsic').textContent=money(a.intrinsic);$('leagueprice').textContent=range;$('currentbid').textContent=money(a.current);$('maxbid').textContent=money(decisionCard?.bidThrough??a.maxBid);$('auctionWalkAway').textContent=decisionCard?money(decisionCard.walkAway):money(a.maxBid+state.auction.config.minBid);$('auctionWwpa').textContent=wwpa?`${wwpa.deltaPercentagePoints>=0?'+':''}${wwpa.deltaPercentagePoints.toFixed(1)} pp`:'—';$('auctionWwpa').className=wwpa&&wwpa.deltaPercentagePoints>0?'good':'';$('auctionWinRate').textContent=wwpa?`${wwpa.winRateAfter.toFixed(1)}%`:'—';$('auctionWinRange').textContent=decisionCard?`${decisionCard.range.low.toFixed(1)}–${decisionCard.range.high.toFixed(1)}%`:'—';$('auctionConfidence').textContent=decisionCard?`${decisionCard.trust.label} ${decisionCard.trust.score}`:'—';$('surplus').textContent=`${a.surplus>=0?'+':''}${money(a.surplus)}`;$('surplus').className=a.surplus>=0?'good':'risk';$('pointgain').textContent=a.pointGain>0?`+${a.pointGain.toFixed(1)}`:'Depth';$('decision').textContent=a.recommendation;
     $('nomination').textContent=`${a.bidAdvice} · ${a.current>=a.maxBid?'Ceiling reached':`${money(a.dollarsToCeiling)} left to ceiling`}.`;
     const alternativeWwpa=a.nextComparable?D.weeklyWinProbabilityAdded(a.nextComparable.player,contextFor(state.auction.teams[state.auction.userTeamId].roster,state.auction.league,M.availablePlayers(state.auction).length)):null;
     if($('auctionComparable'))$('auctionComparable').innerHTML=a.nextComparable?`<strong>${esc(a.nextComparable.player.name)} · ${esc(a.nextComparable.player.position)}</strong><span>${a.nextComparable.sameTier?'Same tier':'Next tier'} · saves about ${money(Math.max(0,a.current-a.nextComparable.price))} · ${money(a.nextComparable.price)} format value${alternativeWwpa?` · ${alternativeWwpa.deltaPercentagePoints>=0?'+':''}${alternativeWwpa.deltaPercentagePoints.toFixed(1)} pp WWPA`:''}</span>`:'<strong>No close substitute</strong><span>The position falls off sharply after this player.</span>';
+    if($('auctionDecisionProof')&&decisionCard){const reasons=decisionCard.trust.reasons.length?decisionCard.trust.reasons.slice(0,2).join(' · '):'fresh complete evidence';$('auctionDecisionProof').innerHTML=`<strong>MODEL CHECK · ${esc(decisionCard.trust.label)} ${decisionCard.trust.score}/100</strong><div class="auction-trust-line"><span>${esc(decisionCard.proof)}</span><span>${esc(reasons)}</span><span>Bid through ${money(decisionCard.bidThrough)} · walk at ${money(decisionCard.walkAway)}</span></div>`;}
     $('why').textContent=`Format value reflects ${state.auction.league.teams} teams and ${formatLabel(state.auction.league)}. ${wwpa?`Acquisition changes expected weekly H2H win rate from ${wwpa.winRateBefore.toFixed(1)}% to ${wwpa.winRateAfter.toFixed(1)}% (${wwpa.deltaPercentagePoints>=0?'+':''}${wwpa.deltaPercentagePoints.toFixed(1)} pp WWPA) and adds ${wwpa.weeklyStarterPointsAdded.toFixed(1)} usable PPG. `:''}Roster need ${Math.round(a.need)}/100; scarcity ${Math.round(a.scarcity.scarcity)}/100; room ${roomInflation().toFixed(2)}×. Price confidence ${a.priceConfidence.toLowerCase()} (${a.priceEvidence} matched position/tier observations); ${a.priceConfidence==='UNMODELED'?'premium capped at 12% above format value until league evidence exists. ':''}Maximum bid preserves ${Math.max(0,state.auction.teams[state.auction.userTeamId].slotsLeft-1)} future minimum bids.`;
     if(!$('currentPrice').dataset.manual)$('currentPrice').value=Math.max(state.auction.config.minBid,Math.round(a.expected));
   }
@@ -216,7 +217,23 @@
     document.addEventListener('ffo:league-changed',(event)=>{if(state.auction?.purchases?.length)return;state.league=event.detail||defaultLeague();applyLeagueInputs(state.league);if(state.intelligence)newAuction({preserveSelection:true})});
   }
 
-  async function boot(){try{state.intelligence=await fetch('data/draft_intelligence.json',{cache:'no-store'}).then((response)=>{if(!response.ok)throw new Error(response.status);return response.json()});state.sourceHealth=SourceHealth?SourceHealth.assessRuntime({intelligence:state.intelligence,marketOk:true,scoutingOk:true,newsOk:true}):null;try{const savedHistory=JSON.parse(localStorage.getItem(HISTORY_KEY)||'null');if(savedHistory){state.history=savedHistory;state.model=A.leagueModel(savedHistory,{budget:inputNumber('budget',200)});state.model.backtest=A.calibrationBacktest(savedHistory,{budget:inputNumber('budget',200)});$('history').value=JSON.stringify(savedHistory,null,2);$('history-status').textContent=`Loaded ${state.model.rows} historical purchases from this browser.`}}catch{}let handoff=null;try{if(new URLSearchParams(location.search).get('from')==='mock-draft')handoff=JSON.parse(localStorage.getItem('ffo_mock_draft_handoff_v1')||'null')}catch{}if(handoff?.league){state.league={...handoff.league,teams:handoff.teams||handoff.league.teams,draft:{...(handoff.league.draft||{}),format:'auction',budget:handoff.league.draft?.budget||200,minimum_bid:handoff.league.draft?.minimum_bid||1}};localStorage.removeItem('ffo_mock_draft_handoff_v1');applyLeagueInputs(state.league);newAuction()}else{const payload=loadSaved();if(!restoreSaved(payload)){state.league=window.FFO_ACTIVE_LEAGUE||defaultLeague();applyLeagueInputs(state.league);newAuction()}}render();}catch(error){showError(`Auction data could not load: ${error.message}`)}}
+  async function boot(){
+    try{
+      const [intelligenceResponse,validationResponse]=await Promise.all([
+        fetch('data/draft_intelligence.json',{cache:'no-store'}),
+        fetch('data/model_validation.json',{cache:'no-store'}),
+      ]);
+      if(!intelligenceResponse.ok)throw new Error(intelligenceResponse.status);
+      state.intelligence=await intelligenceResponse.json();
+      state.modelValidation=validationResponse.ok?await validationResponse.json():null;
+      state.sourceHealth=SourceHealth?SourceHealth.assessRuntime({intelligence:state.intelligence,marketOk:true,scoutingOk:true,newsOk:true}):null;
+      try{const savedHistory=JSON.parse(localStorage.getItem(HISTORY_KEY)||'null');if(savedHistory){state.history=savedHistory;state.model=A.leagueModel(savedHistory,{budget:inputNumber('budget',200)});state.model.backtest=A.calibrationBacktest(savedHistory,{budget:inputNumber('budget',200)});$('history').value=JSON.stringify(savedHistory,null,2);$('history-status').textContent=`Loaded ${state.model.rows} historical purchases from this browser.`}}catch{}
+      let handoff=null;try{if(new URLSearchParams(location.search).get('from')==='mock-draft')handoff=JSON.parse(localStorage.getItem('ffo_mock_draft_handoff_v1')||'null')}catch{}
+      if(handoff?.league){state.league={...handoff.league,teams:handoff.teams||handoff.league.teams,draft:{...(handoff.league.draft||{}),format:'auction',budget:handoff.league.draft?.budget||200,minimum_bid:handoff.league.draft?.minimum_bid||1}};localStorage.removeItem('ffo_mock_draft_handoff_v1');applyLeagueInputs(state.league);newAuction()}
+      else{const payload=loadSaved();if(!restoreSaved(payload)){state.league=window.FFO_ACTIVE_LEAGUE||defaultLeague();applyLeagueInputs(state.league);newAuction()}}
+      render();
+    }catch(error){showError(`Auction data could not load: ${error.message}`)}
+  }
 
   bind();boot();
 }());

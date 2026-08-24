@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-24T00:00:00Z",
+  "status": "research",
+  "components": {
+    "draft_policy": {
+      "status": "historically_backtested",
+      "calibration_status": "points-outcome validated",
+      "sample_size": 192,
+      "evidence": "Paired 2024-2025 snake and auction replay against need-aware baselines.",
+      "report": "data/backtests/redraft-mock-validation-strong/report.json"
+    },
+    "wwpa": {
+      "status": "estimated",
+      "calibration_status": "pending",
+      "sample_size": 0,
+      "expected_calibration_error": null,
+      "evidence": "Deterministic probability and lineup tests pass; leakage-free weekly probability replay is required before promotion."
+    },
+    "auction": {
+      "status": "historically_backtested",
+      "calibration_status": "limited",
+      "sample_size": 192,
+      "expected_calibration_error": null,
+      "evidence": "Roster and budget policy beat need-aware baselines; league-specific clearing prices require two seasons of actual purchases."
+    }
+  },
+  "promotion_gates": {
+    "time_lock_required": true,
+    "minimum_probability_decisions": 100,
+    "maximum_expected_calibration_error": 0.05,
+    "positive_paired_ci_required": true,
+    "maximum_core_format_regression": 0.005
+  },
+  "disclosure": "Historical evidence measures simulated policy performance and does not guarantee championships or future win rate."
+}

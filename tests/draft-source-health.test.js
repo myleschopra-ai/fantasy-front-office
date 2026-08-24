@@ -4,7 +4,7 @@ const H = require('../js/draft-source-health.js');
 const now = Date.parse('2026-08-11T23:10:00Z');
 const base = {
   generated_at: '2026-08-11T18:21:13Z',
-  profiles: { redraft_1qb_half: { players: [] } },
+  profiles: { redraft_1qb_half: { players: [], projection_coverage: { status: 'complete', eligible_rate: 1, direct_players: 40, open_model_players: 200 } } },
   sources: [
     { id: 'fp', label: 'FantasyPros', status: 'ok', retrieved_at: '2026-08-11T18:21:16Z', record_count: 100 },
     { id: 'fc', label: 'FantasyCalc', status: 'ok', retrieved_at: '2026-08-11T18:21:36Z', record_count: 100 },
@@ -18,6 +18,16 @@ const base = {
   assert.equal(r.healthySources, 2);
   assert.ok(r.ageHours > 4 && r.ageHours < 6);
   assert.equal(H.confidencePenalty(r), 0);
+  assert.equal(r.completeProjectionProfiles, 1);
+  assert.equal(r.minimumProjectionCoverage, 1);
+  assert.ok(H.label(r).includes('1/1 projection profiles'));
+}
+
+{
+  const incomplete = { ...base, profiles: { redraft_1qb_half: { players: [], projection_coverage: { status: 'incomplete', eligible_rate: .71 } } } };
+  const r = H.assessIntelligence(incomplete, { now });
+  assert.equal(r.level, H.LEVELS.DEGRADED);
+  assert.ok(r.issues.some(x => x.includes('projection profile')));
 }
 
 {
