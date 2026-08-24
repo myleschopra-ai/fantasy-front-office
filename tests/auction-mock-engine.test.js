@@ -25,6 +25,12 @@ assert.equal(M.assignRoster(tooManyQbs, l).valid, true, 'QB plus bench capacity 
 assert.equal(M.canRoster(tooManyQbs, { key:'q5', position:'QB' }, l), false, 'position hoarding cannot consume reserved non-QB slots');
 
 let state = stateFor(l);
+const mappedPlayer = state.players[0];
+const mappedKey = M.keyOf(mappedPlayer);
+let mappedState = { ...state, expectedPriceMap:{ [mappedKey]:99 }, expectedPriceMapSales:0 };
+assert.equal(M.expectedPrice(mappedState,mappedPlayer),99,'a current room price map should remain authoritative');
+mappedState = { ...mappedState,purchases:[{player:mappedPlayer,price:10,intrinsicPrice:8}],leagueModel:FFOAuction.adaptiveLeagueModel(null,[{player:mappedPlayer,price:10,intrinsicPrice:8}]) };
+assert.notEqual(M.expectedPrice(mappedState,mappedPlayer),99,'a stale room price map must fall through to the newly learned model during bulk simulation');
 state = M.simulateComplete(state);
 const validation = M.validateState(state, { requireComplete:true });
 assert.equal(validation.valid, true, validation.issues.join(' | '));

@@ -8,6 +8,7 @@ on:
       - 'js/auction-intelligence.js'
       - 'js/auction-mock-engine.js'
       - 'js/auction-room.js'
+      - 'js/decision-ledger.js'
       - 'js/backtest-intelligence.js'
       - 'js/draft-intelligence.js'
       - 'js/mock-draft-v4.js'
@@ -22,9 +23,12 @@ on:
       - 'scripts/validate_live_draft_board_v2.js'
       - 'scripts/validate_live_auction_board.js'
       - 'scripts/validate_auction_mock_formats.js'
+      - 'scripts/reconcile_wwpa_decisions.py'
       - 'tests/draft-intelligence.test.js'
       - 'tests/auction-intelligence.test.js'
       - 'tests/auction-mock-engine.test.js'
+      - 'tests/decision-ledger.test.js'
+      - 'tests/test_reconcile_wwpa_decisions.py'
       - 'tests/backtest-intelligence.test.js'
       - '.github/workflows/validate-live-draft-intelligence.yml'
   workflow_dispatch:
@@ -65,6 +69,9 @@ jobs:
 
       - name: Run hardened backtest metric tests
         run: node tests/backtest-intelligence.test.js
+
+      - name: Run forward decision ledger contract tests
+        run: node tests/decision-ledger.test.js
 
       - name: Run Python regression tests
         run: python -m unittest discover -s tests

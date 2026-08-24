@@ -108,6 +108,67 @@
     return ((numeric(observed, prior) * numeric(n, 0)) + (prior * k)) / (numeric(n, 0) + k);
   }
 
+  function liveAuctionPulse(purchases, { budget = 200 } = {}) {
+    const observations = (purchases || []).map((purchase, index) => {
+      const player = purchase.player || purchase;
+      const price = Math.max(0, numeric(purchase.price, 0));
+      const baseline = Math.max(0, numeric(purchase.intrinsicPrice ?? purchase.generic_aav ?? player.intrinsicPrice, 0));
+      if (!(price > 0) || !(baseline > 0)) return null;
+      return {
+        index,
+        position: String(player.position || purchase.position || '').toUpperCase(),
+        tier: auctionTier(player),
+        ratio: clamp(price / baseline, .55, 1.65),
+        error: price - baseline,
+      };
+    }).filter(Boolean);
+    const summarizeLive = (rows, priorWeight) => {
+      if (!rows.length) return null;
+      const newest = Math.max(...rows.map((row) => row.index));
+      const weighted = rows.map((row) => ({ ...row, weight: .94 ** (newest - row.index) }));
+      const weight = sum(weighted.map((row) => row.weight));
+      const observed = sum(weighted.map((row) => row.ratio * row.weight)) / Math.max(.01, weight);
+      const lowObserved = quantile(rows.map((row) => row.ratio), .2);
+      const highObserved = quantile(rows.map((row) => row.ratio), .8);
+      const n = rows.length;
+      return {
+        n,
+        ratio: clamp(shrink(observed, n, 1, priorWeight), .85, 1.18),
+        median_ratio: clamp(shrink(observed, n, 1, priorWeight), .85, 1.18),
+        low_ratio: clamp(shrink(lowObserved, n, 1, priorWeight), .78, 1.18),
+        high_ratio: clamp(shrink(highObserved, n, 1, priorWeight), .85, 1.24),
+        mae: mean(rows.map((row) => Math.abs(row.error))),
+        rmse: Math.sqrt(mean(rows.map((row) => row.error ** 2))),
+        confidence: n >= 20 ? 'STRONG' : n >= 8 ? 'ACTIVE' : n >= 3 ? 'LEARNING' : 'COLD',
+      };
+    };
+    const byPosition = {};
+    observations.forEach((row) => {
+      if (row.position) (byPosition[row.position] ||= []).push(row);
+    });
+    const overall = summarizeLive(observations, 10);
+    const position = Object.fromEntries(Object.entries(byPosition).map(([key, rows]) => [key, summarizeLive(rows, 6)]));
+    const n = observations.length;
+    return {
+      status: n >= 20 ? 'STRONG' : n >= 8 ? 'ACTIVE' : n >= 3 ? 'LEARNING' : 'COLD',
+      active: n >= 3,
+      samples: n,
+      budget,
+      overall,
+      position,
+      safeguards: { minimumSamples: 3, globalRatioFloor: .85, globalRatioCeiling: 1.18, priorWeight: 10 },
+    };
+  }
+
+  function adaptiveLeagueModel(history, livePurchases = [], options = {}) {
+    const historical = leagueModel(history || { seasons: [] }, options);
+    return {
+      ...historical,
+      live: liveAuctionPulse(livePurchases, options),
+      evidence: { historicalMatchedSales: historical.matchedRows, liveRoomSales: (livePurchases || []).length },
+    };
+  }
+
   function maximumLegalBid({ remainingBudget, slotsLeft, minBid = 1 }) {
     const budget = Math.max(0, numeric(remainingBudget, 0));
     const slots = Math.max(1, Math.round(numeric(slotsLeft, 1)));
@@ -286,6 +347,9 @@
     if (positionModel) { const n = numeric(positionModel.n, 0), observed = numeric(positionModel.median_ratio ?? positionModel.ratio, 1); ratio += (observed - 1) * clamp(n / 16, 0, 0.45); evidence += n; }
     if (tierModel) { const n = numeric(tierModel.n, 0), observed = numeric(tierModel.median_ratio ?? tierModel.ratio, 1); ratio += (observed - 1) * clamp(n / 12, 0, 0.55); evidence += n; }
     ratio = shrink(ratio, evidence, 1, 8);
+    const livePosition = model?.live?.position?.[pos];
+    const liveGroup = model?.live?.active && numeric(livePosition?.n, 0) >= 2 ? livePosition : model?.live?.active ? model.live.overall : null;
+    if (liveGroup) ratio *= clamp(numeric(liveGroup.median_ratio ?? liveGroup.ratio, 1), .85, 1.18);
     const bidderPressure = 1 + Math.min(0.12, Math.max(0, numeric(capableBidders, 1) - 1) * 0.012);
     return Math.max(1, Math.round(baseline * ratio * clamp(currentInflation, 0.65, 1.55) * bidderPressure * 10) / 10);
   }
@@ -294,7 +358,9 @@
     const expected = expectedLeaguePrice(options);
     const pos = String(options.position || '').toUpperCase();
     const tierNo = numeric(options.tier, auctionTier(options.rank));
-    const groups = [options.model?.position?.[pos], options.model?.tier?.[`${pos}:${tierNo}`]].filter(Boolean);
+    const livePosition = options.model?.live?.position?.[pos];
+    const liveGroup = options.model?.live?.active && numeric(livePosition?.n, 0) >= 2 ? livePosition : options.model?.live?.active ? options.model.live.overall : null;
+    const groups = [options.model?.position?.[pos], options.model?.tier?.[`${pos}:${tierNo}`], liveGroup].filter(Boolean);
     const evidence = groups.reduce((sum, group) => sum + numeric(group.n, 0), 0);
     if (!groups.length || evidence < 3) return { expected, low: expected, high: expected, confidence: 'UNMODELED', evidence, mae: null };
     const weighted = (field, fallback) => groups.reduce((sum, group) => sum + numeric(group[field], fallback) * numeric(group.n, 0), 0) / evidence;
@@ -420,8 +486,12 @@
     const rawBidCap = maxBid({ intrinsicPrice, remainingBudget: teamState.remainingBudget, slotsLeft: teamState.slotsLeft, minBid, need: decisionNeed, scarcity, tierUrgency, upside, redundancy });
     const positionEvidence = numeric(teamState.leagueModel?.position?.[String(player.position || '').toUpperCase()]?.n, 0);
     const tierEvidence = numeric(teamState.leagueModel?.tier?.[`${String(player.position || '').toUpperCase()}:${numeric(player.tier, auctionTier(player.overallRank ?? player.rank))}`]?.n, 0);
-    const priceEvidence = positionEvidence + tierEvidence;
-    const premiumCap = priceEvidence >= 12 ? .21 : priceEvidence >= 3 ? .16 : .12;
+    const historicalPriceEvidence = positionEvidence + tierEvidence;
+    const livePositionEvidence = numeric(teamState.leagueModel?.live?.position?.[String(player.position || '').toUpperCase()]?.n, 0);
+    const livePriceEvidence = teamState.leagueModel?.live?.active ? (livePositionEvidence >= 2 ? livePositionEvidence : numeric(teamState.leagueModel?.live?.samples, 0)) : 0;
+    const priceEvidence = historicalPriceEvidence + livePriceEvidence;
+    const historicallyCalibrated = Boolean(teamState.leagueModel?.backtest?.sufficient) && historicalPriceEvidence >= 12;
+    const premiumCap = historicallyCalibrated ? .21 : livePriceEvidence >= 3 || historicalPriceEvidence >= 3 ? .16 : .12;
     const evidenceCap = Math.max(minBid, Math.round(numeric(intrinsicPrice, minBid) * (1 + premiumCap)));
     const bidCap = teamState.slotsLeft <= 3 ? rawBidCap : Math.min(rawBidCap, evidenceCap);
     const clearingPrice = expectedLeaguePrice({ intrinsicPrice, position: player.position, rank: player.overallRank ?? player.rank, tier: player.tier, model: teamState.leagueModel, currentInflation: inflation, capableBidders });
@@ -436,8 +506,9 @@
     const dollarsToCeiling = Math.max(0, Math.round((bidCap - observedPrice) * 10) / 10);
     let bidAdvice = nextBid > bidCap ? 'PASS TO COMPARABLE' : dollarsToCeiling <= minBid ? 'FINAL BID ONLY' : observedPrice < clearingPrice ? 'BID — BELOW MARKET' : 'BID IF NEEDED';
     if (nextComparable && nextComparable.valueDrop <= Math.max(2, intrinsicPrice * .08) && observedPrice >= bidCap - minBid) bidAdvice = 'PASS TO COMPARABLE';
-    return { player, intrinsicPrice, expectedPrice: clearingPrice, currentPrice: observedPrice, maxBid: bidCap, rawMaxBid: rawBidCap, priceEvidence, priceConfidence: priceEvidence >= 12 ? 'CALIBRATED' : priceEvidence >= 3 ? 'LIMITED' : 'UNMODELED', surplus, recommendation: recommendation({ currentPrice: observedPrice, expectedPrice: clearingPrice, maxBid: bidCap, intrinsicPrice, surplus }), bidAdvice, nextBid, dollarsToCeiling, nextComparable, nomination: nomination({ surplus, expectedPrice: clearingPrice, maxBid: bidCap, roomInflation: inflation, need: decisionNeed, opponentsNeedingPosition, endgame: teamState.slotsLeft <= 3 }), need, decisionNeed, wwpa, scarcity, tierUrgency, inflation };
+    const priceConfidence = historicallyCalibrated ? 'CALIBRATED' : livePriceEvidence >= 3 ? 'LIVE-ADAPTING' : historicalPriceEvidence >= 3 ? 'LIMITED' : 'UNMODELED';
+    return { player, intrinsicPrice, expectedPrice: clearingPrice, currentPrice: observedPrice, maxBid: bidCap, rawMaxBid: rawBidCap, priceEvidence, historicalPriceEvidence, livePriceEvidence, priceConfidence, surplus, recommendation: recommendation({ currentPrice: observedPrice, expectedPrice: clearingPrice, maxBid: bidCap, intrinsicPrice, surplus }), bidAdvice, nextBid, dollarsToCeiling, nextComparable, nomination: nomination({ surplus, expectedPrice: clearingPrice, maxBid: bidCap, roomInflation: inflation, need: decisionNeed, opponentsNeedingPosition, endgame: teamState.slotsLeft <= 3 }), need, decisionNeed, wwpa, scarcity, tierUrgency, inflation };
   }
 
-  return { clamp, quantile, auctionTier, rosterSlotCount, compileAuctionConfig, requiredPositionCounts, positionDemandMultiplier, normalizeHistory, leagueModel, calibrationBacktest, maximumLegalBid, buildIntrinsicPrices, roomInflation, expectedLeaguePrice, expectedLeaguePriceRange, maxBid, acquisitionSurplus, recommendation, nomination, capableBidderCount, applyPurchase, budgetHealth, evaluatePlayer };
+  return { clamp, quantile, auctionTier, rosterSlotCount, compileAuctionConfig, requiredPositionCounts, positionDemandMultiplier, normalizeHistory, leagueModel, liveAuctionPulse, adaptiveLeagueModel, calibrationBacktest, maximumLegalBid, buildIntrinsicPrices, roomInflation, expectedLeaguePrice, expectedLeaguePriceRange, maxBid, acquisitionSurplus, recommendation, nomination, capableBidderCount, applyPurchase, budgetHealth, evaluatePlayer };
 });

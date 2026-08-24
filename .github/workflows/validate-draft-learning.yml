@@ -7,15 +7,20 @@ on:
       - 'js/draft-calibration.js'
       - 'js/backtest-intelligence.js'
       - 'js/decision-confidence.js'
+      - 'js/decision-ledger.js'
       - 'js/auction-intelligence.js'
       - 'js/provider-contract.js'
       - 'js/draft-session.js'
       - 'scripts/import_draft_history.py'
+      - 'scripts/reconcile_wwpa_decisions.py'
       - 'schemas/draft_history.schema.json'
+      - 'schemas/decision_ledger.schema.json'
       - 'tests/draft-review.test.js'
       - 'tests/draft-calibration.test.js'
       - 'tests/backtest-intelligence.test.js'
       - 'tests/decision-confidence.test.js'
+      - 'tests/decision-ledger.test.js'
+      - 'tests/test_reconcile_wwpa_decisions.py'
       - 'data/model_validation.json'
       - 'tests/auction-intelligence.test.js'
       - 'tests/draft-learning-e2e.mjs'
@@ -30,12 +35,15 @@ on:
       - 'js/draft-calibration.js'
       - 'js/backtest-intelligence.js'
       - 'js/decision-confidence.js'
+      - 'js/decision-ledger.js'
       - 'js/auction-intelligence.js'
       - 'js/provider-contract.js'
       - 'js/draft-session.js'
       - 'data/model_validation.json'
       - 'scripts/import_draft_history.py'
+      - 'scripts/reconcile_wwpa_decisions.py'
       - 'schemas/draft_history.schema.json'
+      - 'schemas/decision_ledger.schema.json'
       - 'tests/**'
   schedule:
     - cron: '23 10 * * 1'
@@ -58,6 +66,7 @@ jobs:
           node tests/draft-calibration.test.js
           node tests/backtest-intelligence.test.js
           node tests/decision-confidence.test.js
+          node tests/decision-ledger.test.js
           node tests/auction-intelligence.test.js
           node tests/provider-contract.test.js
           node tests/draft-session.test.js

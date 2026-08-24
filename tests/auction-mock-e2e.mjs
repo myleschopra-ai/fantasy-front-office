@@ -73,10 +73,20 @@ try {
     const beforeTen = await page.evaluate(() => JSON.parse(localStorage.getItem('ffo_auction_session_v4')).payload.sold.length);
     await page.locator('#autoTen').click();
     await page.waitForFunction(before => JSON.parse(localStorage.getItem('ffo_auction_session_v4') || 'null')?.payload?.sold?.length >= before + 10, beforeTen, { timeout: 30000 });
+    const roomRead = (await page.locator('#tendencies').innerText()).trim();
+    if (!/ROOM READ · ACTIVE/i.test(roomRead) || !/11 sales/i.test(roomRead) || !/LIVE-ADAPTING/i.test(roomRead) || !/current-room observations/i.test(roomRead)) throw new Error(`${profile.name}: live room learning did not activate and disclose its evidence after 11 sales (${roomRead})`);
 
     if (profile.complete) {
       await page.locator('#finishMock').click({ timeout: 120000 });
-      await page.waitForFunction(() => document.querySelector('#mockStatus')?.textContent === 'COMPLETE', null, { timeout: 60000 });
+      try {
+        await page.waitForFunction(() => document.querySelector('#mockStatus')?.textContent === 'COMPLETE', null, { timeout: 60000 });
+      } catch (error) {
+        const stalled = await page.evaluate(() => {
+          const payload = JSON.parse(localStorage.getItem('ffo_auction_session_v4') || 'null')?.payload;
+          return { status:document.querySelector('#mockStatus')?.textContent, purchases:payload?.mockState?.purchases?.length, recovery:document.querySelector('#auction-recovery-message')?.textContent || '' };
+        });
+        throw new Error(`desktop: finish did not complete (${JSON.stringify(stalled)})`, { cause:error });
+      }
       const completion = await page.evaluate(() => {
         const payload = JSON.parse(localStorage.getItem('ffo_auction_session_v4')).payload;
         const mock = payload.mockState;

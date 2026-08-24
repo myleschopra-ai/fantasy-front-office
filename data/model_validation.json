@@ -15,14 +15,17 @@
       "calibration_status": "pending",
       "sample_size": 0,
       "expected_calibration_error": null,
-      "evidence": "Deterministic probability and lineup tests pass; leakage-free weekly probability replay is required before promotion."
+      "collection_status": "forward_ledger_active",
+      "decision_schema": "schemas/decision_ledger.schema.json",
+      "reconciliation_script": "scripts/reconcile_wwpa_decisions.py",
+      "evidence": "Deterministic probability and lineup tests pass. A source-timestamped forward ledger now captures recommendations and selections; zero outcomes are resolved, so promotion remains blocked. The available 2025 projection archive failed the pregame timing boundary and is excluded from probability validation."
     },
     "auction": {
       "status": "historically_backtested",
       "calibration_status": "limited",
       "sample_size": 192,
       "expected_calibration_error": null,
-      "evidence": "Roster and budget policy beat need-aware baselines; league-specific clearing prices require two seasons of actual purchases."
+      "evidence": "Roster and budget policy beat need-aware baselines. Historical clearing-price calibration still requires two seasons of actual purchases; current-room prices adapt after three sales with bounded shrinkage and are labeled LIVE-ADAPTING rather than calibrated."
     }
   },
   "promotion_gates": {
