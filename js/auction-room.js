@@ -9,7 +9,7 @@
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[char]));
   const money = (value) => `$${Math.max(0, Math.round(Number(value) || 0))}`;
   const numeric = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
-  const state = { intelligence:null, sourceHealth:null, projectionCoverage:null, modelValidation:null, league:null, profile:null, players:[], priceRows:new Map(), auction:null, selectedKey:null, history:null, model:null, historicalBacktest:null, pendingRestore:null, clockTimer:null };
+  const state = { intelligence:null, sourceHealth:null, projectionCoverage:null, modelValidation:null, league:null, profile:null, players:[], priceRows:new Map(), auction:null, selectedKey:null, history:null, model:null, historicalBacktest:null, pendingRestore:null, clockTimer:null, bootPromise:null };
 
   function defaultLeague() {
     return { name:'12-team Half-PPR Auction', league_type:'redraft', teams:12, scoring:{ reception:.5, pass_td:4, te_premium:0 }, roster:{ QB:1,RB:2,WR:2,TE:1,FLEX:2,SUPER_FLEX:0,WRRB_FLEX:0,REC_FLEX:0,K:1,DST:1,BENCH:6 }, draft:{ format:'auction',budget:200,minimum_bid:1 } };
@@ -17,6 +17,27 @@
 
   function inputNumber(id, fallback) { return numeric($(id)?.value, fallback); }
   function isCompanion() { return $('auctionMode')?.value === 'manual'; }
+  function normalizedProfiles(intelligence) {
+    const raw=intelligence?.profiles;
+    if(Array.isArray(raw))return Object.fromEntries(raw.filter((profile)=>profile&&Array.isArray(profile.players)).map((profile,index)=>[profile.id||profile.key||`profile_${index}`,profile]));
+    return raw&&typeof raw==='object'?raw:{};
+  }
+  function usableProfileEntries(intelligence) { return Object.entries(normalizedProfiles(intelligence)).filter(([,profile])=>Array.isArray(profile?.players)&&profile.players.length>=80); }
+  function intelligenceReady(intelligence) { return usableProfileEntries(intelligence).length>0; }
+  async function fetchIntelligenceSnapshot() {
+    const failures=[];
+    for(let attempt=0;attempt<3;attempt+=1){
+      try{
+        const suffix=attempt?`?recovery=${Date.now()}-${attempt}`:'';
+        const response=await fetch(`data/draft_intelligence.json${suffix}`,{cache:'no-store',headers:{'Cache-Control':'no-cache'}});
+        if(!response.ok)throw new Error(`HTTP ${response.status}`);
+        const snapshot=await response.json(),profiles=normalizedProfiles(snapshot);
+        if(!usableProfileEntries({...snapshot,profiles}).length)throw new Error('snapshot contains no complete player profiles');
+        return {...snapshot,profiles};
+      }catch(error){failures.push(error.message)}
+    }
+    throw new Error(`Valuation data could not be validated after 3 attempts (${failures.join(' · ')}).`);
+  }
   function leagueFromInputs() {
     const base = state.league || defaultLeague();
     const teams = Math.max(4, Math.min(20, Math.round(inputNumber('teamCount', base.teams || 12))));
@@ -41,8 +62,10 @@
   }
 
   function preparePlayers(league) {
-    const profile = D.selectProfile(state.intelligence, league);
-    if (!profile) throw new Error('No compatible valuation profile for this league.');
+    const profiles=normalizedProfiles(state.intelligence),snapshot={...state.intelligence,profiles};
+    let profile = D.selectProfile(snapshot, league);
+    if(!profile||!Array.isArray(profile.players)||profile.players.length<80){const fallback=usableProfileEntries(snapshot)[0];profile=fallback?{id:fallback[0],...fallback[1]}:null}
+    if (!profile) throw new Error('Player valuation data is unavailable. Retry Data will refresh the draft room automatically.');
     let players = D.enrichPlayers([], profile);
     // Some format-specific profiles omit K/DST even though another current
     // redraft profile contains them. Use the complete snapshot as the
@@ -328,28 +351,41 @@
   function applyPreset(value){const preset={standard:{QB:1,RB:2,WR:2,TE:1,FLEX:2,SF:0,K:1,DST:1,BENCH:6,ppr:.5,tep:0},threewr:{QB:1,RB:2,WR:3,TE:1,FLEX:2,SF:0,K:1,DST:1,BENCH:6,ppr:.5,tep:0},superflex:{QB:1,RB:2,WR:2,TE:1,FLEX:2,SF:1,K:1,DST:1,BENCH:5,ppr:.5,tep:0},tep:{QB:1,RB:2,WR:2,TE:1,FLEX:2,SF:0,K:1,DST:1,BENCH:6,ppr:1,tep:.5}}[value];if(!preset)return;['QB','RB','WR','TE','FLEX','K','DST'].forEach((pos)=>$(`roster${pos}`).value=preset[pos]);$('rosterSF').value=preset.SF;$('rosterRBWR').value=0;$('rosterWRTE').value=0;$('rosterBench').value=preset.BENCH;$('scoringPpr').value=preset.ppr;$('passingTd').value=4;$('tePremium').value=preset.tep;}
   function applyHistory(){try{const history=JSON.parse($('history').value);state.history=history;state.historicalBacktest=null;updateAdaptiveModel({rebuildBacktest:true});localStorage.setItem(HISTORY_KEY,JSON.stringify(history));$('history-status').textContent=`Loaded ${state.model.rows} purchases · ${state.model.backtest.sufficient?`held-out MAE ${money(state.model.backtest.overall.mae)}`:`in-sample MAE ${money(state.model.overall.mae)}`}.`;refreshExpectedPrices();render();}catch(error){$('history-status').textContent='Invalid history JSON.'}}
 
+  async function startAuctionSession(){
+    const button=$('startMock');button.disabled=true;button.textContent='Loading Players…';$('mockStatus').textContent='LOADING';
+    try{
+      if(!intelligenceReady(state.intelligence)){const ready=await boot();if(!ready)return}
+      localStorage.removeItem(SESSION_KEY);
+      try{newAuction()}catch(error){
+        if(!/valuation|profile|player/i.test(error.message))throw error;
+        state.intelligence=null;const ready=await boot();if(!ready)return;localStorage.removeItem(SESSION_KEY);newAuction();
+      }
+      if(isCompanion()){applyAuctionMode({renderNow:false});render()}else{openNextNomination();startClock()}
+    }catch(error){showError(error.message)}
+    finally{button.disabled=false;button.textContent=isCompanion()?'Reset Companion':'Start New Auction';if(!state.auction)$('mockStatus').textContent='ERROR';else if($('mockStatus').textContent==='LOADING')$('mockStatus').textContent=state.auction.status||'READY'}
+  }
+
   function bind(){
-    $('startMock').onclick=()=>{try{localStorage.removeItem(SESSION_KEY);newAuction();if(isCompanion()){applyAuctionMode({renderNow:false});render()}else{openNextNomination();startClock()}}catch(error){showError(error.message)}};$('advanceMock').onclick=()=>advanceToDecision();$('autoTen').onclick=()=>autoSales(10);$('finishMock').onclick=()=>{if(confirm('Finish the remaining auction with CPU control for every team?'))finishAuction()};$('nominateSelected').onclick=nominate;$('bidLot').onclick=bid;$('passLot').onclick=pass;$('record').onclick=recordManual;$('resetCurrent').onclick=()=>{const player=selectedPlayer();if(!player)return;delete $('currentPrice').dataset.manual;$('currentPrice').value=Math.round(userAnalysis(player).expected);renderValuation()};$('currentPrice').oninput=()=>{$('currentPrice').dataset.manual='1'};$('pos').onchange=renderBoard;$('search').oninput=renderBoard;$('formatPreset').onchange=(event)=>applyPreset(event.target.value);$('teamCount').onchange=()=>{$('userTeam').max=$('teamCount').value;$('userTeam').value=Math.min(inputNumber('userTeam',1),inputNumber('teamCount',12))};$('apply').onclick=applyHistory;$('clear').onclick=()=>{localStorage.removeItem(HISTORY_KEY);state.history=null;state.historicalBacktest=null;updateAdaptiveModel({rebuildBacktest:true});$('history').value='';$('history-status').textContent='No league history loaded; current-room learning remains active.';refreshExpectedPrices();render()};$('retryData').onclick=boot;$('resetSession').onclick=()=>{localStorage.removeItem(SESSION_KEY);newAuction();render()};$('exportSession').onclick=()=>{const blob=new Blob([JSON.stringify(sessionPayload(),null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=url;anchor.download='fantasy-front-office-auction-session.json';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+    $('startMock').onclick=startAuctionSession;$('advanceMock').onclick=()=>advanceToDecision();$('autoTen').onclick=()=>autoSales(10);$('finishMock').onclick=()=>{if(confirm('Finish the remaining auction with CPU control for every team?'))finishAuction()};$('nominateSelected').onclick=nominate;$('bidLot').onclick=bid;$('passLot').onclick=pass;$('record').onclick=recordManual;$('resetCurrent').onclick=()=>{const player=selectedPlayer();if(!player)return;delete $('currentPrice').dataset.manual;$('currentPrice').value=Math.round(userAnalysis(player).expected);renderValuation()};$('currentPrice').oninput=()=>{$('currentPrice').dataset.manual='1'};$('pos').onchange=renderBoard;$('search').oninput=renderBoard;$('formatPreset').onchange=(event)=>applyPreset(event.target.value);$('teamCount').onchange=()=>{$('userTeam').max=$('teamCount').value;$('userTeam').value=Math.min(inputNumber('userTeam',1),inputNumber('teamCount',12))};$('apply').onclick=applyHistory;$('clear').onclick=()=>{localStorage.removeItem(HISTORY_KEY);state.history=null;state.historicalBacktest=null;updateAdaptiveModel({rebuildBacktest:true});$('history').value='';$('history-status').textContent='No league history loaded; current-room learning remains active.';refreshExpectedPrices();render()};$('retryData').onclick=boot;$('resetSession').onclick=startAuctionSession;$('exportSession').onclick=()=>{const blob=new Blob([JSON.stringify(sessionPayload(),null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=url;anchor.download='fantasy-front-office-auction-session.json';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
     $('auctionMode').onchange=()=>applyAuctionMode();$('recordCompanion').onclick=recordCompanionSale;$('companionPrice').oninput=()=>{const player=selectedPlayer();if(player){$('currentPrice').value=$('companionPrice').value;renderLotDecision(player);renderValuation()}};$('companionWinner').onchange=()=>renderLot();
     document.addEventListener('ffo:league-changed',(event)=>{if(state.auction?.purchases?.length)return;state.league=event.detail||defaultLeague();applyLeagueInputs(state.league);if(state.intelligence)newAuction({preserveSelection:true})});
   }
 
   async function boot(){
-    try{
-      const [intelligenceResponse,validationResponse]=await Promise.all([
-        fetch('data/draft_intelligence.json',{cache:'no-store'}),
-        fetch('data/model_validation.json',{cache:'no-store'}),
-      ]);
-      if(!intelligenceResponse.ok)throw new Error(intelligenceResponse.status);
-      state.intelligence=await intelligenceResponse.json();
-      state.modelValidation=validationResponse.ok?await validationResponse.json():null;
+    if(state.bootPromise)return state.bootPromise;
+    const button=$('startMock');button.disabled=true;$('mockStatus').textContent='LOADING';$('source').textContent='Loading and validating auction player profiles…';
+    state.bootPromise=(async()=>{try{
+      const [intelligence,validationResponse]=await Promise.all([fetchIntelligenceSnapshot(),fetch('data/model_validation.json',{cache:'no-store'})]);
+      state.intelligence=intelligence;state.modelValidation=validationResponse.ok?await validationResponse.json():null;
       state.sourceHealth=SourceHealth?SourceHealth.assessRuntime({intelligence:state.intelligence,marketOk:true,scoutingOk:true,newsOk:true}):null;
       try{const savedHistory=JSON.parse(localStorage.getItem(HISTORY_KEY)||'null');if(savedHistory){state.history=savedHistory;state.historicalBacktest=null;updateAdaptiveModel({rebuildBacktest:true});$('history').value=JSON.stringify(savedHistory,null,2);$('history-status').textContent=`Loaded ${state.model.rows} historical purchases from this browser.`}}catch{}
       let handoff=null;try{if(new URLSearchParams(location.search).get('from')==='mock-draft')handoff=JSON.parse(localStorage.getItem('ffo_mock_draft_handoff_v1')||'null')}catch{}
       if(handoff?.league){state.league={...handoff.league,teams:handoff.teams||handoff.league.teams,draft:{...(handoff.league.draft||{}),format:'auction',budget:handoff.league.draft?.budget||200,minimum_bid:handoff.league.draft?.minimum_bid||1}};localStorage.removeItem('ffo_mock_draft_handoff_v1');applyLeagueInputs(state.league);newAuction()}
       else{const payload=loadSaved();if(!restoreSaved(payload)){state.league=window.FFO_ACTIVE_LEAGUE||defaultLeague();applyLeagueInputs(state.league);newAuction()}}
-      applyAuctionMode({renderNow:false});render();
-    }catch(error){showError(`Auction data could not load: ${error.message}`)}
+      applyAuctionMode({renderNow:false});render();return true;
+    }catch(error){state.intelligence=null;showError(`Auction data could not load: ${error.message}`);$('source').textContent='Player data unavailable · Retry Data will make three fresh attempts.';return false}
+    finally{button.disabled=false;if(!isCompanion())button.textContent='Start New Auction'}})();
+    const result=await state.bootPromise;state.bootPromise=null;return result;
   }
 
   bind();boot();

@@ -4,6 +4,25 @@ const base = process.env.AUCTION_MOCK_E2E_URL || 'http://127.0.0.1:4175/auction.
 const browser = await chromium.launch({ headless: true });
 
 try {
+  {
+    const recoveryContext = await browser.newContext({ viewport: { width: 1519, height: 975 } });
+    const recoveryPage = await recoveryContext.newPage();
+    let intelligenceRequests = 0;
+    await recoveryPage.route('**/data/draft_intelligence.json*', async route => {
+      intelligenceRequests += 1;
+      if (intelligenceRequests <= 3) await route.fulfill({ status:200, contentType:'application/json', body:'{"profiles":{}}' });
+      else await route.continue();
+    });
+    await recoveryPage.goto(base, { waitUntil:'domcontentloaded' });
+    await recoveryPage.waitForFunction(() => document.querySelector('#auction-session-status')?.textContent === 'ERROR', null, { timeout:30000 });
+    if (!/three fresh attempts|3 attempts/i.test(await recoveryPage.locator('#source').innerText())) throw new Error('invalid valuation snapshot did not expose automatic recovery guidance');
+    await recoveryPage.locator('#startMock').click();
+    await recoveryPage.waitForFunction(() => document.querySelectorAll('#board [data-k]').length > 100 && ['BIDDING','AWAITING_NOMINATION'].includes(document.querySelector('#mockStatus')?.textContent), null, { timeout:30000 });
+    if (intelligenceRequests < 4) throw new Error(`Start did not re-fetch valuation data after a failed boot (${intelligenceRequests} requests)`);
+    if (await recoveryPage.locator('#auction-recovery').isVisible()) throw new Error('startup recovery remained visible after a successful automatic refresh');
+    await recoveryContext.close();
+    console.log('laptop startup recovery passed · invalid profiles retried and Start recovered automatically');
+  }
   for (const profile of [
     { name: 'desktop', viewport: { width: 1440, height: 900 }, complete: true },
     { name: 'iPhone', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
