@@ -31,6 +31,13 @@ try {
     });
     if (layout.width > layout.viewport + 1) throw new Error(`${profile.name}: horizontal overflow (${layout.width}/${layout.viewport})`);
     if (layout.teamCards !== 12) throw new Error(`${profile.name}: expected 12 team cards, found ${layout.teamCards}`);
+    const recommendationSurface = await page.evaluate(() => ({
+      groups: document.querySelectorAll('#auctionRecommendations .recommendation-group').length,
+      cards: document.querySelectorAll('#auctionRecommendations [data-rec-k]').length,
+      labels: [...document.querySelectorAll('#auctionRecommendations .recommendation-group-head strong')].map(node => node.textContent.trim()),
+    }));
+    if (recommendationSurface.groups !== 3 || recommendationSurface.cards < 6) throw new Error(`${profile.name}: recommendation rail is incomplete (${JSON.stringify(recommendationSurface)})`);
+    if (!['BID NOW','NOMINATE NEXT','WAIT / COMPARABLE'].every(label => recommendationSurface.labels.includes(label))) throw new Error(`${profile.name}: recommendation categories are mislabeled`);
     if (profile.isMobile) {
       if (layout.searchFont < 16) throw new Error(`${profile.name}: search font can trigger iOS zoom (${layout.searchFont}px)`);
       for (const [id, height] of Object.entries(layout.targetHeights)) {
@@ -58,6 +65,15 @@ try {
     await bijan.click();
     await page.locator('#nominateSelected').click();
     await page.waitForFunction(() => document.querySelector('#mockStatus')?.textContent === 'BIDDING');
+    const decisionSurface = await page.evaluate(() => ({
+      decision: document.querySelector('#lotDecision')?.textContent?.trim(),
+      current: document.querySelector('#lotCurrentPrice')?.textContent?.trim(),
+      through: document.querySelector('#lotBidThrough')?.textContent?.trim(),
+      walk: document.querySelector('#lotWalkAway')?.textContent?.trim(),
+      budget: document.querySelector('#lotBudgetAfter')?.textContent?.trim(),
+      comparable: document.querySelector('#lotComparableName')?.textContent?.trim(),
+    }));
+    if (!decisionSurface.decision || decisionSurface.decision === 'WAITING' || !/^\$\d+/.test(decisionSurface.current) || !/^\$\d+/.test(decisionSurface.through) || !/^\$\d+/.test(decisionSurface.walk) || !/remaining/i.test(decisionSurface.budget) || !decisionSurface.comparable) throw new Error(`${profile.name}: active-lot decision surface did not populate (${JSON.stringify(decisionSurface)})`);
     const openingBid = await page.evaluate(() => JSON.parse(localStorage.getItem('ffo_auction_session_v4')).payload.mockState.nomination?.bidHistory?.[0]?.amount);
     if (openingBid !== 1) throw new Error(`${profile.name}: nomination did not open at $1`);
     await page.waitForFunction(() => Number((document.querySelector('#lotBid')?.textContent || '').replace(/\D/g,'')) >= 2, null, { timeout:15000 });
@@ -109,6 +125,28 @@ try {
       if (completion.budgets.some(value => value < 0)) throw new Error('desktop: at least one team overspent');
       if (completion.unique !== completion.rostered) throw new Error('desktop: a player appears on multiple rosters');
       if (!completion.visibleCount.includes(`${completion.expected} of ${completion.expected}`)) throw new Error(`desktop: board completion display is stale (${completion.visibleCount})`);
+    }
+    if (!profile.complete) {
+      await page.locator('#auctionMode').selectOption('manual');
+      await page.locator('#startMock').click();
+      await page.locator('#search').fill('');
+      await page.locator('#board [data-k]').first().click();
+      await page.locator('#companionPrice').fill('17');
+      await page.locator('#companionWinner').selectOption('2');
+      const companionBefore = await page.evaluate(() => ({
+        active: document.body.classList.contains('auction-companion'),
+        mode: document.querySelector('#recommendationMode')?.textContent || '',
+        current: document.querySelector('#lotCurrentPrice')?.textContent || '',
+        quickHeight: document.querySelector('#recordCompanion')?.getBoundingClientRect().height || 0,
+      }));
+      if (!companionBefore.active || !/COMPANION/.test(companionBefore.mode) || companionBefore.current !== '$17' || companionBefore.quickHeight < 44) throw new Error(`${profile.name}: companion decision entry is incomplete (${JSON.stringify(companionBefore)})`);
+      await page.locator('#recordCompanion').click();
+      const companionSale = await page.evaluate(() => {
+        const payload = JSON.parse(localStorage.getItem('ffo_auction_session_v4')).payload;
+        const sale = payload.mockState.purchases[0], team = payload.mockState.teams['2'];
+        return { price:sale?.price, teamId:sale?.teamId, remaining:team?.remainingBudget, recorded:(document.querySelector('#companionQuickStatus')?.textContent || '').includes('Recorded') };
+      });
+      if (companionSale.price !== 17 || String(companionSale.teamId) !== '2' || companionSale.remaining !== 183 || !companionSale.recorded) throw new Error(`${profile.name}: companion sale did not reconcile (${JSON.stringify(companionSale)})`);
     }
     if (errors.length) throw new Error(`${profile.name}: browser errors ${errors.join(' | ')}`);
     console.log(`${profile.name} auction room passed${profile.complete ? ' · every legal purchase completed' : ' · responsive interactions verified'}`);

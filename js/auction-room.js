@@ -16,6 +16,7 @@
   }
 
   function inputNumber(id, fallback) { return numeric($(id)?.value, fallback); }
+  function isCompanion() { return $('auctionMode')?.value === 'manual'; }
   function leagueFromInputs() {
     const base = state.league || defaultLeague();
     const teams = Math.max(4, Math.min(20, Math.round(inputNumber('teamCount', base.teams || 12))));
@@ -151,15 +152,111 @@
     $('remaining').value=mine.remainingBudget; $('slots').value=mine.slotsLeft; $('leagueRemaining').value=teams.reduce((sum,team)=>sum+team.remainingBudget,0); $('leagueSlots').value=teams.reduce((sum,team)=>sum+team.slotsLeft,0);
   }
 
-  function userAnalysis(player) {
+  function userAnalysis(player, currentOverride = null) {
     const auction = state.auction, mine = auction.teams[auction.userTeamId], intrinsic = M.intrinsicPrice(auction,player), expected = M.expectedPrice(auction,player), maxBid = M.teamBidLimit(auction,auction.userTeamId,player), current = auction.nomination?.playerKey===M.keyOf(player)?auction.nomination.currentBid:expected;
     const context = contextFor(mine.roster,auction.league,M.availablePlayers(auction).length), draft = D.scorePlayer(player,context), scarcity = D.scarcityScore(player,M.availablePlayers(auction),{picksUntilNextTurn:10}), pointGain = M.marginalStarterPoints(mine,player,auction.league), need = M.positionalNeed(mine,player,auction.league), surplus=Math.round((intrinsic-current)*10)/10;
+    const observedCurrent=currentOverride==null?(isCompanion()&&$('companionPrice')?inputNumber('companionPrice',current):current):numeric(currentOverride,current);
     const range=A.expectedLeaguePriceRange({intrinsicPrice:intrinsic,position:player.position,rank:player.overallRank??player.rank,tier:player.tier,model:state.model,currentInflation:roomInflation(),capableBidders:M.bidderLimits(auction,player).length});
-    const evaluated=A.evaluatePlayer({player,intrinsicPrice:intrinsic,currentPrice:current,teamState:{remainingBudget:mine.remainingBudget,slotsLeft:mine.slotsLeft,leagueModel:state.model},draftEvaluation:draft,scarcity:scarcity.scarcity,tierUrgency:player.tierEnd?80:50,upside:numeric(player.pedigreeScore,50),capableBidders:M.bidderLimits(auction,player).length,inflation:roomInflation(),minBid:auction.config.minBid,availablePlayers:M.availablePlayers(auction),priceForPlayer:(candidate)=>M.intrinsicPrice(auction,candidate)});
-    return {intrinsic,expected,maxBid,current,draft,scarcity,pointGain,need,surplus,range,recommendation:evaluated.recommendation,...evaluated};
+    const evaluated=A.evaluatePlayer({player,intrinsicPrice:intrinsic,currentPrice:observedCurrent,teamState:{remainingBudget:mine.remainingBudget,slotsLeft:mine.slotsLeft,leagueModel:state.model},draftEvaluation:draft,scarcity:scarcity.scarcity,tierUrgency:player.tierEnd?80:50,upside:numeric(player.pedigreeScore,50),capableBidders:M.bidderLimits(auction,player).length,inflation:roomInflation(),minBid:auction.config.minBid,availablePlayers:M.availablePlayers(auction),priceForPlayer:(candidate)=>M.intrinsicPrice(auction,candidate)});
+    return {intrinsic,expected,maxBid,draft,pointGain,need,surplus,range,recommendation:evaluated.recommendation,...evaluated,current:observedCurrent,scarcityDetail:scarcity};
   }
 
-  function selectPlayer(key) { if (!state.auction || state.auction.draftedKeys.includes(String(key))) return; state.selectedKey=String(key); render(); save(); }
+  function clamp(value, low = 0, high = 100) { return Math.max(low, Math.min(high, numeric(value, low))); }
+
+  function decisionSnapshot(player, analysis = userAnalysis(player)) {
+    const auction=state.auction,mine=auction.teams[auction.userTeamId],nomination=auction.nomination;
+    const active=nomination?.playerKey===M.keyOf(player),userLeading=active&&nomination.leaderTeamId===auction.userTeamId;
+    const confidence=DecisionConfidence?DecisionConfidence.auctionCard({evaluation:analysis,sourceHealth:state.sourceHealth,projectionCoverage:state.projectionCoverage,validation:state.modelValidation,minBid:auction.config.minBid}):null;
+    const bidThrough=Math.max(auction.config.minBid,numeric(confidence?.bidThrough,analysis.maxBid));
+    const walkAway=Math.max(bidThrough+auction.config.minBid,numeric(confidence?.walkAway,bidThrough+auction.config.minBid));
+    const current=active?nomination.currentBid:isCompanion()?analysis.current:analysis.expected;
+    const nextBid=active?current+auction.config.minBid:isCompanion()?current:Math.max(auction.config.minBid,Math.round(analysis.expected));
+    const remainingToCeiling=Math.max(0,bidThrough-current);
+    let label='BID',tone='buy',headline=`Bid through ${money(bidThrough)} if the room comes to you.`,reason=`${money(remainingToCeiling)} remains before your roster-specific ceiling.`;
+    if(!active&&!isCompanion()){label='TARGET';tone='buy';headline=`Plan for ${money(analysis.range?.low??analysis.expected)}–${money(analysis.range?.high??analysis.expected)} if nominated.`;reason=`Your roster-specific ceiling is ${money(bidThrough)}; the live recommendation begins when bidding opens.`}
+    else if(userLeading){label='YOU LEAD';tone='leading';headline=`You lead at ${money(current)}.`;reason=`Do not bid against yourself. Your walk-away remains ${money(walkAway)}.`}
+    else if(current>=walkAway){label='PASS';tone='pass';headline=`The price is beyond your ${money(walkAway)} walk-away.`;reason=analysis.nextComparable?`${analysis.nextComparable.player.name} is the better budget allocation.`:'Protect the remaining budget for a stronger roster combination.'}
+    else if(current>=bidThrough||remainingToCeiling<=auction.config.minBid*2){label='CAUTION';tone='caution';headline=`Only ${money(remainingToCeiling)} remains before the ceiling.`;reason=`One more bidding exchange can make the next comparable the better purchase.`}
+    else if(current>numeric(analysis.range?.high,analysis.expected)){label='FIT BID';tone='caution';headline=`Above the expected room range, but still justified for your roster.`;reason=`Team fit supports bidding through ${money(bidThrough)}; do not chase beyond it.`}
+    return {confidence,bidThrough,walkAway,current,nextBid,remainingToCeiling,userLeading,label,tone,headline,reason,budgetAfter:Math.max(0,mine.remainingBudget-nextBid),slotsAfter:Math.max(0,mine.slotsLeft-1)};
+  }
+
+  function resetLotDecision() {
+    $('lotDecision').textContent='WAITING';$('lotDecision').className='lot-decision-badge neutral';
+    $('lotDecisionHeadline').textContent='Select a player to see your auction plan.';$('lotDecisionReason').textContent='Your roster, budget and the room price will set the recommendation.';
+    ['lotCurrentPrice','lotExpectedPrice','lotBidThrough','lotWalkAway','lotCeilingRoom','lotBudgetAfter','lotComparableName'].forEach((id)=>$(id).textContent='—');
+    $('lotSlotsAfter').textContent='Budget impact';$('lotComparablePrice').textContent='No comparison available';
+    $('lotValueFill').style.width='0%';['lotCurrentMarker','lotExpectedMarker','lotWalkMarker'].forEach((id)=>$(id).style.left='0%');
+  }
+
+  function renderLotDecision(player) {
+    if(!player){resetLotDecision();return}
+    const analysis=userAnalysis(player),snapshot=decisionSnapshot(player,analysis),scale=Math.max(1,snapshot.walkAway*1.12,numeric(analysis.range?.high,0),snapshot.current);
+    const percent=(value)=>`${clamp((numeric(value,0)/scale)*100,1,99)}%`;
+    $('lotDecision').textContent=snapshot.label;$('lotDecision').className=`lot-decision-badge ${snapshot.tone}`;
+    $('lotDecisionHeadline').textContent=snapshot.headline;$('lotDecisionReason').textContent=snapshot.reason;
+    $('lotCurrentPrice').textContent=money(snapshot.current);$('lotExpectedPrice').textContent=analysis.range?.confidence==='UNMODELED'?money(analysis.expected):`${money(analysis.range.low)}–${money(analysis.range.high)}`;
+    $('lotBidThrough').textContent=money(snapshot.bidThrough);$('lotWalkAway').textContent=money(snapshot.walkAway);$('lotCeilingRoom').textContent=snapshot.remainingToCeiling?money(snapshot.remainingToCeiling):'NONE';
+    $('lotBudgetAfter').textContent=`${money(snapshot.budgetAfter)} remaining`;$('lotSlotsAfter').textContent=`${snapshot.slotsAfter} slots · ${money(snapshot.slotsAfter*state.auction.config.minBid)} minimum reserve`;
+    $('lotValueFill').style.width=percent(snapshot.current);$('lotCurrentMarker').style.left=percent(snapshot.current);$('lotExpectedMarker').style.left=percent(analysis.expected);$('lotWalkMarker').style.left=percent(snapshot.walkAway);
+    if(analysis.nextComparable){const comparable=analysis.nextComparable;$('lotComparableName').textContent=`${comparable.player.name} · ${comparable.player.position}`;$('lotComparablePrice').textContent=`About ${money(comparable.price)} · saves ${money(Math.max(0,snapshot.current-comparable.price))}`}
+    else{$('lotComparableName').textContent='No close substitute';$('lotComparablePrice').textContent='The position falls off after this player'}
+  }
+
+  function recommendationCard(entry, kind) {
+    const player=entry.player,analysis=entry.analysis,through=decisionSnapshot(player,analysis).bidThrough;
+    const meta=`Expected ${money(analysis.range?.low??analysis.expected)}–${money(analysis.range?.high??analysis.expected)} · need ${Math.round(analysis.need)} · tier ${player.tier||'—'}`;
+    let reason=`${analysis.pointGain>0?`+${analysis.pointGain.toFixed(1)} starter value`:'Depth value'} · ${analysis.recommendation}`;
+    if(kind==='nominate')reason=`${entry.bidders} capable bidders · ${analysis.nomination}`;
+    if(kind==='wait')reason=entry.waitReason||`Preserve budget for this lower-cost roster fit.`;
+    return `<div class="recommendation-card" role="button" tabindex="0" data-rec-k="${esc(M.keyOf(player))}"><div class="recommendation-card-main"><div class="recommendation-card-name"><span class="position-pill ${String(player.position).toLowerCase()}">${esc(player.position)}</span>${esc(player.name)}</div><span class="recommendation-card-meta">${esc(meta)}</span><span class="recommendation-card-reason">${esc(reason)}</span></div><div class="recommendation-card-price"><strong>${money(kind==='wait'?analysis.expected:through)}</strong><span>${kind==='wait'?'EXPECTED':'BID THROUGH'}</span></div></div>`;
+  }
+
+  function recommendationGroup(cssClass, title, subtitle, rows, kind) {
+    return `<section class="recommendation-group ${cssClass}"><div class="recommendation-group-head"><strong>${title}</strong><span>${subtitle}</span></div>${rows.length?rows.map((row)=>recommendationCard(row,kind)).join(''):'<div class="recommendation-empty">No legal target is available in this category.</div>'}</section>`;
+  }
+
+  function renderRecommendations() {
+    const root=$('auctionRecommendations');if(!root||!state.auction)return;
+    const mine=state.auction.teams[state.auction.userTeamId],available=M.availablePlayers(state.auction).filter((player)=>M.teamBidLimit(state.auction,state.auction.userTeamId,player)>=state.auction.config.minBid).slice(0,140);
+    const evaluated=available.map((player)=>{const analysis=userAnalysis(player),bidders=M.bidderLimits(state.auction,player).length,wwpa=numeric(analysis.draft?.wwpa?.deltaPercentagePoints,0);return{player,analysis,bidders,targetScore:(analysis.maxBid-analysis.expected)*3+analysis.need*.22+analysis.scarcity*.12+analysis.pointGain*.35+wwpa*2,nominationScore:bidders*8+analysis.expected*.12+Math.max(0,analysis.expected-analysis.intrinsic)*1.5-analysis.need*.05}});
+    const bidNow=evaluated.slice().sort((a,b)=>b.targetScore-a.targetScore||a.analysis.expected-b.analysis.expected).slice(0,3);
+    const nominate=evaluated.slice().sort((a,b)=>b.nominationScore-a.nominationScore||b.bidders-a.bidders).slice(0,3);
+    const activePlayer=state.auction.nomination?state.auction.players.find((player)=>M.keyOf(player)===state.auction.nomination.playerKey):selectedPlayer(),activeAnalysis=activePlayer?userAnalysis(activePlayer):null,wait=[];
+    if(activeAnalysis?.nextComparable){const comparable=activeAnalysis.nextComparable.player,match=evaluated.find((entry)=>M.keyOf(entry.player)===M.keyOf(comparable));if(match){match.waitReason=`${activeAnalysis.nextComparable.sameTier?'Same tier':'Next tier'} · save about ${money(Math.max(0,activeAnalysis.current-activeAnalysis.nextComparable.price))} versus the current lot`;wait.push(match)}}
+    evaluated.slice().sort((a,b)=>(b.targetScore/(b.analysis.expected+1))-(a.targetScore/(a.analysis.expected+1))).forEach((entry)=>{if(wait.length<3&&!wait.some((row)=>M.keyOf(row.player)===M.keyOf(entry.player))){entry.waitReason=`Efficient ${entry.player.position} fallback at about ${money(entry.analysis.expected)}.`;wait.push(entry)}});
+    root.innerHTML=recommendationGroup('bid-now','BID NOW','best roster fit',bidNow,'bid')+recommendationGroup('nominate-next','NOMINATE NEXT','shape the room',nominate,'nominate')+recommendationGroup('wait-option','WAIT / COMPARABLE','protect budget',wait,'wait');
+    $('recommendationMode').textContent=`${isCompanion()?'COMPANION':'MOCK'} · ${mine.remainingBudget?money(mine.remainingBudget):'$0'} · ${mine.slotsLeft} LEFT`;
+    root.querySelectorAll('[data-rec-k]').forEach((card)=>{const choose=()=>selectPlayer(card.dataset.recK);card.onclick=choose;card.onkeydown=(event)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();choose()}}});
+  }
+
+  function populateCompanionTeams() {
+    if(!state.auction||!$('companionWinner'))return;
+    const current=$('companionWinner').value,teams=Object.values(state.auction.teams);
+    $('companionWinner').innerHTML=teams.map((team)=>`<option value="${esc(team.id)}">${team.id===state.auction.userTeamId?'My team':esc(team.name)} · ${money(team.remainingBudget)}</option>`).join('');
+    if(teams.some((team)=>String(team.id)===String(current)))$('companionWinner').value=current;
+  }
+
+  function applyAuctionMode({ renderNow = true } = {}) {
+    const companion=isCompanion();document.body.classList.toggle('auction-companion',companion);
+    $('startMock').textContent=companion?'Reset Companion':'Start New Auction';
+    $('recommendationMode').textContent=companion?'COMPANION · LIVE ENTRY':'MOCK · LIVE';
+    if(companion&&state.clockTimer){clearInterval(state.clockTimer);state.clockTimer=null}
+    populateCompanionTeams();if(renderNow&&state.auction)render();
+  }
+
+  function recordCompanionSale() {
+    const player=selectedPlayer();if(!player){$('companionQuickStatus').textContent='Select the nominated player before recording the sale.';return}
+    try{
+      const teamId=String($('companionWinner').value),price=Math.max(state.auction.config.minBid,inputNumber('companionPrice',state.auction.config.minBid)),team=state.auction.teams[teamId];
+      if(!team)throw new Error('Choose a valid winning team.');
+      const legal=M.teamBidLimit(state.auction,teamId,player);if(price>legal)throw new Error(`${team.name} can bid at most ${money(legal)} while preserving its remaining slots.`);
+      state.auction=M.recordPurchase(state.auction,{teamId,playerKey:M.keyOf(player),price});state.selectedKey=null;updateAdaptiveModel();refreshExpectedPrices();
+      $('companionQuickStatus').textContent=`Recorded ${player.name} to ${team.name} for ${money(price)}.`;populateCompanionTeams();render();
+    }catch(error){showError(error.message);$('companionQuickStatus').textContent=error.message}
+  }
+
+  function selectPlayer(key) { if (!state.auction || state.auction.draftedKeys.includes(String(key))) return; state.selectedKey=String(key);if(isCompanion()){const player=selectedPlayer(),expected=player?Math.max(state.auction.config.minBid,Math.round(M.expectedPrice(state.auction,player))):state.auction.config.minBid;$('companionPrice').value=String(expected);$('currentPrice').value=String(expected)}render(); save(); }
   function selectedPlayer() { return state.auction?.players.find((player)=>M.keyOf(player)===String(state.selectedKey)); }
 
   function renderBoard() {
@@ -174,7 +271,7 @@
     const player=selectedPlayer();
     if(!player){$('selected').textContent='Select a player from the board.';['intrinsic','leagueprice','currentbid','maxbid','auctionWalkAway','auctionWwpa','auctionWinRate','auctionWinRange','auctionConfidence','surplus','pointgain'].forEach((id)=>$(id).textContent='—');$('decision').textContent='';$('nomination').textContent='';$('why').textContent='';if($('auctionComparable'))$('auctionComparable').textContent='Select a player to compare the next option.';return}
     const a=userAnalysis(player),range=a.range.confidence==='UNMODELED'?money(a.expected):`${money(a.expected)} · ${money(a.range.low)}–${money(a.range.high)}`;
-    $('selected').innerHTML=`<strong>${esc(player.name)}</strong> · ${esc(player.position)}<br><span class="meta">Consensus ${numeric(player.overallRank,player.rank)} · League Value ${numeric(a.draft.leagueValue).toFixed(1)} · ${a.scarcity.remainingSupply} remain</span>`;
+    $('selected').innerHTML=`<strong>${esc(player.name)}</strong> · ${esc(player.position)}<br><span class="meta">Consensus ${numeric(player.overallRank,player.rank)} · League Value ${numeric(a.draft.leagueValue).toFixed(1)} · ${a.scarcityDetail.remainingSupply} remain</span>`;
     const wwpa=a.draft.wwpa,decisionCard=DecisionConfidence?DecisionConfidence.auctionCard({evaluation:a,sourceHealth:state.sourceHealth,projectionCoverage:state.projectionCoverage,validation:state.modelValidation,minBid:state.auction.config.minBid}):null;$('intrinsic').textContent=money(a.intrinsic);$('leagueprice').textContent=range;$('currentbid').textContent=money(a.current);$('maxbid').textContent=money(decisionCard?.bidThrough??a.maxBid);$('auctionWalkAway').textContent=decisionCard?money(decisionCard.walkAway):money(a.maxBid+state.auction.config.minBid);$('auctionWwpa').textContent=wwpa?`${wwpa.deltaPercentagePoints>=0?'+':''}${wwpa.deltaPercentagePoints.toFixed(1)} pp`:'—';$('auctionWwpa').className=wwpa&&wwpa.deltaPercentagePoints>0?'good':'';$('auctionWinRate').textContent=wwpa?`${wwpa.winRateAfter.toFixed(1)}%`:'—';$('auctionWinRange').textContent=decisionCard?`${decisionCard.range.low.toFixed(1)}–${decisionCard.range.high.toFixed(1)}%`:'—';$('auctionConfidence').textContent=decisionCard?`${decisionCard.trust.label} ${decisionCard.trust.score}`:'—';$('surplus').textContent=`${a.surplus>=0?'+':''}${money(a.surplus)}`;$('surplus').className=a.surplus>=0?'good':'risk';$('pointgain').textContent=a.pointGain>0?`+${a.pointGain.toFixed(1)}`:'Depth';$('decision').textContent=a.recommendation;
     $('nomination').textContent=`${a.bidAdvice} · ${a.current>=a.maxBid?'Ceiling reached':`${money(a.dollarsToCeiling)} left to ceiling`}.`;
     const alternativeWwpa=a.nextComparable?D.weeklyWinProbabilityAdded(a.nextComparable.player,contextFor(state.auction.teams[state.auction.userTeamId].roster,state.auction.league,M.availablePlayers(state.auction).length)):null;
@@ -188,9 +285,17 @@
 
   function renderLot() {
     const auction=state.auction, nomination=auction?.nomination, nominator=auction?M.nextNominator(auction):null;
+    if(isCompanion()){
+      const player=selectedPlayer(),price=inputNumber('companionPrice',auction?.config?.minBid||1),winner=auction?.teams?.[$('companionWinner')?.value];
+      $('lotPlayer').textContent=player?`${player.name} · ${player.position}`:'Select current nomination';$('lotMeta').textContent=player?'Live companion · enter the observed room price and winning team.':'Choose the player currently on the auction block from Available Players.';
+      $('lotBid').textContent=player?money(price):'—';$('lotLeader').textContent=winner?`${winner.name} selected`:'Choose winning team';$('lotClock').textContent='LIVE';$('lotClock').parentElement.classList.remove('urgent');$('bidHistory').textContent='Companion mode records the real room; CPU bidding is paused.';
+      ['nominateSelected','bidLot','passLot','advanceMock'].forEach((id)=>$(id).disabled=true);renderLotDecision(player);return;
+    }
     $('mockStatus').textContent=auction?.status||'READY';
     if(!nomination){$('lotPlayer').textContent=auction?.status==='COMPLETE'?'Auction complete':auction?.status==='AWAITING_NOMINATION'?'Your nomination':'Waiting for next nomination';$('lotMeta').textContent=auction?.status==='AWAITING_NOMINATION'?'Select a player, then tap Nominate Selected.':auction?.status==='COMPLETE'?'Every roster spot and purchase has been resolved.':nominator?`${auction.teams[nominator.id].name} nominates next.`:'Start a new auction.';$('lotBid').textContent='—';$('lotLeader').textContent='';$('lotClock').textContent='—';$('lotClock').parentElement.classList.remove('urgent');$('bidHistory').textContent=auction?.status==='AWAITING_NOMINATION'?'Your turn: choose any available player to nominate.':'Nominate a player to open bidding.';}
     else{const player=auction.players.find((item)=>M.keyOf(item)===nomination.playerKey),remaining=Math.max(0,Math.ceil(numeric(nomination.secondsRemaining,0)));$('lotPlayer').textContent=`${player.name} · ${player.position}`;$('lotMeta').textContent=`Nominated by ${auction.teams[nomination.nominatorTeamId].name} · open bidding for every team`;$('lotBid').textContent=money(nomination.currentBid);$('lotLeader').textContent=`${auction.teams[nomination.leaderTeamId]?.name||'Room'} leads`;$('lotClock').textContent=`0:${String(remaining).padStart(2,'0')}`;$('lotClock').parentElement.classList.toggle('urgent',remaining<=numeric(auction.auctionClock?.bidResetSeconds,10));$('bidHistory').innerHTML=(nomination.bidHistory||[]).slice(-8).map((bid)=>`<span>${esc(auction.teams[bid.teamId]?.name||bid.teamId)} ${money(bid.amount)}</span>`).join('');if(state.selectedKey!==nomination.playerKey)state.selectedKey=nomination.playerKey;$('customBid').min=String(nomination.currentBid+1);if(document.activeElement!==$('customBid'))$('customBid').value=String(nomination.currentBid+1);}
+    const candidate=selectedPlayer();if(!nomination&&candidate){$('lotPlayer').textContent=`Candidate · ${candidate.name} · ${candidate.position}`;$('lotMeta').textContent='Pre-nomination plan · expected price and roster ceiling, not a live bid.';$('lotBid').textContent='—';$('lotLeader').textContent='Bidding not open'}
+    renderLotDecision(nomination?auction.players.find((item)=>M.keyOf(item)===nomination.playerKey):candidate);
     const awaitingNomination=auction?.status==='AWAITING_NOMINATION',bidding=Boolean(nomination)&&auction?.status==='BIDDING',userPassed=nomination?.passedTeamIds?.includes(auction?.userTeamId),userLeading=nomination?.leaderTeamId===auction?.userTeamId,userLimit=nomination?M.teamBidLimit(auction,auction.userTeamId,auction.players.find((item)=>M.keyOf(item)===nomination.playerKey)):0,canBid=bidding&&!userPassed&&!userLeading&&userLimit>nomination.currentBid;$('nominateSelected').disabled=!awaitingNomination||!selectedPlayer();$('bidLot').disabled=!canBid;$('passLot').disabled=!bidding||userPassed||userLeading;$('advanceMock').disabled=!auction||['AWAITING_NOMINATION','BIDDING','COMPLETE'].includes(auction.status);
     $('bidLot').textContent=canBid?`Bid ${money(nomination.currentBid+1)}`:'Bid +$1';
 
@@ -206,7 +311,7 @@
   }
 
   function renderTendencies(){if(!state.model){$('tendencies').textContent='Room pricing will begin learning after three completed sales.';return}const live=state.model.live,liveDelta=live?.overall?Math.round((live.overall.median_ratio-1)*100):0,livePositions=Object.entries(live?.position||{}).filter(([,value])=>value.n>=2).map(([position,value])=>`${position}: ${value.median_ratio>=1?'+':''}${Math.round((value.median_ratio-1)*100)}% · ${value.n} sales`).join('<br>'),roomRead=live?.samples?`<strong>ROOM READ · ${live.status} · ${live.samples} sales · ${liveDelta>=0?'+':''}${liveDelta}% vs format baseline</strong><br>${live.active?'<strong>PRICE MODE · LIVE-ADAPTING</strong> · current-room observations are shrunk toward neutral and hard-bounded.':'Three completed sales are required before prices move.'}${livePositions?`<br>${livePositions}`:''}`:'<strong>ROOM READ · COLD</strong><br>Complete three sales to activate league-specific price learning.';const bits=Object.entries(state.model.position||{}).map(([position,value])=>`${position}: ${Math.round((value.median_ratio-1)*100)}% vs baseline · ${value.confidence.toLowerCase()} confidence (${value.n})`),backtest=state.model.backtest,bias=backtest?.overall?.bias||0,biasLabel=`${bias>=0?'+':'-'}${money(Math.abs(bias))}`,validation=backtest?.sufficient?`<br><br><strong>Leave-one-season-out validation</strong><br>MAE ${money(backtest.overall.mae)} · RMSE ${money(backtest.overall.rmse)} · bias ${biasLabel} across ${backtest.overall.n} held-out sales.`:'<br><br><strong>HISTORICAL VALIDATION PENDING</strong><br>Live room learning is labeled separately and does not claim backtest calibration.',historical=state.model.rows?`<br><br><strong>${state.model.matchedRows} matched historical purchases · MAE ${money(state.model.overall.mae)}</strong>${bits.length?`<br>${bits.join('<br>')}`:''}`:'';$('tendencies').innerHTML=`${roomRead}${historical}${validation}`;}
-  function render(){if(!state.auction)return;clearError();syncCompatibilityFields();$('infl').textContent=`${roomInflation().toFixed(2)}×`;const projectionLabel=state.projectionCoverage?.complete?`projected-points mode (${state.projectionCoverage.directPlayers})`:`format-value fallback (${state.projectionCoverage?.directPlayers||0}/${state.projectionCoverage?.poolPlayers||state.players.length} projections)`,roomLabel=state.model?.live?.samples?`room read ${state.model.live.status.toLowerCase()} (${state.model.live.samples})`:'room read cold';$('source').textContent=`${state.sourceHealth&&SourceHealth?`${SourceHealth.label(state.sourceHealth)} · `:''}${state.profile?.id||'profile'} · ${state.players.length} players · ${projectionLabel} · ${roomLabel} · ${formatLabel(state.auction.league)}`;renderBoard();renderValuation();renderRosterAndTeams();renderTendencies();renderLot();save();}
+  function render(){if(!state.auction)return;clearError();syncCompatibilityFields();$('infl').textContent=`${roomInflation().toFixed(2)}×`;const projectionLabel=state.projectionCoverage?.complete?`projected-points mode (${state.projectionCoverage.directPlayers})`:`format-value fallback (${state.projectionCoverage?.directPlayers||0}/${state.projectionCoverage?.poolPlayers||state.players.length} projections)`,roomLabel=state.model?.live?.samples?`room read ${state.model.live.status.toLowerCase()} (${state.model.live.samples})`:'room read cold';$('source').textContent=`${state.sourceHealth&&SourceHealth?`${SourceHealth.label(state.sourceHealth)} · `:''}${state.profile?.id||'profile'} · ${state.players.length} players · ${projectionLabel} · ${roomLabel} · ${formatLabel(state.auction.league)}`;renderBoard();renderLot();renderValuation();renderRecommendations();renderRosterAndTeams();renderTendencies();save();}
 
   function openNextNomination(){if(!state.auction||state.auction.nomination||state.auction.status==='COMPLETE')return;const next=M.nextNominator(state.auction);if(!next){state.auction={...state.auction,status:'COMPLETE'};render();return}if(next.id===state.auction.userTeamId){state.auction={...state.auction,status:'AWAITING_NOMINATION'};}else{state.auction=M.startNomination(state.auction,{teamId:next.id});}render();}
   function clockTick(){if(!state.auction)return;if(state.auction.nomination&&state.auction.status==='BIDDING'){const sales=state.auction.purchases.length;state.auction=M.advanceClock(state.auction,{seconds:1,allowCpuBid:true});if(state.auction.purchases.length>sales){state.selectedKey=null;updateAdaptiveModel();refreshExpectedPrices();}render();if(!state.auction.nomination&&state.auction.status!=='COMPLETE')setTimeout(openNextNomination,700);}else if(state.auction.status==='RUNNING')openNextNomination();}
@@ -224,7 +329,8 @@
   function applyHistory(){try{const history=JSON.parse($('history').value);state.history=history;state.historicalBacktest=null;updateAdaptiveModel({rebuildBacktest:true});localStorage.setItem(HISTORY_KEY,JSON.stringify(history));$('history-status').textContent=`Loaded ${state.model.rows} purchases · ${state.model.backtest.sufficient?`held-out MAE ${money(state.model.backtest.overall.mae)}`:`in-sample MAE ${money(state.model.overall.mae)}`}.`;refreshExpectedPrices();render();}catch(error){$('history-status').textContent='Invalid history JSON.'}}
 
   function bind(){
-    $('startMock').onclick=()=>{try{localStorage.removeItem(SESSION_KEY);newAuction();openNextNomination();startClock();}catch(error){showError(error.message)}};$('advanceMock').onclick=()=>advanceToDecision();$('autoTen').onclick=()=>autoSales(10);$('finishMock').onclick=()=>{if(confirm('Finish the remaining auction with CPU control for every team?'))finishAuction()};$('nominateSelected').onclick=nominate;$('bidLot').onclick=bid;$('passLot').onclick=pass;$('record').onclick=recordManual;$('resetCurrent').onclick=()=>{const player=selectedPlayer();if(!player)return;delete $('currentPrice').dataset.manual;$('currentPrice').value=Math.round(userAnalysis(player).expected);renderValuation()};$('currentPrice').oninput=()=>{$('currentPrice').dataset.manual='1'};$('pos').onchange=renderBoard;$('search').oninput=renderBoard;$('formatPreset').onchange=(event)=>applyPreset(event.target.value);$('teamCount').onchange=()=>{$('userTeam').max=$('teamCount').value;$('userTeam').value=Math.min(inputNumber('userTeam',1),inputNumber('teamCount',12))};$('apply').onclick=applyHistory;$('clear').onclick=()=>{localStorage.removeItem(HISTORY_KEY);state.history=null;state.historicalBacktest=null;updateAdaptiveModel({rebuildBacktest:true});$('history').value='';$('history-status').textContent='No league history loaded; current-room learning remains active.';refreshExpectedPrices();render()};$('retryData').onclick=boot;$('resetSession').onclick=()=>{localStorage.removeItem(SESSION_KEY);newAuction();render()};$('exportSession').onclick=()=>{const blob=new Blob([JSON.stringify(sessionPayload(),null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=url;anchor.download='fantasy-front-office-auction-session.json';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+    $('startMock').onclick=()=>{try{localStorage.removeItem(SESSION_KEY);newAuction();if(isCompanion()){applyAuctionMode({renderNow:false});render()}else{openNextNomination();startClock()}}catch(error){showError(error.message)}};$('advanceMock').onclick=()=>advanceToDecision();$('autoTen').onclick=()=>autoSales(10);$('finishMock').onclick=()=>{if(confirm('Finish the remaining auction with CPU control for every team?'))finishAuction()};$('nominateSelected').onclick=nominate;$('bidLot').onclick=bid;$('passLot').onclick=pass;$('record').onclick=recordManual;$('resetCurrent').onclick=()=>{const player=selectedPlayer();if(!player)return;delete $('currentPrice').dataset.manual;$('currentPrice').value=Math.round(userAnalysis(player).expected);renderValuation()};$('currentPrice').oninput=()=>{$('currentPrice').dataset.manual='1'};$('pos').onchange=renderBoard;$('search').oninput=renderBoard;$('formatPreset').onchange=(event)=>applyPreset(event.target.value);$('teamCount').onchange=()=>{$('userTeam').max=$('teamCount').value;$('userTeam').value=Math.min(inputNumber('userTeam',1),inputNumber('teamCount',12))};$('apply').onclick=applyHistory;$('clear').onclick=()=>{localStorage.removeItem(HISTORY_KEY);state.history=null;state.historicalBacktest=null;updateAdaptiveModel({rebuildBacktest:true});$('history').value='';$('history-status').textContent='No league history loaded; current-room learning remains active.';refreshExpectedPrices();render()};$('retryData').onclick=boot;$('resetSession').onclick=()=>{localStorage.removeItem(SESSION_KEY);newAuction();render()};$('exportSession').onclick=()=>{const blob=new Blob([JSON.stringify(sessionPayload(),null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=url;anchor.download='fantasy-front-office-auction-session.json';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+    $('auctionMode').onchange=()=>applyAuctionMode();$('recordCompanion').onclick=recordCompanionSale;$('companionPrice').oninput=()=>{const player=selectedPlayer();if(player){$('currentPrice').value=$('companionPrice').value;renderLotDecision(player);renderValuation()}};$('companionWinner').onchange=()=>renderLot();
     document.addEventListener('ffo:league-changed',(event)=>{if(state.auction?.purchases?.length)return;state.league=event.detail||defaultLeague();applyLeagueInputs(state.league);if(state.intelligence)newAuction({preserveSelection:true})});
   }
 
@@ -242,7 +348,7 @@
       let handoff=null;try{if(new URLSearchParams(location.search).get('from')==='mock-draft')handoff=JSON.parse(localStorage.getItem('ffo_mock_draft_handoff_v1')||'null')}catch{}
       if(handoff?.league){state.league={...handoff.league,teams:handoff.teams||handoff.league.teams,draft:{...(handoff.league.draft||{}),format:'auction',budget:handoff.league.draft?.budget||200,minimum_bid:handoff.league.draft?.minimum_bid||1}};localStorage.removeItem('ffo_mock_draft_handoff_v1');applyLeagueInputs(state.league);newAuction()}
       else{const payload=loadSaved();if(!restoreSaved(payload)){state.league=window.FFO_ACTIVE_LEAGUE||defaultLeague();applyLeagueInputs(state.league);newAuction()}}
-      render();
+      applyAuctionMode({renderNow:false});render();
     }catch(error){showError(`Auction data could not load: ${error.message}`)}
   }
 

@@ -40,7 +40,33 @@
 <section id="lotPanel" class="panel lot-panel">
   <div class="toolbar"><div><span class="eyebrow">CURRENT NOMINATION</span><h2 id="lotPlayer">Waiting to start</h2><div id="lotMeta" class="muted">Start a new auction to enter the room.</div></div><div class="lot-live"><div class="auction-clock"><span>Time remaining</span><strong id="lotClock">—</strong><small>late bids reset the clock</small></div><div class="lot-price"><span>Current bid</span><strong id="lotBid">—</strong><small id="lotLeader"></small></div></div></div>
   <div id="bidHistory" class="bid-history muted">Nominate a player to open bidding.</div>
+  <div id="lotDecisionCenter" class="lot-decision-center" aria-live="polite">
+    <div class="lot-decision-copy">
+      <span id="lotDecision" class="lot-decision-badge neutral">WAITING</span>
+      <div><strong id="lotDecisionHeadline">Select a player to see your auction plan.</strong><span id="lotDecisionReason">Your roster, budget and the room price will set the recommendation.</span></div>
+    </div>
+    <div class="price-ladder" aria-label="Current auction price compared with expected price and walk-away limit">
+      <div class="price-ladder-track"><span id="lotValueFill" class="price-ladder-fill"></span><i id="lotCurrentMarker" class="price-marker current"></i><i id="lotExpectedMarker" class="price-marker expected"></i><i id="lotWalkMarker" class="price-marker walk"></i></div>
+      <div class="price-ladder-labels"><span><small>Current</small><strong id="lotCurrentPrice">—</strong></span><span><small>Expected</small><strong id="lotExpectedPrice">—</strong></span><span><small>Bid through</small><strong id="lotBidThrough">—</strong></span><span><small>Walk away</small><strong id="lotWalkAway">—</strong></span></div>
+    </div>
+    <div class="lot-consequences">
+      <div><small>ROOM TO CEILING</small><strong id="lotCeilingRoom">—</strong></div>
+      <div><small>IF YOU WIN NEXT BID</small><strong id="lotBudgetAfter">—</strong><span id="lotSlotsAfter">Budget impact</span></div>
+      <div><small>NEXT COMPARABLE</small><strong id="lotComparableName">—</strong><span id="lotComparablePrice">No comparison available</span></div>
+    </div>
+    <div id="companionQuick" class="companion-quick">
+      <div><span class="eyebrow">LIVE COMPANION ENTRY</span><strong>Record the real room without leaving the decision surface.</strong></div>
+      <label>Current / final price<input id="companionPrice" type="number" min="1" value="1"></label>
+      <label>Winning team<select id="companionWinner"></select></label>
+      <button id="recordCompanion" class="btn">Record Sale</button>
+      <span id="companionQuickStatus" class="muted">Select the nominated player from Available Players.</span>
+    </div>
+  </div>
   <div class="lot-actions"><button id="nominateSelected" class="btn">Nominate Selected</button><label class="custom-bid">Your bid<input id="customBid" type="number" min="1" value="2"></label><button id="bidLot" class="btn good-btn">Bid +$1</button><button id="passLot" class="btn danger">Pass This Player</button></div>
+</section>
+<section class="panel recommendation-panel">
+  <div class="toolbar"><div><span class="eyebrow">YOUR AUCTION PLAN</span><strong>Recommended players</strong><div class="muted">Roster-specific targets are separate from the general available-player market.</div></div><span id="recommendationMode" class="status">LIVE</span></div>
+  <div id="auctionRecommendations" class="recommendation-rail"><div class="muted">Recommendations appear when the auction data is ready.</div></div>
 </section>
 <section class="panel">
   <div class="toolbar"><div><strong>Available players</strong><div id="source" class="muted">Loading calibrated draft intelligence…</div></div><div><span class="meta">Room inflation</span> <span id="infl" class="score">1.00×</span></div></div>
