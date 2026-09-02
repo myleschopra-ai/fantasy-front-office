@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-02T14:58:43Z",
+  "method": "walk-forward; each projection uses rows strictly before its target week",
+  "baseline": "prior-season half-PPR points per game",
+  "passed": true,
+  "seasons": [
+    {
+      "season": 2024,
+      "evaluation_weeks": [
+        8,
+        16
+      ],
+      "observations": 562,
+      "mae": 4.053,
+      "baseline_mae": 4.311,
+      "mae_delta": -0.258,
+      "passed": true
+    },
+    {
+      "season": 2025,
+      "evaluation_weeks": [
+        8,
+        16
+      ],
+      "observations": 517,
+      "mae": 4.338,
+      "baseline_mae": 4.611,
+      "mae_delta": -0.273,
+      "passed": true
+    }
+  ]
+}

@@ -30,6 +30,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 from open_projection_engine import build_for_players, load_parquet_rows
+from data_foundation import evidence_confidence
 
 
 POSITIONS = {"QB", "RB", "WR", "TE", "K", "DST"}
@@ -260,6 +261,17 @@ def attach_projections(
     ) or (
         requested_ppr <= 0.25 and snapshot_scoring in {"STD", "STANDARD"}
     ) or (0.25 < requested_ppr < 0.75 and snapshot_scoring in {"", "HALF", "HALF_PPR"})
+    source_timestamp = snapshot.get("generated_at") or snapshot.get("source_published_at")
+    freshness = 0.75
+    if source_timestamp:
+        try:
+            published = datetime.fromisoformat(str(source_timestamp).replace("Z", "+00:00"))
+            if published.tzinfo is None:
+                published = published.replace(tzinfo=timezone.utc)
+            age_days = max(0.0, (datetime.now(timezone.utc) - published).total_seconds() / 86400)
+            freshness = 1.0 if age_days <= 1 else 0.85 if age_days <= 7 else 0.55 if age_days <= 21 else 0.25
+        except ValueError:
+            freshness = 0.45
     for player in players:
         if only_missing and finite(player.get("projected_points")) is not None:
             continue
@@ -276,6 +288,8 @@ def attach_projections(
         player["projection_source"] = row.get("projection_source") or "fantasypros_api"
         player["projection_mode"] = row.get("projection_mode") or "DIRECT_PROJECTION"
         player["projection_confidence"] = int(finite(row.get("projection_confidence"), 95) or 95)
+        player["projection_source_published_at"] = source_timestamp
+        player["projection_freshness"] = round(freshness, 3)
         if row.get("model_version"):
             player["projection_model_version"] = row["model_version"]
         if row.get("evidence"):
@@ -288,6 +302,98 @@ def attach_projections(
             player["projection_role_signal_evidence"] = row["role_signal_evidence"]
         if isinstance(row.get("stats"), dict):
             player["projection_stats"] = row["stats"]
+        if isinstance(row.get("points_distribution"), dict):
+            player["projection_distribution"] = row["points_distribution"]
+        if row.get("expected_games") is not None:
+            player["expected_games"] = row["expected_games"]
+        if row.get("availability_probability") is not None:
+            player["availability_probability"] = row["availability_probability"]
+
+
+def load_identity_registry(path: Path) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]], dict[str, Any]]:
+    if not path.exists():
+        return {}, {}, {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    by_sleeper, by_name = {}, {}
+    for row in payload.get("players", []):
+        sleeper = (row.get("source_ids") or {}).get("sleeper")
+        if sleeper:
+            by_sleeper[str(sleeper)] = row
+        by_name[f"{normalize_name(row.get('name'))}|{normalize_position(row.get('position'))}"] = row
+        for alias in row.get("aliases") or []:
+            by_name[f"{normalize_name(alias)}|{normalize_position(row.get('position'))}"] = row
+    return by_sleeper, by_name, payload.get("quality") or {}
+
+
+def load_rookie_registry(path: Path) -> dict[str, dict[str, Any]]:
+    if not path.exists():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return {f"{normalize_name(row.get('name'))}|{normalize_position(row.get('position'))}": row for row in payload.get("players", [])}
+
+
+def attach_rookie_profiles(players: list[dict[str, Any]], rookies: dict[str, dict[str, Any]]) -> None:
+    for player in players:
+        rookie = rookies.get(f"{normalize_name(player.get('name'))}|{normalize_position(player.get('position'))}")
+        if not rookie:
+            continue
+        for field in ("draft_year", "draft_round", "draft_pick", "draft_capital_score", "athletic_score", "college_production_score", "breakout_age", "early_declare", "rookie_prior_confidence"):
+            if rookie.get(field) is not None:
+                player[field] = rookie[field]
+        player["rookie_evidence"] = rookie.get("evidence") or []
+
+
+def attach_identity_and_confidence(
+    players: list[dict[str, Any]],
+    by_sleeper: dict[str, dict[str, Any]],
+    by_name: dict[str, dict[str, Any]],
+) -> None:
+    for player in players:
+        identity = by_sleeper.get(str(player.get("sleeper_id") or "")) or by_name.get(
+            f"{normalize_name(player.get('name'))}|{normalize_position(player.get('position'))}"
+        )
+        if identity:
+            player["player_key"] = identity.get("player_key")
+            player["identity_confidence"] = identity.get("identity_confidence")
+            player["source_ids"] = identity.get("source_ids") or {}
+            for source_field, target_field in (
+                ("age", "age"), ("years_experience", "years_exp"), ("height", "height"),
+                ("weight", "weight"), ("status", "status"), ("injury_status", "injury_status"),
+                ("depth_chart_order", "depth_chart_order"), ("college", "college"),
+                ("draft_year", "draft_year"), ("draft_round", "draft_round"), ("draft_pick", "draft_pick"),
+            ):
+                if identity.get(source_field) is not None:
+                    player[target_field] = identity[source_field]
+        identity_factor = clamp(player.get("identity_confidence"), 0, 100) / 100
+        projection_factor = clamp(player.get("projection_confidence"), 0, 100) / 100
+        coverage_fields = (
+            player.get("player_key"), player.get("projected_points"), player.get("team"),
+            player.get("projection_role_signals"), player.get("scheme_fit"),
+            player.get("age"), player.get("injury_status") or player.get("status"),
+        )
+        coverage = sum(value not in (None, "", [], {}) for value in coverage_fields) / len(coverage_fields)
+        agreement = clamp(player.get("agreement"), 0, 100) / 100
+        mode = str(player.get("projection_mode") or "")
+        base_reliability = 0.95 if mode == "DIRECT_PROJECTION" else 0.72 if mode == "OPEN_MODEL_PROJECTION" else 0.48
+        reliability = base_reliability * (0.65 + projection_factor * 0.35)
+        freshness = clamp((finite(player.get("projection_freshness"), 0.45) or 0.45) * 100, 0, 100) / 100
+        score = evidence_confidence(
+            identity=identity_factor or 0.35,
+            freshness=freshness,
+            coverage=coverage,
+            agreement=agreement or 0.35,
+            reliability=reliability,
+        )
+        player["data_confidence"] = {
+            "score": score,
+            "label": "HIGH" if score >= 80 else "MODERATE" if score >= 65 else "LOW" if score >= 45 else "INSUFFICIENT",
+            "identity": round(identity_factor * 100),
+            "feature_coverage": round(coverage * 100),
+            "projection": round(projection_factor * 100),
+            "freshness": round(freshness * 100),
+            "agreement": round(agreement * 100),
+            "projection_reliability": round(reliability * 100),
+        }
 
 
 def projection_coverage(players: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1070,7 +1176,8 @@ def attach_scheme_fit(players: list[dict[str, Any]], team_profiles: dict[str, An
         }
 
 
-def source_meta(source_id: str, label: str, url: str, status: str, count: int = 0, error: str | None = None) -> dict[str, Any]:
+def source_meta(source_id: str, label: str, url: str, status: str, count: int = 0, error: str | None = None,
+                source_published_at: str | None = None, effective_as_of: str | None = None) -> dict[str, Any]:
     payload = {
         "id": source_id,
         "label": label,
@@ -1078,6 +1185,8 @@ def source_meta(source_id: str, label: str, url: str, status: str, count: int = 
         "status": status,
         "record_count": count,
         "retrieved_at": utc_now(),
+        "source_published_at": source_published_at,
+        "effective_as_of": effective_as_of,
         "weight": SOURCE_WEIGHTS.get(source_id, 0),
     }
     if error:
@@ -1091,6 +1200,8 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     repository_snapshot = load_repository_positional_snapshot(args.repository_snapshot)
     repository_projections, projection_snapshot = load_repository_projections(args.repository_snapshot)
     sleeper_candidates = load_sleeper_candidates(args.sleeper_players)
+    identity_by_sleeper, identity_by_name, identity_quality = load_identity_registry(args.identity_registry)
+    rookie_registry = load_rookie_registry(args.rookie_profiles)
     seasonal_stats_path = args.nflverse_dir / "seasonal_stats.parquet"
     try:
         open_projection_rows = load_parquet_rows(seasonal_stats_path)
@@ -1118,6 +1229,8 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "fantasypros.json",
             "ok",
             len(repository_snapshot),
+            source_published_at=projection_snapshot.get("generated_at"),
+            effective_as_of=projection_snapshot.get("season"),
         )
     projection_count = len(repository_projections)
     sources["fantasypros_projection_snapshot"] = source_meta(
@@ -1134,6 +1247,8 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             if projection_count
             else "No usable season projections in repository snapshot"
         ),
+        source_published_at=projection_snapshot.get("generated_at"),
+        effective_as_of=projection_snapshot.get("season"),
     )
     sources["open_nflverse_model"] = source_meta(
         "open_nflverse_model",
@@ -1228,11 +1343,14 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
                 )
         players = merge_rankings(sets) if sets else []
         ensure_draftable_depth(players, sleeper_candidates)
+        attach_identity_and_confidence(players, identity_by_sleeper, identity_by_name)
+        attach_rookie_profiles(players, rookie_registry)
         attach_projections(players, repository_projections, projection_snapshot, spec)
         open_projections = build_for_players(players, open_projection_rows, args.season, open_signal_rows) if open_projection_rows else {}
         if open_projections:
-            attach_projections(players, open_projections, {"scoring": "HALF"}, spec, only_missing=True)
+            attach_projections(players, open_projections, {"scoring": "HALF", "generated_at": generated_at}, spec, only_missing=True)
         attach_scheme_fit(players, team_profiles, usage_profiles)
+        attach_identity_and_confidence(players, identity_by_sleeper, identity_by_name)
         players = select_draftable_pool(players, args.max_players)
         profiles[profile_id] = {
             "generated_at": generated_at,
@@ -1268,6 +1386,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "minimum_projection_coverage": round(min(eligible_rates), 3) if eligible_rates else 0,
             "direct_projection_assignments": direct_players,
             "open_model_projection_assignments": modeled_players,
+            "canonical_identity": identity_quality,
             "healthy_sources": len(healthy),
             "total_sources": len(sources),
             "confidence_policy": "Direct and open-model projections remain separately labeled; incomplete profiles cannot be published.",
@@ -1280,6 +1399,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "strategy_weights": "Strategy presets alter a bounded component; VBD, tier cliffs, market value, and roster needs remain primary.",
             "projection_activation": "Projected-point VORP activates only when explicitly labeled direct or open-model projections reach every draftable positional minimum; otherwise the format-specific League Value fallback remains explicit.",
             "open_role_adjustment": "Expected-opportunity, offensive-snap, depth-rank, and injury evidence combine into a bounded +/-15% projection adjustment; only rows before the target season are eligible.",
+            "data_confidence": "Identity, source freshness, feature coverage, source agreement, and projection reliability combine geometrically so one weak foundation cannot be hidden by a simple average.",
         },
         "limitations": [
             "Preseason coaching changes reduce scheme-fit confidence because current-season play-call evidence does not yet exist.",
@@ -1301,6 +1421,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repository-snapshot", type=Path, default=Path("fantasypros.json"))
     parser.add_argument("--nflverse-dir", type=Path, default=Path("data/raw/nflverse"))
     parser.add_argument("--sleeper-players", type=Path, default=Path("data/raw/sleeper/players.json"))
+    parser.add_argument("--identity-registry", type=Path, default=Path("data/normalized/player_identity.json"))
+    parser.add_argument("--rookie-profiles", type=Path, default=Path("data/rookie_profiles.json"))
     return parser.parse_args()
 
 

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/source_manifest.schema.json",
+  "title": "Fantasy Front Office source snapshot manifest",
+  "type": "object",
+  "required": ["schema_version", "snapshot_id", "retrieved_at", "collector", "status", "artifacts"],
+  "properties": {
+    "schema_version": {"const": 2},
+    "snapshot_id": {"type": "string", "minLength": 8},
+    "retrieved_at": {"type": "string", "format": "date-time"},
+    "collector": {"type": "string"},
+    "status": {"enum": ["complete", "partial", "failed"]},
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["dataset", "source", "source_url", "license", "retrieved_at"],
+        "properties": {
+          "dataset": {"type": "string"},
+          "source": {"type": "string"},
+          "source_url": {"type": "string"},
+          "license": {"type": "string"},
+          "retrieved_at": {"type": "string", "format": "date-time"},
+          "source_published_at": {"type": ["string", "null"]},
+          "effective_as_of": {"type": ["string", "null"]},
+          "sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+          "schema_fingerprint": {"type": ["string", "null"]},
+          "rows": {"type": ["integer", "null"], "minimum": 0}
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -13,14 +13,39 @@ def load(name, filename):
     return module
 
 
+def load_collector(name, filename):
+    spec = importlib.util.spec_from_file_location(name, ROOT / "scripts" / "collectors" / filename)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 dk = load("dk_collector", "scrape_draftkings_season_props.py")
 sharp = load("sharp_collector", "collect_sharpapi_season_props.py")
 merge = load("vegas_merge", "merge_vegas_quotes.py")
 weekly_collector = load("weekly_collector", "collect_sharpapi_weekly_props.py")
 weekly_builder = load("weekly_builder", "build_weekly_vegas_projections.py")
+odds_api = load_collector("odds_api_collector", "the_odds_api.py")
 
 
 class VegasCollectorTests(unittest.TestCase):
+    def test_documented_odds_api_normalizes_books_and_sides(self):
+        event = {
+            "id": "game-1", "commence_time": "2026-09-10T00:00:00Z",
+            "bookmakers": [{"key": "draftkings", "last_update": "2026-09-09T20:00:00Z", "markets": [{
+                "key": "player_rush_yds", "outcomes": [
+                    {"name": "Over", "description": "Test Runner", "point": 72.5, "price": -115},
+                    {"name": "Under", "description": "Test Runner", "point": 72.5, "price": -105},
+                ],
+            }]}],
+        }
+        quote = odds_api.normalize_event(event, "2026-09-09T19:00:00Z")[0]
+        self.assertEqual(quote["market"], "rushing_yards")
+        self.assertEqual(quote["line"], 72.5)
+        self.assertEqual(quote["over_odds"], -115)
+        self.assertEqual(quote["under_odds"], -105)
+        self.assertEqual(quote["source_type"], "documented_api")
+
     def test_sharp_pagination_switches_from_offset_to_cursor(self):
         pages = [
             {"data": [{"id": 1}], "pagination": {"has_more": True, "next_offset": 200, "next_cursor": "cursor-2"}},

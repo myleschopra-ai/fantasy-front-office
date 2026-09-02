@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fantasy-front-office.local/schemas/acquisition-targets.schema.json",
+  "title": "Phase 2 Acquisition Target Finder Result",
+  "type": "object",
+  "required": ["version", "evaluatedCount", "waiverCount", "tradeCount", "actionableCount", "baseChampionship", "targets"],
+  "properties": {
+    "version": { "type": "string" },
+    "evaluatedCount": { "type": "integer", "minimum": 0 },
+    "waiverCount": { "type": "integer", "minimum": 0 },
+    "tradeCount": { "type": "integer", "minimum": 0 },
+    "actionableCount": { "type": "integer", "minimum": 0 },
+    "baseChampionship": { "type": "object" },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "position", "path", "weeklyPointGain", "ewa", "championshipProbabilityAdded", "permanentAssetCost", "championshipReturnPer1000", "teamValue", "mispricing", "rank", "dataStatus"],
+        "properties": {
+          "id": { "type": ["string", "number"] },
+          "name": { "type": "string" },
+          "position": { "type": "string" },
+          "path": {
+            "type": "object",
+            "required": ["type", "ownerName", "permanentAssetCost"],
+            "properties": {
+              "type": { "enum": ["WAIVER", "TRADE"] },
+              "ownerId": { "type": ["string", "null"] },
+              "ownerName": { "type": "string" },
+              "permanentAssetCost": { "type": "number", "minimum": 0 }
+            }
+          },
+          "weeklyPointGain": { "type": "number" },
+          "ewa": { "type": "number" },
+          "championshipProbabilityAdded": { "type": "number" },
+          "playoffProbabilityAdded": { "type": "number" },
+          "permanentAssetCost": { "type": "number", "minimum": 0 },
+          "championshipReturnPer1000": { "type": ["number", "null"], "minimum": 0 },
+          "faabCost": { "type": ["integer", "null"], "minimum": 0 },
+          "teamValue": { "type": "number", "minimum": 0 },
+          "mispricing": { "type": "object" },
+          "waiverAlternative": { "type": ["object", "null"] },
+          "pathRecommendation": { "enum": ["CLAIM / BID", "WAIVER FIRST", "TRADE EDGE", "TRADE ONLY"] },
+          "rank": { "type": "integer", "minimum": 1 },
+          "dataStatus": { "enum": ["ACTIONABLE", "NO_LINEUP_GAIN", "NO_PROJECTION"] }
+        }
+      }
+    }
+  }
+}

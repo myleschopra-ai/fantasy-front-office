@@ -1210,7 +1210,7 @@
       `${player.name} · ${player.position}${player.nflTeam ? ` · ${player.nflTeam}` : ""}${draftedPick ? ` · Drafted ${roundPick(draftedPick.pick)} (Team ${draftedPick.team})` : ""}`;
     $("player-blurb").textContent = draftedPick
       ? `Already drafted. Score shown below is recomputed now, using current context — not necessarily identical to the value at the moment this pick was made.`
-      : `${needLabel(player)} — ${needReason(player)}. Overall ${numeric(player.overallRank, player.rank)}, ${player.position}${numeric(player.posRank, 999)}, position tier ${numeric(player.tier, 99)}, ADP ${numeric(player.adp, player.overallRank).toFixed(1)}. ${numeric(player.sourceCount, 1)} ranking source${numeric(player.sourceCount, 1) === 1 ? "" : "s"} with ${Math.round(numeric(player.agreement, 50))}% agreement.`;
+      : `${needLabel(player)} — ${needReason(player)}. Overall ${numeric(player.overallRank, player.rank)}, ${player.position}${numeric(player.posRank, 999)}, position tier ${numeric(player.tier, 99)}, ADP ${numeric(player.adp, player.overallRank).toFixed(1)}. ${numeric(player.sourceCount, 1)} ranking source${numeric(player.sourceCount, 1) === 1 ? "" : "s"} with ${Math.round(numeric(player.agreement, 50))}% agreement. Data confidence ${esc(player.dataConfidence?.label || "UNRATED")} ${numeric(player.dataConfidence?.score, 0)}/100${player.identityConfidence ? ` · identity ${numeric(player.identityConfidence, 0)}/100` : ""}.`;
     $("player-scheme").innerHTML = schemeHtml(player);
     $("player-compare").innerHTML = group
       .map((candidate, index) => {
@@ -1262,6 +1262,8 @@
             ${metric("Tier Depth", evaluation.scarcity.tierDepth)}
             ${metric("Tier Dropoff", evaluation.scarcity.tierDropoff)}
             ${metric("Opp. Cost", evaluation.opportunityCost.opportunityCost)}
+            ${metric("Data confidence", `${numeric(candidate.dataConfidence?.score, 0)}/100`)}
+            ${metric("Expected games", candidate.expectedGames != null ? numeric(candidate.expectedGames).toFixed(1) : "—")}
           </div>
           ${evaluation.opportunityCost.bestAlternative ? `<div class="detail-line" style="margin-top:6px;">Best alternative: ${esc(evaluation.opportunityCost.bestAlternative.name)} (${evaluation.opportunityCost.bestAlternativePosition})${evaluation.opportunityCost.lineupImprovementForfeited ? " — would start immediately, this pick would not" : ""}</div>` : ""}
         </div>`;

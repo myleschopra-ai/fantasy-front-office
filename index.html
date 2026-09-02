@@ -207,6 +207,29 @@
   .trade-item:last-of-type { border-bottom: none; }
   .remove-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px; padding: 0 4px; }
   .trade-total { margin-top: 10px; font-size: 13px; font-weight: 700; }
+  .rie-executive { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
+  .rie-metric,.rie-bottleneck { background:var(--surface); border:1px solid var(--border-hover); border-radius:8px; padding:12px; }
+  .rie-metric span,.rie-bottleneck span { display:block; color:var(--text-dim); font:10px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace; text-transform:uppercase; letter-spacing:.05em; }
+  .rie-metric strong { display:block; margin-top:5px; font-size:20px; color:var(--text); }
+  .rie-metric small { display:block; margin-top:4px; color:var(--text-muted); line-height:1.35; }
+  .rie-bottlenecks { display:grid; gap:7px; margin:12px 0 18px; }
+  .rie-bottleneck { display:grid; grid-template-columns:minmax(80px,.7fr) minmax(100px,1fr) 90px 90px; gap:10px; align-items:center; }
+  .rie-bottleneck b { color:var(--gold-light); }
+  .rie-track { height:6px; background:var(--surface2); border-radius:99px; overflow:hidden; }
+  .rie-track i { display:block; height:100%; background:linear-gradient(90deg,var(--teal),var(--gold)); border-radius:inherit; }
+  .rie-caveat { color:var(--text-dim); font-size:11px; line-height:1.5; }
+  .target-finder-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-bottom:14px; }
+  .target-finder-summary > div { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+  .target-finder-summary span { display:block; color:var(--text-dim); font-size:10px; text-transform:uppercase; }
+  .target-finder-summary strong { display:block; margin-top:4px; color:var(--text); }
+  .target-board { display:grid; gap:8px; }
+  .target-card { display:grid; grid-template-columns:38px minmax(170px,1.4fr) minmax(130px,1fr) 88px 90px minmax(130px,1fr); gap:10px; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:11px; }
+  .target-card[data-actionable="false"] { opacity:.64; }
+  .target-rank { color:var(--text-dim); font:700 12px ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .target-name { font-weight:700; }
+  .target-owner,.target-detail { color:var(--text-muted); font-size:11px; line-height:1.4; }
+  .target-number { font:700 13px ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--green); }
+  .target-action { color:var(--gold-light); font-size:11px; font-weight:800; }
 
   .scale-box { background: var(--surface); border-radius: 6px; padding: 14px; margin-bottom: 14px; }
   .scale-bar { height: 10px; border-radius: 5px; background: var(--surface2); display: flex; overflow: hidden; }
@@ -232,6 +255,12 @@
 
   @media (max-width: 480px) {
     .trade-cols { grid-template-columns: 1fr; }
+    .rie-executive { grid-template-columns:1fr 1fr; }
+    .rie-bottleneck { grid-template-columns:1fr 1fr; }
+    .rie-bottleneck > :nth-child(2) { grid-column:1 / -1; grid-row:2; }
+    .target-finder-summary { grid-template-columns:1fr; }
+    .target-card { grid-template-columns:30px 1fr 86px; align-items:start; }
+    .target-card > :nth-child(3),.target-card > :nth-child(6) { grid-column:2 / -1; }
   }
 
   /* Responsive table→card pattern: below 640px, the 9-column roster table
@@ -365,6 +394,7 @@
     <h2 class="display" style="font-size:16px;" id="roster-title">Your Roster</h2>
     <p class="mono" id="roster-validation" style="font-size:11px; color:var(--text-dim); margin:-4px 0 14px;"></p>
     <div id="roster-summary" class="ffo2-roster-summary"></div>
+    <section id="roster-improvement-diagnostics" aria-label="Roster improvement diagnostics"></section>
     <div class="ffo2-section-head"><strong>Starting lineup</strong><span>Optimized for your league's configured roster slots</span></div>
     <div id="roster-lineup" class="ffo2-lineup-board"></div>
     <section class="ffo2-bench-section"><div class="ffo2-section-head"><strong>Bench and reserves</strong><span id="roster-bench-count"></span></div><div id="roster-bench" class="ffo2-bench-grid"></div></section>
@@ -419,6 +449,7 @@
       <div class="scale-labels"><span id="scale-give-label">Give: 0</span><span id="scale-get-label">Get: 0</span></div>
     </div>
     <div class="verdict neutral" id="verdict-box">Add assets to both sides</div>
+    <div id="trade-championship-impact" style="margin-top:8px;"></div>
     <div id="trade-partners-section" style="margin-top:28px; display:none;">
       <h3 class="display" style="font-size:12px; color:var(--text-muted);">Potential Trade Partners</h3>
       <p class="mono" style="font-size:10px; color:var(--text-dim); margin:4px 0 10px;">Based on rostered position counts vs a conservative depth floor. A starting point for who to call, not a guarantee they'll deal.</p>
@@ -458,6 +489,7 @@
 
 <script src="js/dashboard-intelligence.js"></script>
 <script src="js/dashboard-observability.js"></script>
+<script src="js/roster-improvement-engine.js"></script>
 <script>
 (function () {
   "use strict";
@@ -468,8 +500,8 @@
   const state = {
     league: null, rosters: [], users: [], allPlayers: {}, fcData: [],
     tradedPicks: [], myRosterId: null, activeTab: "roster",
-    sideA: [], sideB: [], posFilter: "ALL", fpData: null, weeklyVegasData: null, fetchedAt: null, watcherState: null, scheduleData: null,
-    qualityManifest: null, leagueProfile: null, rosterAssessment: null,
+    sideA: [], sideB: [], posFilter: "ALL", targetPathFilter: "ALL", fpData: null, weeklyProjectionData: null, weeklyVegasData: null, fetchedAt: null, watcherState: null, scheduleData: null,
+    qualityManifest: null, leagueProfile: null, rosterAssessment: null, rosterEngine: null, targetFinder: null,
   };
 
   function fpRankFor(name, position) {
@@ -484,14 +516,29 @@
     return state.fpData.injuries.find(i => i.name === name) || null;
   }
 
-  function fpProjectionFor(name, position) {
+  function fpProjectionFor(name, position, sleeperId = null) {
+    const weekly = weeklyProjectionFor(name, position, sleeperId);
+    const vegas = weeklyVegasFor(name);
+    if (vegas) return vegas.adjusted_points;
+    if (weekly) return weekly.projected_points ?? weekly.distribution?.p50 ?? null;
     if (!state.fpData || !state.fpData.projections) return null;
     const list = state.fpData.projections[position];
     if (!list) return null;
     const entry = list.find(p => p.name === name);
     if (!entry) return null;
-    const vegas = weeklyVegasFor(name);
-    return vegas ? vegas.adjusted_points : (entry.projected_points ?? entry.points_half ?? null);
+    return entry.projected_points ?? entry.points_half ?? null;
+  }
+
+  function weeklyProjectionFor(name, position, sleeperId = null) {
+    const players = state.weeklyProjectionData?.players;
+    if (!Array.isArray(players)) return null;
+    const normalized = String(name || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b\.?/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+    return players.find(player =>
+      player.projection_scope === "weekly" &&
+      String(player.position || "").toUpperCase() === String(position || "").toUpperCase() &&
+      ((sleeperId && String(player.source_ids?.sleeper || "") === String(sleeperId)) ||
+       String(player.name || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b\.?/g, "").replace(/[^a-z0-9]+/g, " ").trim() === normalized)
+    ) || null;
   }
 
   function weeklyVegasFor(name) {
@@ -535,8 +582,89 @@
     return (roster?.players || []).map(pid => {
       const raw = state.allPlayers[pid] || { player_id: pid };
       const name = `${raw.first_name || ""} ${raw.last_name || ""}`.trim() || pid;
-      return window.FFODashboardIntel.normalizedPlayer(raw, market[pid], raw.position ? fpProjectionFor(name, raw.position) : null);
+      return window.FFODashboardIntel.normalizedPlayer(raw, market[pid], raw.position ? fpProjectionFor(name, raw.position, pid) : null);
     });
+  }
+
+  function rosterEnginePlayer(pid) {
+    const raw = state.allPlayers[pid] || { player_id: pid };
+    const market = fcBySleeperId()[pid];
+    const name = `${raw.first_name || ""} ${raw.last_name || ""}`.trim() || String(pid);
+    const projected = raw.position ? fpProjectionFor(name, raw.position, pid) : null;
+    return {
+      id: String(pid), name, position: raw.position, team: raw.team,
+      projection: projected, marketValue: market ? market.value : null,
+      injury: raw.injury_status || null, availabilityRisk: raw.injury_status ? 0.42 : 0.12,
+      weeklySd: projected === null ? null : Math.max(2, Number(projected) * 0.18),
+    };
+  }
+
+  function updateRosterEngine() {
+    if (!window.FFORosterEngine || !state.league || !state.myRosterId) { state.rosterEngine = null; state.targetFinder = null; return; }
+    const leagueRosters = state.rosters.map(roster => ({
+      id: String(roster.roster_id),
+      wins: Number(roster.settings?.wins || 0),
+      pointsFor: Number(roster.settings?.fpts || 0) + Number(roster.settings?.fpts_decimal || 0) / 100,
+      players: (roster.players || []).map(rosterEnginePlayer),
+    }));
+    const mine = leagueRosters.find(roster => roster.id === String(state.myRosterId));
+    if (!mine) { state.rosterEngine = null; return; }
+    const currentWeek = Number(state.weeklyProjectionData?.week || state.league.settings?.leg || 1);
+    const playoffStart = Number(state.league.settings?.playoff_week_start || 15);
+    const remainingWeeks = Math.max(1, playoffStart - currentWeek);
+    state.rosterEngine = window.FFORosterEngine.analyzeRoster({
+      roster: mine.players, leagueRosters, rosterPositions: state.league.roster_positions || [],
+      teams: Number(state.league.total_rosters || leagueRosters.length || 12), teamId: mine.id,
+      remainingWeeks, playoffTeams: Number(state.league.settings?.playoff_teams || 6), simulations: 1500,
+      seed: Number(state.league.season || 2026) + Number(state.myRosterId || 0),
+    });
+    state.rosterEngine.remainingWeeks = remainingWeeks;
+    state.rosterEngine.leagueRosters = leagueRosters;
+    updateTargetFinder(mine, leagueRosters);
+  }
+
+  function updateTargetFinder(mine, leagueRosters) {
+    const owners = ownerMap();
+    const market = fcBySleeperId();
+    const rosterOwner = new Map();
+    state.rosters.forEach(roster => (roster.players || []).forEach(pid => rosterOwner.set(String(pid), roster)));
+    const myIds = new Set((state.rosters.find(roster => roster.roster_id === state.myRosterId)?.players || []).map(String));
+    const candidateIds = new Set();
+    state.fcData.forEach(entry => { if (entry.player?.sleeperId) candidateIds.add(String(entry.player.sleeperId)); });
+    state.rosters.forEach(roster => (roster.players || []).forEach(pid => candidateIds.add(String(pid))));
+    (state.weeklyProjectionData?.players || []).forEach(player => { if (player.source_ids?.sleeper) candidateIds.add(String(player.source_ids.sleeper)); });
+    const candidates = [...candidateIds].filter(pid => !myIds.has(pid)).map(pid => {
+      const raw = state.allPlayers[pid] || {};
+      const marketEntry = market[pid];
+      const position = raw.position || marketEntry?.player?.position;
+      const name = `${raw.first_name || ""} ${raw.last_name || ""}`.trim() || marketEntry?.player?.name || pid;
+      const ownerRoster = rosterOwner.get(pid);
+      return {
+        id: pid, name, position, team: raw.team || marketEntry?.player?.maybeTeam || null,
+        projection: position ? fpProjectionFor(name, position, pid) : null,
+        marketValue: marketEntry ? Number(marketEntry.value || 0) : 0,
+        ownerId: ownerRoster ? String(ownerRoster.roster_id) : null,
+        ownerName: ownerRoster ? owners[ownerRoster.roster_id] || "Unknown manager" : null,
+        acquisitionType: ownerRoster ? "TRADE" : "WAIVER",
+        ownerLeverage: ownerRoster ? 1.08 : 1,
+        injury: raw.injury_status || null,
+      };
+    }).filter(candidate => ["QB", "RB", "WR", "TE", "K", "DST", "DEF"].includes(candidate.position));
+    const leagueTeams = leagueRosters.map(team => ({
+      id: team.id, wins: team.wins, pointsFor: team.pointsFor,
+      projection: window.FFORosterEngine.optimizeLineup(team.players, state.league.roster_positions || []).projected,
+    }));
+    const opponentProjections = leagueTeams.filter(team => team.id !== String(state.myRosterId)).map(team => team.projection);
+    const myRoster = state.rosters.find(roster => roster.roster_id === state.myRosterId);
+    const totalBudget = state.league.settings?.waiver_budget;
+    const budgetRemaining = totalBudget === undefined ? 100 : Math.max(0, Number(totalBudget) - Number(myRoster?.settings?.waiver_budget_used || 0));
+    state.targetFinder = window.FFORosterEngine.evaluateAcquisitionUniverse({
+      candidates, roster: mine.players, rosterPositions: state.league.roster_positions || [],
+      opponentProjections, remainingWeeks: state.rosterEngine.remainingWeeks,
+      leagueTeams, teamId: String(state.myRosterId), playoffTeams: Number(state.league.settings?.playoff_teams || 6),
+      simulations: 300, seed: Number(state.league.season || 2026) + Number(state.myRosterId || 0), budgetRemaining,
+    });
+    state.targetFinder.budgetRemaining = budgetRemaining;
   }
 
   function updateQualityContext() {
@@ -546,11 +674,13 @@
       { id: "sleeper-league", label: "Sleeper league state", timestamp: state.fetchedAt, maxAgeHours: 0.25, required: true },
       { id: "fantasycalc", label: "FantasyCalc market", timestamp: state.fetchedAt, maxAgeHours: 6, required: true },
       { id: "projection-snapshot", label: "Projection snapshot", timestamp: state.fpData?.generated_at, maxAgeHours: 6, required: false },
+      { id: "weekly-role-projection", label: "Weekly role projection", timestamp: state.weeklyProjectionData?.generated_at, maxAgeHours: 24, required: false },
       { id: "weekly-vegas", label: "Weekly sportsbook adjustment", timestamp: state.weeklyVegasData?.generated_at, maxAgeHours: 6, required: false },
       { id: "league-watcher", label: "League watcher", timestamp: state.watcherState?.last_run, maxAgeHours: 3, required: false },
       { id: "schedule", label: "Schedule signals", timestamp: state.scheduleData?.generated_at, maxAgeHours: 24, required: false },
     ]);
     state.rosterAssessment = window.FFODashboardIntel.rosterAssessment(normalizedRosterPlayers(), state.leagueProfile);
+    updateRosterEngine();
     renderQualityStrip();
   }
 
@@ -639,6 +769,16 @@
       }
 
       try {
+        const weeklyRes = await fetch("data/weekly_projections.json?t=" + Date.now());
+        if (weeklyRes.ok) {
+          const weekly = await weeklyRes.json();
+          if (weekly.projection_scope === "weekly") state.weeklyProjectionData = weekly;
+        }
+      } catch (e) {
+        console.warn("Open weekly role projections unavailable — season projection fallback remains active.");
+      }
+
+      try {
         const vegasRes = await fetch("data/vegas/weekly-projections.json?t=" + Date.now());
         if (vegasRes.ok) {
           const weekly = await vegasRes.json();
@@ -670,6 +810,7 @@
       if (parsed.traded_picks) state.tradedPicks = parsed.traded_picks;
       if (parsed.fc_data) state.fcData = parsed.fc_data;
       if (parsed.all_players) state.allPlayers = parsed.all_players;
+      if (parsed.weekly_projection_data?.projection_scope === "weekly") state.weeklyProjectionData = parsed.weekly_projection_data;
       state.fetchedAt = parsed.fetched_at ? new Date(parsed.fetched_at) : null;
       updateQualityContext();
       errorBox.style.display = "none";
@@ -834,7 +975,7 @@
       const p = state.allPlayers[pid] || {};
       const fc = fcMap[pid];
       const name = `${p.first_name || ""} ${p.last_name || ""}`.trim() || pid;
-      const projPoints = p.position ? fpProjectionFor(name, p.position) : null;
+      const projPoints = p.position ? fpProjectionFor(name, p.position, pid) : null;
       return {
         id: pid,
         name,
@@ -959,6 +1100,13 @@
   function topDecisionActions() {
     if (!window.FFODashboardIntel || !state.myRosterId) return [];
     const actions = [];
+    const primary = state.rosterEngine?.primaryBottleneck;
+    if (primary) actions.push({
+      id: `bottleneck-${primary.slot}`, label: "FRONT OFFICE", title: `Address ${primary.slot} first`,
+      detail: `${Math.round(primary.opportunityShare * 100)}% of modeled attainable roster improvement · approximately +${primary.estimatedEwa.toFixed(2)} expected wins.`,
+      impact: 8 + primary.estimatedEwa, urgency: primary.severity === "CRITICAL" ? 1 : 0.75,
+      confidence: state.rosterEngine.confidence, reversible: true, tab: "roster",
+    });
     const { assigned, bench } = computeAssignedLineup();
     assigned.filter(row => row.player?.status).forEach(row => actions.push({
       id: `injury-${row.player.id}`, label: "LINEUP", title: `Confirm ${row.player.name}'s status`,
@@ -980,6 +1128,40 @@
       detail: "Best current projection, roster-fit, market, and bounded-momentum combination.",
       impact: 5, urgency: 0.55, confidence: 0.58, reversible: true, tab: "targets" });
     return window.FFODashboardIntel.rankActions(actions).slice(0, 5);
+  }
+
+  function rosterEngineSummaryHTML() {
+    const engine = state.rosterEngine;
+    if (!engine) return "";
+    const primary = engine.primaryBottleneck;
+    const championship = engine.championship;
+    const probability = championship.simulations ? `${(championship.probability * 100).toFixed(1)}%` : "—";
+    const playoff = championship.simulations ? `${(championship.playoffProbability * 100).toFixed(1)}%` : "—";
+    const coverage = `${Math.round(engine.confidence * 100)}%`;
+    return `<section aria-label="Front Office recommendation">
+      <div class="rie-executive">
+        <div class="rie-metric"><span>Championship probability</span><strong>${probability}</strong><small>${championship.simulations ? `${championship.simulations.toLocaleString()} seeded simulations` : "Needs league projections"}</small></div>
+        <div class="rie-metric"><span>Playoff probability</span><strong>${playoff}</strong><small>${engine.remainingWeeks} modeled regular-season weeks</small></div>
+        <div class="rie-metric"><span>Primary bottleneck</span><strong>${escapeHTML(primary?.slot || "—")}</strong><small>${primary ? `${primary.severity} · ${Math.round(primary.opportunityShare * 100)}% of opportunity` : "No covered starter constraint"}</small></div>
+        <div class="rie-metric"><span>EWA opportunity</span><strong>${primary ? `+${primary.estimatedEwa.toFixed(2)}` : "—"}</strong><small>expected wins at the primary slot</small></div>
+      </div>
+      <p class="rie-caveat">Objective: expected wins and championship probability, with market value kept as a separate acquisition-cost signal. Projection coverage is ${coverage}; estimates are decision support, not backtested guarantees.</p>
+    </section>`;
+  }
+
+  function renderRosterDiagnostics() {
+    const target = $("roster-improvement-diagnostics");
+    const engine = state.rosterEngine;
+    if (!target) return;
+    if (!engine?.bottlenecks?.length) { target.innerHTML = '<p class="rie-caveat">Roster diagnostics need league-wide weekly projection coverage.</p>'; return; }
+    target.innerHTML = `<div class="ffo2-section-head"><strong>Roster bottlenecks</strong><span>Starting exposure, replacement gap, weekly disadvantage, and availability risk</span></div>
+      <div class="rie-bottlenecks">${engine.bottlenecks.map(item => `
+        <div class="rie-bottleneck">
+          <div><span>Slot</span><b>${escapeHTML(item.slot)}</b> <span>${item.severity}</span></div>
+          <div><span>${Math.round(item.opportunityShare * 100)}% of attainable improvement</span><div class="rie-track"><i style="width:${Math.max(2, Math.round(item.opportunityShare * 100))}%"></i></div></div>
+          <div><span>EWA opportunity</span><b>+${item.estimatedEwa.toFixed(2)}</b></div>
+          <div><span>Starter rank</span><b>${item.worstRank}/${state.league.total_rosters || item.items[0]?.teams || 12}</b></div>
+        </div>`).join("")}</div>`;
   }
 
   function decisionSummaryHTML() {
@@ -1252,7 +1434,7 @@
         <span style="color:var(--text-muted); font-size:13px;">${criticalRowCount === 0 ? "items need your attention right now" : criticalRowCount === 1 ? "item needs your attention right now" : "items need your attention right now"}</span>
       </div>`;
 
-    $("command-content").innerHTML = decisionSummaryHTML() + heroHTML + sections.map((s, i) => {
+    $("command-content").innerHTML = rosterEngineSummaryHTML() + decisionSummaryHTML() + heroHTML + sections.map((s, i) => {
       const isCritical = CRITICAL_TITLES.has(s.title);
       const accentColor = isCritical ? "var(--red)" : "var(--gold)";
       return `
@@ -1313,6 +1495,7 @@
       <div><span>Starting slots</span><strong>${filledStarters.length}/${assigned.length}</strong></div>
       <div><span>Projected coverage</span><strong>${projectedStarters.length}/${filledStarters.length}</strong></div>
       <div><span>Known starter pts</span><strong>${projectedStarters.length ? projectedTotal.toFixed(1) : "—"}</strong></div>`;
+    renderRosterDiagnostics();
     const slotOccurrence = {};
     const slotTotals = assigned.reduce((totals, row) => { totals[row.slot] = (totals[row.slot] || 0) + 1; return totals; }, {});
     $("roster-lineup").innerHTML = assigned.map(row => {
@@ -1369,102 +1552,58 @@
   }
 
   function renderTargets() {
-    const freeAgents = computeFreeAgents();
-    $("targets-count").textContent = `${freeAgents.length} valued free agents ranked by projection, roster fit, market value, and bounded momentum.`;
-
-    // Drop candidates — your lowest-value bench players, for context while browsing targets
-    const { bench } = computeAssignedLineup();
-    if (bench.length) {
-      const lowest = [...bench].sort((a, b) => (a.value || 0) - (b.value || 0)).slice(0, 3);
-      $("drop-candidates").innerHTML = `
-        <h3 class="display" style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">Likely Drop Candidates (lowest bench value)</h3>
-        <div style="display:grid; gap:4px;">
-          ${lowest.map(p => `<div class="fa-row"><div class="fa-left"><span class="pill teal">${p.position || "—"}</span><span style="font-size:13px;">${escapeHTML(p.name)}</span></div><span class="mono" style="color:var(--text-muted); font-size:12px;">val ${p.value}</span></div>`).join("")}
-        </div>`;
-    } else {
+    const finder = state.targetFinder;
+    if (!finder) {
+      $("targets-count").textContent = "Target Finder needs a selected roster and league-wide projection state.";
       $("drop-candidates").innerHTML = "";
+      $("targets-list").innerHTML = '<div class="quality-note">Connect a league and choose your team to evaluate acquisition paths.</div>';
+      return;
     }
+    $("targets-count").textContent = `${finder.evaluatedCount} candidates evaluated: ${finder.tradeCount} rostered trade targets and ${finder.waiverCount} waiver players · ${finder.actionableCount} currently improve the optimized lineup.`;
+    const best = finder.targets.find(target => target.actionable);
+    const bestWaiver = finder.targets.find(target => target.actionable && target.path.type === "WAIVER");
+    const bestTrade = finder.targets.find(target => target.actionable && target.path.type === "TRADE");
+    $("drop-candidates").innerHTML = `<div class="target-finder-summary">
+      <div><span>Best overall path</span><strong>${best ? `${escapeHTML(best.name)} · ${best.path.label}` : "No covered upgrade"}</strong></div>
+      <div><span>Best no-asset-cost move</span><strong>${bestWaiver ? `${escapeHTML(bestWaiver.name)} · +${(bestWaiver.championshipProbabilityAdded * 100).toFixed(1)} pp` : "No waiver lineup gain"}</strong></div>
+      <div><span>Best trade path</span><strong>${bestTrade ? `${escapeHTML(bestTrade.name)} from ${escapeHTML(bestTrade.path.ownerName)}` : "No rostered lineup gain"}</strong></div>
+    </div>`;
 
     const positions = ["ALL", "QB", "RB", "WR", "TE"];
-    $("pos-filters").innerHTML = positions.map(p =>
-      `<button class="filter-btn ${state.posFilter === p ? "active" : ""}" data-pos="${p}">${p}</button>`
+    const paths = ["ALL", "WAIVER", "TRADE", "ACTIONABLE"];
+    $("pos-filters").innerHTML = positions.map(position =>
+      `<button class="filter-btn ${state.posFilter === position ? "active" : ""}" data-pos="${position}">${position}</button>`
+    ).join("") + '<span style="width:1px;height:24px;background:var(--border-hover);margin:0 3px"></span>' + paths.map(path =>
+      `<button class="filter-btn ${state.targetPathFilter === path ? "active" : ""}" data-path="${path}">${path}</button>`
     ).join("");
-    $("pos-filters").querySelectorAll("button").forEach(btn => {
-      btn.addEventListener("click", () => { state.posFilter = btn.dataset.pos; renderTargets(); });
-    });
+    $("pos-filters").querySelectorAll("[data-pos]").forEach(btn => btn.addEventListener("click", () => { state.posFilter = btn.dataset.pos; renderTargets(); }));
+    $("pos-filters").querySelectorAll("[data-path]").forEach(btn => btn.addEventListener("click", () => { state.targetPathFilter = btn.dataset.path; renderTargets(); }));
 
-    const filtered = (state.posFilter === "ALL" ? freeAgents : freeAgents.filter(e => e.player.position === state.posFilter)).slice(0, 40);
-
-    // FAAB bid suggestion. When real projections exist for both the target and
-    // your weakest eligible current starter, compare them directly — a proven
-    // point-for-point upgrade warrants a much stronger bid than trend alone would
-    // suggest. Falls back to the original trend-based heuristic otherwise.
-    const myRoster = state.rosters.find(r => r.roster_id === state.myRosterId);
-    const totalBudget = state.league && state.league.settings ? state.league.settings.waiver_budget : undefined;
-    const myUsed = myRoster && myRoster.settings ? (myRoster.settings.waiver_budget_used || 0) : 0;
-    const myRemaining = totalBudget !== undefined ? totalBudget - myUsed : undefined;
-    const { assigned: myStarters } = computeAssignedLineup();
-
-    function weakestStarterProjectionFor(position) {
-      const eligible = myStarters.filter(a => a.player && a.player.position === position && a.player.projPoints !== null);
-      if (!eligible.length) return null;
-      return Math.min(...eligible.map(a => a.player.projPoints));
-    }
-
-    function suggestBid(trend, targetProj, position) {
-      if (myRemaining === undefined) return null;
-
-      if (targetProj !== null) {
-        const weakestStarterProj = weakestStarterProjectionFor(position);
-        if (weakestStarterProj !== null && targetProj > weakestStarterProj) {
-          // Proven, apples-to-apples upgrade over a current starter — bid aggressively
-          const marginPct = Math.min((targetProj - weakestStarterProj) / weakestStarterProj, 1);
-          const pct = Math.max(0.25, Math.min(0.6, 0.25 + marginPct));
-          return Math.round(myRemaining * pct);
-        }
-      }
-
-      if (trend === null || trend === undefined) return null;
-      const pct = Math.max(0.02, Math.min(0.35, trend / 500));
-      return Math.round(myRemaining * pct);
-    }
-
-    if (myRemaining !== undefined) {
-      $("targets-count").textContent += ` Suggested bids scaled against your $${myRemaining} remaining.`;
-    }
-
-    $("targets-list").innerHTML = filtered.map(e => {
-      const fp = fpRankFor(e.player.name, e.player.position);
-      const fpBadge = fp ? `<span class="pill gold">FP #${fp.rank}</span>` : "";
-      const news = fpInjuryFor(e.player.name);
-      const newsBadge = news ? `<span class="pill bad" title="${escapeHTML(news.name)}">${escapeHTML(news.team)} news</span>` : "";
-      const proj = fpProjectionFor(e.player.name, e.player.position);
-      const drop = lowestDropForTarget(e.player.position);
-      const target = window.FFODashboardIntel?.normalizedPlayer({}, e, proj);
-      const dropIntel = drop ? { ...drop, projection: drop.projPoints, marketValue: drop.value, confidence: drop.projPoints !== null ? 0.82 : 0.5 } : null;
-      const decision = window.FFODashboardIntel && dropIntel ? window.FFODashboardIntel.acquisitionDecision(target, dropIntel, myRemaining) : null;
-      const fallbackBid = suggestBid(e.trend30Day, proj, e.player.position);
-      const bid = decision?.bidRange || (fallbackBid !== null ? [fallbackBid, fallbackBid] : null);
-      const bidBadge = bid ? `<span class="pill teal" title="League-budget range with uncertainty">FAAB $${bid[0]}–$${bid[1]}</span>` : "";
-      const actionBadge = decision ? `<span class="pill ${decision.action === "ADD" ? "gold" : ""}">${decision.action} · ${window.FFODashboardIntel.confidenceLabel(decision.confidence)}</span>` : "";
-      const dropBadge = drop ? `<span class="mono" style="color:var(--text-dim);font-size:11px">drop ${escapeHTML(drop.name)}</span>` : "";
-      const projBadge = proj !== null ? `<span class="mono" style="color:var(--green); font-size:12px;">${proj} pts (proj)</span>` : "";
-      return `
-      <div class="fa-row">
-        <div class="fa-left">
-          <span class="pill teal">${e.player.position}</span>
-          <span class="fa-name">${escapeHTML(e.player.name)}</span>
-          <span class="mono" style="color:var(--text-dim); font-size:12px;">${e.player.maybeTeam || "FA"}</span>
-          ${fpBadge}${newsBadge}
-        </div>
-        <div style="display:flex; align-items:center; gap:14px;">
-          ${projBadge}
-          <span class="mono" style="color:var(--text-muted); font-size:12px;">val ${e.value}</span>
-          ${trendBadgeHTML(e.trend30Day)}
-          ${actionBadge}${dropBadge}${bidBadge}
-        </div>
-      </div>`;
-    }).join("");
+    const filtered = finder.targets.filter(target =>
+      (state.posFilter === "ALL" || target.position === state.posFilter) &&
+      (state.targetPathFilter === "ALL" || target.path.type === state.targetPathFilter || (state.targetPathFilter === "ACTIONABLE" && target.actionable))
+    );
+    $("targets-list").innerHTML = `<div class="target-board">${filtered.slice(0, 150).map(target => {
+      const titleDelta = `${target.championshipProbabilityAdded >= 0 ? "+" : ""}${(target.championshipProbabilityAdded * 100).toFixed(1)} pp`;
+      const cost = target.path.type === "WAIVER" ? `FAAB $${target.faabCost} · no permanent asset` : `owner est. ${Math.round(target.permanentAssetCost).toLocaleString()} · market ${Math.round(target.marketValue).toLocaleString()}`;
+      const owner = target.path.type === "WAIVER" ? "Available now" : `Rostered by ${escapeHTML(target.path.ownerName)}`;
+      const alternative = target.path.type === "TRADE" && target.waiverAlternative
+        ? `${escapeHTML(target.waiverAlternative.name)} offers ${Math.round((target.waiverPerformanceShare || 0) * 100)}% of this EWA for FAAB $${target.waiverAlternative.faabCost}` : "";
+      const data = target.dataStatus === "NO_PROJECTION" ? "Projection unavailable" : target.actionable
+        ? `${target.weeklyPointGain >= 0 ? "+" : ""}${target.weeklyPointGain.toFixed(1)} starter pts/wk · +${target.ewa.toFixed(2)} EWA` : "No current lineup gain";
+      return `<article class="target-card" data-actionable="${target.actionable}" data-target-id="${escapeHTML(target.id)}">
+        <div class="target-rank">#${target.rank}</div>
+        <div><div class="target-name"><span class="pill ${target.path.type === "WAIVER" ? "teal" : "gold"}">${target.path.label}</span> ${escapeHTML(target.name)} <span class="pill">${escapeHTML(target.position)}</span></div><div class="target-owner">${owner}</div></div>
+        <div><div class="target-number">${data}</div><div class="target-detail">Team value ${Math.round(target.teamValue).toLocaleString()} · ${target.mispricing.action} · ${target.permanentAssetCost === 0 && target.actionable ? "∞ CPA (no permanent asset)" : `${Number(target.championshipReturnPer1000 || 0).toFixed(2)} title pp / 1k cost`}</div></div>
+        <div><span class="target-detail">Title added</span><div class="target-number">${titleDelta}</div></div>
+        <div><span class="target-detail">Acquisition cost</span><div class="target-detail">${cost}</div></div>
+        <div><div class="target-action">${target.actionable ? target.pathRecommendation : target.dataStatus.replaceAll("_", " ")}</div><div class="target-detail">${alternative || (target.path.type === "WAIVER" ? `Use $${finder.budgetRemaining} remaining FAAB` : "Market price is a constraint, not the objective")}</div>${target.path.type === "TRADE" && target.actionable ? `<button class="btn secondary" style="margin-top:7px;padding:6px 9px;font-size:10px" data-build-trade="${escapeHTML(target.id)}">Open in Trade Analyzer</button>` : ""}</div>
+      </article>`;
+    }).join("")}</div>${filtered.length > 150 ? `<p class="rie-caveat">Showing the top 150 of ${filtered.length} filtered candidates; all ${finder.evaluatedCount} were evaluated before ranking.</p>` : ""}`;
+    $("targets-list").querySelectorAll("[data-build-trade]").forEach(button => button.addEventListener("click", () => {
+      const entry = state.fcData.find(item => String(item.player?.sleeperId || "") === button.dataset.buildTrade);
+      if (entry) { addToSide("B", entry); switchTab("trade"); }
+    }));
   }
 
   function lowestDropForTarget(position) {
@@ -1627,6 +1766,38 @@
     } else {
       verdictBox.classList.add("neutral");
       verdictBox.textContent = "Add assets to both sides";
+    }
+
+    const championshipImpact = $("trade-championship-impact");
+    if (championshipImpact) championshipImpact.innerHTML = "";
+    if (championshipImpact && state.sideA.length && state.sideB.length && state.rosterEngine?.leagueRosters && window.FFORosterEngine) {
+      const mine = state.rosterEngine.leagueRosters.find(team => team.id === String(state.myRosterId));
+      const opponents = state.rosterEngine.leagueRosters.filter(team => team.id !== String(state.myRosterId))
+        .map(team => window.FFORosterEngine.optimizeLineup(team.players, state.league.roster_positions || []).projected);
+      const incoming = state.sideB.filter(item => item.type === "player").map((item, index) => ({
+        id: `trade-in-${index}`, name: item.name, position: item.position, projection: item.projection,
+        marketValue: item.value, team: item.team,
+      }));
+      const impact = window.FFORosterEngine.transactionImpact({
+        roster: mine?.players || [], give: state.sideA, receive: incoming,
+        rosterPositions: state.league.roster_positions || [], opponentProjections: opponents,
+        remainingWeeks: state.rosterEngine.remainingWeeks,
+      });
+      const projectedTeams = state.rosterEngine.leagueRosters.map(team => ({
+        id: team.id, wins: team.wins, pointsFor: team.pointsFor,
+        projection: team.id === String(state.myRosterId) ? impact.afterLineup.projected : window.FFORosterEngine.optimizeLineup(team.players, state.league.roster_positions || []).projected,
+      }));
+      const afterChampionship = window.FFORosterEngine.championshipProbability({
+        teams: projectedTeams, teamId: String(state.myRosterId), remainingWeeks: state.rosterEngine.remainingWeeks,
+        playoffTeams: Number(state.league.settings?.playoff_teams || 6), simulations: 1500,
+        seed: Number(state.league.season || 2026) + Number(state.myRosterId || 0),
+      });
+      const beforeProbability = state.rosterEngine.championship.probability;
+      const probabilityDelta = afterChampionship.probability - beforeProbability;
+      const tone = impact.ewa > 0 && probabilityDelta >= 0 ? "var(--green)" : impact.ewa < 0 || probabilityDelta < 0 ? "var(--red)" : "var(--text-muted)";
+      championshipImpact.innerHTML = `<div class="quality-note"><strong style="color:${tone}">Championship objective: ${probabilityDelta >= 0 ? "+" : ""}${(probabilityDelta * 100).toFixed(1)} pp</strong><br>
+        ${impact.weeklyPointGain >= 0 ? "+" : ""}${impact.weeklyPointGain.toFixed(1)} starter points/week · ${impact.ewa >= 0 ? "+" : ""}${impact.ewa.toFixed(2)} ROS EWA · ${(beforeProbability * 100).toFixed(1)}% → ${(afterChampionship.probability * 100).toFixed(1)}% title probability.<br>
+        <span class="rie-caveat">Market fairness remains separate above. This outcome lens uses covered weekly projections and seeded simulations.</span></div>`;
     }
 
     // Roster-impact checks — depth risk on outgoing, injury-gap-fix on incoming.
@@ -1807,6 +1978,15 @@
       });
     } else {
       blocks.push({ title: "FantasyPros Snapshot", html: `<div style="color:var(--text-dim); font-size:13px;">Not loaded</div>` });
+    }
+
+    if (state.weeklyProjectionData?.quality) {
+      const weekly = state.weeklyProjectionData;
+      blocks.push({
+        title: `Open Weekly Projection · Week ${weekly.week}`,
+        html: `<div style="color:${weekly.quality.status === "publishable" ? "var(--green)" : "var(--gold-light)"}; font-size:13px;">${weekly.quality.status.toUpperCase()} · ${weekly.quality.usable_players}/${weekly.quality.players} usable</div>
+               <div style="color:var(--text-dim); font-size:12px; margin-top:4px;">Role, opportunity, injury, depth, opponent, and uncertainty · no-lookahead ${weekly.quality.no_lookahead ? "verified" : "unverified"}</div>`,
+      });
     }
 
     // Roster identity-match rate

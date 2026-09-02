@@ -322,6 +322,19 @@
             found.projection_ppr ?? player.projectionPpr,
             null,
           ),
+          playerKey: found.player_key || player.playerKey || null,
+          sourceIds: found.source_ids || player.sourceIds || {},
+          identityConfidence: numeric(found.identity_confidence ?? player.identityConfidence, null),
+          dataConfidence: found.data_confidence || player.dataConfidence || null,
+          projectionDistribution: found.projection_distribution || player.projectionDistribution || null,
+          expectedGames: numeric(found.expected_games ?? player.expectedGames, null),
+          availabilityProbability: numeric(found.availability_probability ?? player.availabilityProbability, null),
+          age: numeric(found.age ?? player.age, null),
+          yearsExp: numeric(found.years_exp ?? player.yearsExp, null),
+          depthChartOrder: numeric(found.depth_chart_order ?? player.depthChartOrder, null),
+          injuryStatus: found.injury_status || player.injuryStatus || null,
+          draftCapitalScore: numeric(found.draft_capital_score ?? player.draftCapitalScore, null),
+          athleticScore: numeric(found.athletic_score ?? player.athleticScore, null),
         };
       })
       .filter((player) => POSITIONS.includes(player.position));
@@ -1743,6 +1756,8 @@
     const present = (value) => value !== null && value !== undefined && value !== "";
     const any = (...values) => values.some(present);
     const stage = numeric(context.round, 1) <= 4 ? "EARLY" : numeric(context.round, 1) <= 10 ? "MIDDLE" : "LATE";
+    const declared = player.dataConfidence || player.data_confidence || {};
+    const declaredCoverage = numeric(declared.feature_coverage, null);
     const coverage = {
       market: any(player.adp, player.overallRank, player.consensusScore) ? 100 : 0,
       projection: any(player.projectedPoints, player.projected_points, player.vbdPercentileScore) ? 100 : 0,
@@ -1752,12 +1767,19 @@
       upside: any(player.pedigreeScore, player.ageCurveScore, player.draftCapitalScore, player.draft_capital_score, player.athleticScore, player.athletic_score) ? 100 : 0,
       environment: any(player.schemeFit?.score, player.scheme_fit?.score) ? 100 : 0,
     };
+    if (declaredCoverage != null) {
+      coverage.projection = Math.min(coverage.projection, numeric(declared.projection, coverage.projection));
+      coverage.role = coverage.role ? Math.max(coverage.role, declaredCoverage) : 0;
+      coverage.availability = coverage.availability ? Math.max(coverage.availability, declaredCoverage) : 0;
+    }
     const weights = stage === "EARLY"
       ? { market:.30,projection:.25,role:.15,production:.10,availability:.08,upside:.04,environment:.08 }
       : stage === "MIDDLE"
         ? { market:.15,projection:.25,role:.24,production:.14,availability:.08,upside:.07,environment:.07 }
         : { market:.10,projection:.20,role:.27,production:.17,availability:.08,upside:.12,environment:.06 };
-    const score = Math.round(Object.entries(weights).reduce((sum,[key,weight])=>sum+coverage[key]*weight,0));
+    const calculated = Object.entries(weights).reduce((sum,[key,weight])=>sum+coverage[key]*weight,0);
+    const declaredScore = numeric(declared.score, null);
+    const score = Math.round(declaredScore == null ? calculated : Math.min(calculated, declaredScore * .85 + calculated * .15));
     const missing = Object.keys(weights).filter((key)=>coverage[key]===0).sort((a,b)=>weights[b]-weights[a]);
     return { stage, score, grade:score>=85?"A":score>=70?"B":score>=55?"C":score>=40?"D":"INSUFFICIENT", coverage, weights, missing, productionReady:coverage.projection===100&&coverage.role===100&&score>=65 };
   }

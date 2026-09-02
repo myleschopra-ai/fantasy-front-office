@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "method": "walk-forward; target-season rows excluded from every model input",
+  "passed": true,
+  "seasons": [
+    {
+      "season": 2024,
+      "players": 387,
+      "mae": 49.657,
+      "baseline_mae": 56.346,
+      "spearman": 0.7369,
+      "baseline_spearman": 0.7357,
+      "late_players": 267,
+      "late_policy": "75% position-rank prior + 25% open model",
+      "late_hit_rate": 0.6333,
+      "raw_model_late_hit_rate": 0.5667,
+      "baseline_late_hit_rate": 0.6667
+    },
+    {
+      "season": 2025,
+      "players": 403,
+      "mae": 44.116,
+      "baseline_mae": 54.846,
+      "spearman": 0.769,
+      "baseline_spearman": 0.7476,
+      "late_players": 283,
+      "late_policy": "75% position-rank prior + 25% open model",
+      "late_hit_rate": 0.4667,
+      "raw_model_late_hit_rate": 0.5,
+      "baseline_late_hit_rate": 0.4667
+    }
+  ]
+}

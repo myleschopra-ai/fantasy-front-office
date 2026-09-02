@@ -38,7 +38,7 @@ jobs:
         run: python -m pip install -r requirements-data.txt
 
       - name: Validate collectors compile
-        run: python -m py_compile scripts/collectors/nflverse.py scripts/collectors/sleeper_players.py scripts/open_projection_engine.py scripts/collectors/cfbd.py
+        run: python -m py_compile scripts/collectors/nflverse.py scripts/collectors/sleeper_players.py scripts/open_projection_engine.py scripts/collectors/cfbd.py scripts/collectors/the_odds_api.py scripts/build_player_identity.py scripts/build_rookie_profiles.py scripts/build_weekly_projections.py
 
       - name: Collect nflverse datasets
         shell: bash
@@ -70,7 +70,7 @@ jobs:
           name: football-data-candidate-${{ github.run_id }}
           path: data/raw/
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 90
 
       - name: Publication boundary
         run: |

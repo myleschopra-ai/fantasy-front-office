@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "aliases": [
+    {"alias": "Hollywood Brown", "canonical": "Marquise Brown", "position": "WR", "status": "human_reviewed"},
+    {"alias": "Bam Knight", "canonical": "Zonovan Knight", "position": "RB", "status": "human_reviewed"}
+  ],
+  "policy": "Aliases are explicit and human reviewed. Fuzzy name matches are never added automatically."
+}
