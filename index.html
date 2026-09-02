@@ -1591,13 +1591,18 @@
         ? `${escapeHTML(target.waiverAlternative.name)} offers ${Math.round((target.waiverPerformanceShare || 0) * 100)}% of this EWA for FAAB $${target.waiverAlternative.faabCost}` : "";
       const data = target.dataStatus === "NO_PROJECTION" ? "Projection unavailable" : target.actionable
         ? `${target.weeklyPointGain >= 0 ? "+" : ""}${target.weeklyPointGain.toFixed(1)} starter pts/wk · +${target.ewa.toFixed(2)} EWA` : "No current lineup gain";
+      const drop = target.path.type === "WAIVER" ? lowestDropForTarget(target.position) : null;
+      const dropGuidance = target.path.type === "WAIVER"
+        ? drop ? `Suggested drop: ${escapeHTML(drop.name)} · verify depth impact` : "No legal drop candidate identified"
+        : "";
+      const pathDetail = alternative || (target.path.type === "WAIVER" ? `Use $${finder.budgetRemaining} remaining FAAB` : "Market price is a constraint, not the objective");
       return `<article class="target-card" data-actionable="${target.actionable}" data-target-id="${escapeHTML(target.id)}">
         <div class="target-rank">#${target.rank}</div>
         <div><div class="target-name"><span class="pill ${target.path.type === "WAIVER" ? "teal" : "gold"}">${target.path.label}</span> ${escapeHTML(target.name)} <span class="pill">${escapeHTML(target.position)}</span></div><div class="target-owner">${owner}</div></div>
         <div><div class="target-number">${data}</div><div class="target-detail">Team value ${Math.round(target.teamValue).toLocaleString()} · ${target.mispricing.action} · ${target.permanentAssetCost === 0 && target.actionable ? "∞ CPA (no permanent asset)" : `${Number(target.championshipReturnPer1000 || 0).toFixed(2)} title pp / 1k cost`}</div></div>
         <div><span class="target-detail">Title added</span><div class="target-number">${titleDelta}</div></div>
         <div><span class="target-detail">Acquisition cost</span><div class="target-detail">${cost}</div></div>
-        <div><div class="target-action">${target.actionable ? target.pathRecommendation : target.dataStatus.replaceAll("_", " ")}</div><div class="target-detail">${alternative || (target.path.type === "WAIVER" ? `Use $${finder.budgetRemaining} remaining FAAB` : "Market price is a constraint, not the objective")}</div>${target.path.type === "TRADE" && target.actionable ? `<button class="btn secondary" style="margin-top:7px;padding:6px 9px;font-size:10px" data-build-trade="${escapeHTML(target.id)}">Open in Trade Analyzer</button>` : ""}</div>
+        <div><div class="target-action">${target.actionable ? target.pathRecommendation : target.dataStatus.replaceAll("_", " ")}</div><div class="target-detail">${pathDetail}</div>${dropGuidance ? `<div class="target-detail" style="margin-top:4px">${dropGuidance}</div>` : ""}${target.path.type === "TRADE" && target.actionable ? `<button class="btn secondary" style="margin-top:7px;padding:6px 9px;font-size:10px" data-build-trade="${escapeHTML(target.id)}">Open in Trade Analyzer</button>` : ""}</div>
       </article>`;
     }).join("")}</div>${filtered.length > 150 ? `<p class="rie-caveat">Showing the top 150 of ${filtered.length} filtered candidates; all ${finder.evaluatedCount} were evaluated before ranking.</p>` : ""}`;
     $("targets-list").querySelectorAll("[data-build-trade]").forEach(button => button.addEventListener("click", () => {

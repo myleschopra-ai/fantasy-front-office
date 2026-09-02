@@ -24,6 +24,7 @@ assert.match(dashboard, /evaluateAcquisitionUniverse\(/);
 assert.match(dashboard, /Rostered by/);
 assert.match(dashboard, /no permanent asset/);
 assert.match(dashboard, /Open in Trade Analyzer/);
+assert.match(dashboard, /Suggested drop:/);
 assert.match(dashboard, /all .* were evaluated before ranking/);
 
 assert.match(engine, /function replacementLevels/);
