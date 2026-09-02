@@ -81,10 +81,11 @@ const snapshot = {
       const diagnostics = await page.locator('#roster-improvement-diagnostics').innerText();
       if (!/attainable improvement/i.test(diagnostics) || !/Starter rank/i.test(diagnostics)) throw new Error(`${viewport.name}: bottleneck diagnostics missing`);
       await page.click('[data-tab="trade"]');
-      await page.fill('#trade-search', 'Team1 RB8');
-      await page.locator('.add-btn.give').first().click();
-      await page.fill('#trade-search', 'Team2 QB2');
-      await page.locator('.add-btn.get').first().click();
+      await page.waitForSelector('[data-trade-target]');
+      const recommendations = await page.locator('#trade-recommendations-section').innerText();
+      if (!/Recommended Targets & Offers/i.test(recommendations) || !/OFFER 1/i.test(recommendations) || !/lineup PPG/i.test(recommendations) || !/est. accept/i.test(recommendations)) throw new Error(`${viewport.name}: target-to-package recommendations missing`);
+      await page.locator('[data-load-package]').first().click();
+      if ((await page.locator('#side-a-items .trade-item').count()) < 1 || (await page.locator('#side-b-items .trade-item').count()) !== 1) throw new Error(`${viewport.name}: recommended package did not load into analyzer`);
       const tradeImpact = await page.locator('#trade-championship-impact').innerText();
       if (!/Championship objective/i.test(tradeImpact) || !/ROS EWA/i.test(tradeImpact) || !/Market fairness remains separate/i.test(tradeImpact)) throw new Error(`${viewport.name}: trade outcome lens missing`);
       const rosterImpact = await page.locator('#trade-roster-impact').innerText();
