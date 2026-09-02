@@ -27,7 +27,7 @@ def main() -> None:
     active = {
         str(player_id): player
         for player_id, player in players.items()
-        if player.get("active") is True and str(player.get("position") or "").upper() in {"QB", "RB", "WR", "TE", "K", "DEF"}
+        if player.get("active") is True and str(player.get("position") or "").upper() in {"QB", "RB", "HB", "FB", "WR", "TE", "K", "DEF"}
     }
     (RAW / "players.json").write_text(json.dumps(active, separators=(",", ":")) + "\n", encoding="utf-8")
     (RAW / "trending.json").write_text(json.dumps({"add": adds, "drop": drops}, separators=(",", ":")) + "\n", encoding="utf-8")

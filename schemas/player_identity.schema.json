@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/player_identity.schema.json",
+  "title": "Canonical Fantasy Front Office player identity",
+  "type": "object",
+  "required": ["player_key", "name", "position", "identity_confidence", "identity_method", "source_ids"],
+  "properties": {
+    "player_key": {"type": "string", "minLength": 4},
+    "name": {"type": "string", "minLength": 1},
+    "position": {"type": "string"},
+    "identity_confidence": {"type": "integer", "minimum": 0, "maximum": 100},
+    "identity_method": {"type": "string"},
+    "source_ids": {"type": "object"},
+    "aliases": {"type": "array", "items": {"type": "string"}},
+    "team": {"type": ["string", "null"]},
+    "birth_date": {"type": ["string", "null"]},
+    "age": {"type": ["number", "null"]},
+    "years_experience": {"type": ["number", "null"]},
+    "height": {"type": ["string", "number", "null"]},
+    "weight": {"type": ["number", "null"]},
+    "status": {"type": ["string", "null"]},
+    "injury_status": {"type": ["string", "null"]},
+    "depth_chart_order": {"type": ["integer", "null"]}
+  },
+  "additionalProperties": true
+}

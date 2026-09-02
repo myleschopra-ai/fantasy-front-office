@@ -1,6 +1,12 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "sources": {
+    "nflverse": {"name": "nflverse public releases", "tier": 1, "default_confidence": 0.95, "url": "https://github.com/nflverse/nflverse-data/releases", "license": "CC-BY-4.0 with dataset-specific verification", "cadence": "release driven", "allowed_fields": ["identity", "roster", "weekly_stats", "seasonal_stats", "snap_counts", "participation", "injuries", "depth_charts", "opportunity", "schedule", "advanced_stats", "draft", "combine"]},
+    "sleeper": {"name": "Sleeper public API", "tier": 1, "default_confidence": 0.92, "url": "https://docs.sleeper.com/", "license": "free read-only noncommercial API; full player map at most daily", "cadence": "daily", "allowed_fields": ["identity", "roster", "status", "injury", "depth_chart", "trending"]},
+    "dynastyprocess": {"name": "DynastyProcess public data", "tier": 2, "default_confidence": 0.82, "url": "https://github.com/dynastyprocess/data", "license": "GPL-3.0 repository; retain attribution and verify upstream terms", "cadence": "weekly", "allowed_fields": ["cross_platform_ids", "ecr", "market_value"]},
+    "fantasy_football_calculator": {"name": "Fantasy Football Calculator ADP API", "tier": 2, "default_confidence": 0.82, "url": "https://help.fantasyfootballcalculator.com/article/42-adp-rest-api", "license": "free with attribution", "cadence": "daily", "allowed_fields": ["adp"]},
+    "the_odds_api": {"name": "The Odds API", "tier": 2, "default_confidence": 0.8, "url": "https://the-odds-api.com/sports/nfl-odds.html", "license": "documented API; quota and account terms apply", "cadence": "quota controlled", "allowed_fields": ["game_lines", "weekly_player_props"]},
+    "nws": {"name": "National Weather Service API", "tier": 1, "default_confidence": 0.94, "url": "https://www.weather.gov/documentation/services-web-api", "license": "open US government API; identifiable user agent required", "cadence": "game week", "allowed_fields": ["forecast", "wind", "precipitation", "temperature"]},
     "school_roster": {"name": "Official school roster", "tier": 1, "default_confidence": 0.95, "allowed_fields": ["name", "school", "position", "height", "weight", "class_year"]},
     "conference_stats": {"name": "Official conference statistics", "tier": 1, "default_confidence": 0.95, "allowed_fields": ["production"]},
     "cfbd": {"name": "CollegeFootballData", "tier": 2, "default_confidence": 0.9, "allowed_fields": ["recruiting", "production", "roster"]},

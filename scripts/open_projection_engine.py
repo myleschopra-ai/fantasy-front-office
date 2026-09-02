@@ -13,7 +13,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-MODEL_VERSION = "open-nflverse-v1"
+MODEL_VERSION = "open-nflverse-v2-opportunity-availability"
 SKILL_POSITIONS = {"QB", "RB", "WR", "TE"}
 
 
@@ -200,19 +200,31 @@ def project_player(
     position = str(player.get("position") or "").upper()
     pos_rank = int(finite(player.get("position_rank"), 99) or 99)
     prior_points, prior_rec = position_prior(position, pos_rank)
+    draft_pick = finite(player.get("draft_pick"), None)
+    rookie_adjustment = 0.0
+    if draft_pick is not None and int(finite(player.get("draft_year"), 0) or 0) == season:
+        rookie_adjustment = 0.12 if draft_pick <= 32 else 0.07 if draft_pick <= 64 else 0.03 if draft_pick <= 100 else -0.05
+        prior_points *= 1 + rookie_adjustment
+        prior_rec *= 1 + rookie_adjustment
     lines = _season_lines(history.get((normalize_name(player.get("name")), position), []))[:3]
     if not lines or position not in SKILL_POSITIONS:
         standard, receptions = prior_points, prior_rec
         confidence = 48 if position in {"K", "DST"} else 42
         evidence = "position-rank prior; no usable NFL history"
+        if rookie_adjustment:
+            evidence += f"; NFL draft-capital prior {rookie_adjustment:+.0%}"
         seasons: list[int] = []
+        expected_games = 15.5
     else:
         weights = [0.55, 0.30, 0.15][:len(lines)]
         divisor = sum(weights)
-        expected_games = 15.5
+        sample_games = sum(line["games"] for line in lines)
+        weighted_availability = sum(min(17.0, line["games"]) / 17.0 * weight for line, weight in zip(lines, weights)) / divisor
+        experience_weight = min(0.72, sample_games / 70.0)
+        availability_rate = 0.91 * (1 - experience_weight) + weighted_availability * experience_weight
+        expected_games = max(11.5, min(16.7, 17.0 * availability_rate))
         historical_points = sum(line["points_pg"] * weight for line, weight in zip(lines, weights)) / divisor * expected_games
         historical_rec = sum(line["rec_pg"] * weight for line, weight in zip(lines, weights)) / divisor * expected_games
-        sample_games = sum(line["games"] for line in lines)
         reliability = min(0.82, 0.30 + sample_games / 70.0)
         trend = 0.0
         if len(lines) >= 2 and lines[1]["points_pg"] > 0:
@@ -226,12 +238,22 @@ def project_player(
     standard *= 1 + signals["adjustment"]
     receptions *= 1 + signals["adjustment"]
     confidence = min(88, confidence + min(8, len(signals["evidence"]) * 2))
+    median_half = max(0, standard + receptions * 0.5)
+    uncertainty = max(0.13, min(0.34, 0.38 - confidence / 400))
     return {
         "name": player.get("name"),
         "position": position,
         "points": round(max(0, standard), 1),
         "points_half": round(max(0, standard + receptions * 0.5), 1),
         "points_ppr": round(max(0, standard + receptions), 1),
+        "points_distribution": {
+            "p10": round(max(0, median_half * (1 - uncertainty * 1.25)), 1),
+            "p50": round(median_half, 1),
+            "p90": round(median_half * (1 + uncertainty), 1),
+        },
+        "expected_games": round(expected_games, 1),
+        "availability_probability": round(expected_games / 17.0, 3),
+        "rookie_draft_capital_adjustment": round(rookie_adjustment, 3) if rookie_adjustment else None,
         "stats": {"rec": round(max(0, receptions), 1)},
         "projection_source": "open_nflverse_model",
         "projection_mode": "OPEN_MODEL_PROJECTION",

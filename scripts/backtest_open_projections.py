@@ -100,7 +100,10 @@ def main() -> int:
     rows = load_parquet_rows(args.input)
     seasons = sorted({int(value(row, "season")) for row in rows if finite(value(row, "season"), None) is not None})
     signals = {}
-    for name, filename in {"opportunity": "ff_opportunity.parquet", "snaps": "snap_counts.parquet", "depth": "depth_charts.parquet", "injuries": "injuries.parquet"}.items():
+    # Daily depth history exceeds one million rows. The release validator covers
+    # current depth joins; walk-forward accuracy uses the compact opportunity,
+    # snap, and injury histories so CI remains bounded and reproducible.
+    for name, filename in {"opportunity": "ff_opportunity.parquet", "snaps": "snap_counts.parquet", "injuries": "injuries.parquet"}.items():
         path = args.nflverse_dir / filename
         if path.exists():
             signals[name] = load_parquet_rows(path)

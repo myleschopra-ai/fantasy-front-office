@@ -1,0 +1,48 @@
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+
+const root = path.resolve(__dirname, '..');
+const dashboard = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const engine = fs.readFileSync(path.join(root, 'js', 'roster-improvement-engine.js'), 'utf8');
+const schema = JSON.parse(fs.readFileSync(path.join(root, 'schemas', 'roster-improvement.schema.json'), 'utf8'));
+const targetSchema = JSON.parse(fs.readFileSync(path.join(root, 'schemas', 'acquisition-targets.schema.json'), 'utf8'));
+
+assert.match(dashboard, /js\/roster-improvement-engine\.js/);
+assert.match(dashboard, /updateRosterEngine\(\)/);
+assert.match(dashboard, /rosterEngineSummaryHTML\(\)/);
+assert.match(dashboard, /id="roster-improvement-diagnostics"/);
+assert.match(dashboard, /renderRosterDiagnostics\(\)/);
+assert.match(dashboard, /id="trade-championship-impact"/);
+assert.match(dashboard, /transactionImpact\(/);
+assert.match(dashboard, /Championship objective:/);
+assert.match(dashboard, /Market fairness remains separate/);
+assert.match(dashboard, /Projection coverage is/);
+assert.match(dashboard, /updateTargetFinder\(/);
+assert.match(dashboard, /evaluateAcquisitionUniverse\(/);
+assert.match(dashboard, /Rostered by/);
+assert.match(dashboard, /no permanent asset/);
+assert.match(dashboard, /Open in Trade Analyzer/);
+assert.match(dashboard, /Suggested drop:/);
+assert.match(dashboard, /all .* were evaluated before ranking/);
+
+assert.match(engine, /function replacementLevels/);
+assert.match(engine, /function marginalLineupValue/);
+assert.match(engine, /function expectedWinsAdded/);
+assert.match(engine, /function championshipProbability/);
+assert.match(engine, /function positionDiagnostics/);
+assert.match(engine, /function detectBottlenecks/);
+assert.match(engine, /function rankAcquisitionTargets/);
+assert.match(engine, /function marketMispricing/);
+assert.match(engine, /function compareWaiverTrade/);
+assert.match(engine, /function targetPath/);
+assert.match(engine, /function evaluateAcquisitionUniverse/);
+assert.equal(schema.title, 'Roster Improvement Engine Result');
+assert.ok(schema.required.includes('championship'));
+assert.ok(schema.required.includes('bottlenecks'));
+assert.equal(targetSchema.title, 'Phase 2 Acquisition Target Finder Result');
+assert.ok(targetSchema.required.includes('targets'));
+assert.ok(targetSchema.required.includes('evaluatedCount'));
+
+console.log('roster improvement dashboard and trade integration contracts passed');

@@ -1,0 +1,2001 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-25T17:24:01Z",
+  "draft_year": 2026,
+  "players": [
+    {
+      "player_key": "gsis:00-0041562",
+      "name": "Fernando Mendoza",
+      "position": "QB",
+      "team": "LVR",
+      "college": "Indiana; California",
+      "age": 22.9,
+      "draft_year": 2026,
+      "draft_round": 1,
+      "draft_pick": 1,
+      "draft_capital_score": 100,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041027",
+      "name": "Jeremiyah Love",
+      "position": "RB",
+      "team": "ARI",
+      "college": "Notre Dame",
+      "age": 21.2,
+      "draft_year": 2026,
+      "draft_round": 1,
+      "draft_pick": 3,
+      "draft_capital_score": 100,
+      "athletic_score": 97,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041438",
+      "name": "Carnell Tate",
+      "position": "WR",
+      "team": "TEN",
+      "college": "Ohio State",
+      "age": 21.6,
+      "draft_year": 2026,
+      "draft_round": 1,
+      "draft_pick": 4,
+      "draft_capital_score": 100,
+      "athletic_score": 38,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041029",
+      "name": "Jordyn Tyson",
+      "position": "WR",
+      "team": "NOR",
+      "college": "Arizona State; Colorado",
+      "age": 22.0,
+      "draft_year": 2026,
+      "draft_round": 1,
+      "draft_pick": 8,
+      "draft_capital_score": 100,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041568",
+      "name": "Ty Simpson",
+      "position": "QB",
+      "team": "LAR",
+      "college": "Alabama",
+      "age": 23.7,
+      "draft_year": 2026,
+      "draft_round": 1,
+      "draft_pick": 13,
+      "draft_capital_score": 100,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041032",
+      "name": "Kenyon Sadiq",
+      "position": "TE",
+      "team": "NYJ",
+      "college": "Oregon",
+      "age": 21.5,
+      "draft_year": 2026,
+      "draft_round": 1,
+      "draft_pick": 16,
+      "draft_capital_score": 99,
+      "athletic_score": 100,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0040867",
+      "name": "Makai Lemon",
+      "position": "WR",
+      "team": "PHI",
+      "college": "USC",
+      "age": 22.2,
+      "draft_year": 2026,
+      "draft_round": 1,
+      "draft_pick": 20,
+      "draft_capital_score": 97,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041547",
+      "name": "KC Concepcion",
+      "position": "WR",
+      "team": "CLE",
+      "college": "Texas A&M; N.C. State",
+      "age": 21.9,
+      "draft_year": 2026,
+      "draft_round": 1,
+      "draft_pick": 24,
+      "draft_capital_score": 96,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041511",
+      "name": "Omar Cooper",
+      "position": "WR",
+      "team": "NYJ",
+      "college": "Indiana",
+      "age": 22.7,
+      "draft_year": 2026,
+      "draft_round": 1,
+      "draft_pick": 30,
+      "draft_capital_score": 93,
+      "athletic_score": 75,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041512",
+      "name": "Jadarian Price",
+      "position": "RB",
+      "team": "SEA",
+      "college": "Notre Dame",
+      "age": 22.9,
+      "draft_year": 2026,
+      "draft_round": 1,
+      "draft_pick": 32,
+      "draft_capital_score": 92,
+      "athletic_score": 71,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041035",
+      "name": "De'Zhaun Stribling",
+      "position": "WR",
+      "team": "SFO",
+      "college": "Mississippi; Oklahoma State; Washington State",
+      "age": 23.7,
+      "draft_year": 2026,
+      "draft_round": 2,
+      "draft_pick": 33,
+      "draft_capital_score": 92,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041037",
+      "name": "Denzel Boston",
+      "position": "WR",
+      "team": "CLE",
+      "college": "Washington",
+      "age": 22.7,
+      "draft_year": 2026,
+      "draft_round": 2,
+      "draft_pick": 39,
+      "draft_capital_score": 90,
+      "athletic_score": 41,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041489",
+      "name": "Germie Bernard",
+      "position": "WR",
+      "team": "PIT",
+      "college": "Alabama; Washington; Michigan State",
+      "age": 22.7,
+      "draft_year": 2026,
+      "draft_round": 2,
+      "draft_pick": 47,
+      "draft_capital_score": 87,
+      "athletic_score": 54,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041483",
+      "name": "Eli Stowers",
+      "position": "TE",
+      "team": "PHI",
+      "college": "Vanderbilt; New Mexico State; Texas A&M",
+      "age": 23.4,
+      "draft_year": 2026,
+      "draft_round": 2,
+      "draft_pick": 54,
+      "draft_capital_score": 84,
+      "athletic_score": 98,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041503",
+      "name": "Nate Boerkircher",
+      "position": "TE",
+      "team": "JAX",
+      "college": "Texas A&M; Nebraska",
+      "age": 25.0,
+      "draft_year": 2026,
+      "draft_round": 2,
+      "draft_pick": 56,
+      "draft_capital_score": 83,
+      "athletic_score": 38,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041472",
+      "name": "Marlin Klein",
+      "position": "TE",
+      "team": "HOU",
+      "college": "Michigan",
+      "age": 23.9,
+      "draft_year": 2026,
+      "draft_round": 2,
+      "draft_pick": 59,
+      "draft_capital_score": 82,
+      "athletic_score": 61,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041510",
+      "name": "Max Klare",
+      "position": "TE",
+      "team": "LAR",
+      "college": "Ohio State; Purdue",
+      "age": 23.1,
+      "draft_year": 2026,
+      "draft_round": 2,
+      "draft_pick": 61,
+      "draft_capital_score": 81,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041561",
+      "name": "Carson Beck",
+      "position": "QB",
+      "team": "ARI",
+      "college": "Miami; Georgia",
+      "age": 24.8,
+      "draft_year": 2026,
+      "draft_round": 3,
+      "draft_pick": 65,
+      "draft_capital_score": 80,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041558",
+      "name": "Sam Roush",
+      "position": "TE",
+      "team": "CHI",
+      "college": "Stanford",
+      "age": 23.0,
+      "draft_year": 2026,
+      "draft_round": 3,
+      "draft_pick": 69,
+      "draft_capital_score": 78,
+      "athletic_score": 73,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041040",
+      "name": "Antonio Williams",
+      "position": "WR",
+      "team": "WAS",
+      "college": "Clemson",
+      "age": 22.1,
+      "draft_year": 2026,
+      "draft_round": 3,
+      "draft_pick": 71,
+      "draft_capital_score": 77,
+      "athletic_score": 72,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041041",
+      "name": "Oscar Delp",
+      "position": "TE",
+      "team": "NOR",
+      "college": "Georgia",
+      "age": 23.0,
+      "draft_year": 2026,
+      "draft_round": 3,
+      "draft_pick": 73,
+      "draft_capital_score": 76,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041042",
+      "name": "Malachi Fields",
+      "position": "WR",
+      "team": "NYG",
+      "college": "Notre Dame; Virginia",
+      "age": 23.0,
+      "draft_year": 2026,
+      "draft_round": 3,
+      "draft_pick": 74,
+      "draft_capital_score": 76,
+      "athletic_score": 47,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041523",
+      "name": "Caleb Douglas",
+      "position": "WR",
+      "team": "MIA",
+      "college": "Texas Tech; Florida",
+      "age": 22.9,
+      "draft_year": 2026,
+      "draft_round": 3,
+      "draft_pick": 75,
+      "draft_capital_score": 76,
+      "athletic_score": 59,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041565",
+      "name": "Drew Allar",
+      "position": "QB",
+      "team": "PIT",
+      "college": "Penn State",
+      "age": 22.5,
+      "draft_year": 2026,
+      "draft_round": 3,
+      "draft_pick": 76,
+      "draft_capital_score": 75,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041044",
+      "name": "Zachariah Branch",
+      "position": "WR",
+      "team": "ATL",
+      "college": "Georgia; USC",
+      "age": 22.4,
+      "draft_year": 2026,
+      "draft_round": 3,
+      "draft_pick": 79,
+      "draft_capital_score": 74,
+      "athletic_score": 83,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0040870",
+      "name": "Ja'Kobi Lane",
+      "position": "WR",
+      "team": "BAL",
+      "college": "USC",
+      "age": 22.0,
+      "draft_year": 2026,
+      "draft_round": 3,
+      "draft_pick": 80,
+      "draft_capital_score": 74,
+      "athletic_score": 82,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041047",
+      "name": "Chris Brazzell",
+      "position": "WR",
+      "team": "CAR",
+      "college": "Tennessee; Tulane",
+      "age": 22.8,
+      "draft_year": 2026,
+      "draft_round": 3,
+      "draft_pick": 83,
+      "draft_capital_score": 72,
+      "athletic_score": 90,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041048",
+      "name": "Ted Hurst",
+      "position": "WR",
+      "team": "TAM",
+      "college": "Georgia State; Valdosta State",
+      "age": 22.1,
+      "draft_year": 2026,
+      "draft_round": 3,
+      "draft_pick": 84,
+      "draft_capital_score": 72,
+      "athletic_score": 81,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041524",
+      "name": "Will Kacmarek",
+      "position": "TE",
+      "team": "MIA",
+      "college": "Ohio State; Ohio",
+      "age": 23.5,
+      "draft_year": 2026,
+      "draft_round": 3,
+      "draft_pick": 87,
+      "draft_capital_score": 71,
+      "athletic_score": 70,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041051",
+      "name": "Zavion Thomas",
+      "position": "WR",
+      "team": "CHI",
+      "college": "LSU; Mississippi State",
+      "age": 22.5,
+      "draft_year": 2026,
+      "draft_round": 3,
+      "draft_pick": 89,
+      "draft_capital_score": 70,
+      "athletic_score": 79,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041052",
+      "name": "Kaelon Black",
+      "position": "RB",
+      "team": "SFO",
+      "college": "Indiana; James Madison",
+      "age": 24.8,
+      "draft_year": 2026,
+      "draft_round": 3,
+      "draft_pick": 90,
+      "draft_capital_score": 70,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041525",
+      "name": "Chris Bell",
+      "position": "WR",
+      "team": "MIA",
+      "college": "Louisville",
+      "age": 22.2,
+      "draft_year": 2026,
+      "draft_round": 3,
+      "draft_pick": 94,
+      "draft_capital_score": 68,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041395",
+      "name": "Eli Raridon",
+      "position": "TE",
+      "team": "NWE",
+      "college": "Notre Dame",
+      "age": 22.5,
+      "draft_year": 2026,
+      "draft_round": 3,
+      "draft_pick": 95,
+      "draft_capital_score": 68,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041550",
+      "name": "Brenen Thompson",
+      "position": "WR",
+      "team": "LAC",
+      "college": "Mississippi State; Texas",
+      "age": 23.1,
+      "draft_year": 2026,
+      "draft_round": 4,
+      "draft_pick": 105,
+      "draft_capital_score": 64,
+      "athletic_score": 100,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041496",
+      "name": "Jonah Coleman",
+      "position": "RB",
+      "team": "DEN",
+      "college": "Washington; Arizona",
+      "age": 23.0,
+      "draft_year": 2026,
+      "draft_round": 4,
+      "draft_pick": 108,
+      "draft_capital_score": 63,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041056",
+      "name": "Cade Klubnik",
+      "position": "QB",
+      "team": "NYJ",
+      "college": "Clemson",
+      "age": 22.9,
+      "draft_year": 2026,
+      "draft_round": 4,
+      "draft_pick": 110,
+      "draft_capital_score": 62,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0040876",
+      "name": "Elijah Sarratt",
+      "position": "WR",
+      "team": "BAL",
+      "college": "Indiana; James Madison; St. Francis PA",
+      "age": 23.2,
+      "draft_year": 2026,
+      "draft_round": 4,
+      "draft_pick": 115,
+      "draft_capital_score": 60,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041397",
+      "name": "Kaden Wetjen",
+      "position": "WR",
+      "team": "PIT",
+      "college": "Iowa; Iowa Western CC",
+      "age": 24.5,
+      "draft_year": 2026,
+      "draft_round": 4,
+      "draft_pick": 121,
+      "draft_capital_score": 58,
+      "athletic_score": 44,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:WAS569019",
+      "name": "Mike Washington",
+      "position": "RB",
+      "team": "LVR",
+      "college": "Alabama",
+      "age": 23.1,
+      "draft_year": 2026,
+      "draft_round": 4,
+      "draft_pick": 122,
+      "draft_capital_score": 57,
+      "athletic_score": 96,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041443",
+      "name": "Skyler Bell",
+      "position": "WR",
+      "team": "BUF",
+      "college": "Connecticut; Wisconsin",
+      "age": 24.1,
+      "draft_year": 2026,
+      "draft_round": 4,
+      "draft_pick": 125,
+      "draft_capital_score": 56,
+      "athletic_score": 92,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": null,
+      "name": "Matthew Hibner",
+      "position": "TE",
+      "team": "BAL",
+      "college": "SMU",
+      "age": null,
+      "draft_year": 2026,
+      "draft_round": 4,
+      "draft_pick": 133,
+      "draft_capital_score": 53,
+      "athletic_score": 78,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 62,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements"
+      ],
+      "limitations": [
+        "College production remains null until a licensed public college snapshot resolves this player."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041067",
+      "name": "Bryce Lance",
+      "position": "WR",
+      "team": "NOR",
+      "college": "North Dakota State",
+      "age": 24.0,
+      "draft_year": 2026,
+      "draft_round": 4,
+      "draft_pick": 136,
+      "draft_capital_score": 52,
+      "athletic_score": 80,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041069",
+      "name": "Colbie Young",
+      "position": "WR",
+      "team": "CIN",
+      "college": "Georgia; Miami; Lackawanna JC",
+      "age": 24.1,
+      "draft_year": 2026,
+      "draft_round": 4,
+      "draft_pick": 140,
+      "draft_capital_score": 50,
+      "athletic_score": 54,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041070",
+      "name": "Reggie Virgil",
+      "position": "WR",
+      "team": "ARI",
+      "college": "Texas Tech; Miami (Ohio)",
+      "age": 22.3,
+      "draft_year": 2026,
+      "draft_round": 5,
+      "draft_pick": 143,
+      "draft_capital_score": 49,
+      "athletic_score": 56,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041077",
+      "name": "Justin Joly",
+      "position": "TE",
+      "team": "DEN",
+      "college": "N.C. State; Connecticut",
+      "age": 22.1,
+      "draft_year": 2026,
+      "draft_round": 5,
+      "draft_pick": 152,
+      "draft_capital_score": 45,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041081",
+      "name": "Max Bredeson",
+      "position": "TE",
+      "team": "MIN",
+      "college": "Michigan",
+      "age": 23.9,
+      "draft_year": 2026,
+      "draft_round": 5,
+      "draft_pick": 159,
+      "draft_capital_score": 43,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041013",
+      "name": "Emmett Johnson",
+      "position": "RB",
+      "team": "KAN",
+      "college": "Nebraska",
+      "age": 22.9,
+      "draft_year": 2026,
+      "draft_round": 5,
+      "draft_pick": 161,
+      "draft_capital_score": 42,
+      "athletic_score": 46,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041084",
+      "name": "Tanner Koziol",
+      "position": "TE",
+      "team": "JAX",
+      "college": "Houston; Ball State",
+      "age": 23.6,
+      "draft_year": 2026,
+      "draft_round": 5,
+      "draft_pick": 164,
+      "draft_capital_score": 41,
+      "athletic_score": 79,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0040886",
+      "name": "Nicholas Singleton",
+      "position": "RB",
+      "team": "TEN",
+      "college": "Penn State",
+      "age": 22.6,
+      "draft_year": 2026,
+      "draft_round": 5,
+      "draft_pick": 165,
+      "draft_capital_score": 40,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041446",
+      "name": "Kendrick Law",
+      "position": "WR",
+      "team": "DET",
+      "college": "Kentucky; Alabama",
+      "age": 23.2,
+      "draft_year": 2026,
+      "draft_round": 5,
+      "draft_pick": 168,
+      "draft_capital_score": 39,
+      "athletic_score": 85,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041398",
+      "name": "Riley Nowakowski",
+      "position": "TE",
+      "team": "PIT",
+      "college": "Indiana; Wisconsin",
+      "age": 24.1,
+      "draft_year": 2026,
+      "draft_round": 5,
+      "draft_pick": 169,
+      "draft_capital_score": 39,
+      "athletic_score": 67,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041087",
+      "name": "Joe Royer",
+      "position": "TE",
+      "team": "CLE",
+      "college": "Cincinnati; Ohio State",
+      "age": 24.5,
+      "draft_year": 2026,
+      "draft_round": 5,
+      "draft_pick": 170,
+      "draft_capital_score": 38,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0040887",
+      "name": "Josh Cuevas",
+      "position": "TE",
+      "team": "BAL",
+      "college": "Alabama; Washington; Pomona State",
+      "age": 22.9,
+      "draft_year": 2026,
+      "draft_round": 5,
+      "draft_pick": 173,
+      "draft_capital_score": 37,
+      "athletic_score": 54,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0040888",
+      "name": "Adam Randall",
+      "position": "RB",
+      "team": "BAL",
+      "college": "Clemson",
+      "age": 22.1,
+      "draft_year": 2026,
+      "draft_round": 5,
+      "draft_pick": 174,
+      "draft_capital_score": 37,
+      "athletic_score": 59,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0040890",
+      "name": "Cyrus Allen",
+      "position": "WR",
+      "team": "KAN",
+      "college": "Cincinnati; Texas A&M; Louisiana Tech",
+      "age": 23.5,
+      "draft_year": 2026,
+      "draft_round": 5,
+      "draft_pick": 176,
+      "draft_capital_score": 36,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041529",
+      "name": "Kevin Coleman",
+      "position": "WR",
+      "team": "MIA",
+      "college": "Missouri; Mississippi State; Louisville; Jackson State University",
+      "age": 22.9,
+      "draft_year": 2026,
+      "draft_round": 5,
+      "draft_pick": 177,
+      "draft_capital_score": 36,
+      "athletic_score": 73,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0040891",
+      "name": "Cole Payton",
+      "position": "QB",
+      "team": "PHI",
+      "college": "North Dakota State",
+      "age": 23.8,
+      "draft_year": 2026,
+      "draft_round": 5,
+      "draft_pick": 178,
+      "draft_capital_score": 35,
+      "athletic_score": 78,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041579",
+      "name": "Seydou Traore",
+      "position": "TE",
+      "team": "MIA",
+      "college": "Mississippi State; Arkansas State",
+      "age": 24.0,
+      "draft_year": 2026,
+      "draft_round": 5,
+      "draft_pick": 180,
+      "draft_capital_score": 34,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041092",
+      "name": "Taylen Green",
+      "position": "QB",
+      "team": "CLE",
+      "college": "Arkansas; Boise State",
+      "age": 23.8,
+      "draft_year": 2026,
+      "draft_round": 6,
+      "draft_pick": 182,
+      "draft_capital_score": 34,
+      "athletic_score": 100,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041094",
+      "name": "Bauer Sharp",
+      "position": "TE",
+      "team": "TAM",
+      "college": "LSU; Oklahoma; Southeastern Louisiana",
+      "age": 23.3,
+      "draft_year": 2026,
+      "draft_round": 6,
+      "draft_pick": 185,
+      "draft_capital_score": 32,
+      "athletic_score": 77,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041096",
+      "name": "Kaytron Allen",
+      "position": "RB",
+      "team": "WAS",
+      "college": "Penn State",
+      "age": 23.6,
+      "draft_year": 2026,
+      "draft_round": 6,
+      "draft_pick": 187,
+      "draft_capital_score": 32,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041099",
+      "name": "Barion Brown",
+      "position": "WR",
+      "team": "NOR",
+      "college": "LSU; Kentucky",
+      "age": 22.7,
+      "draft_year": 2026,
+      "draft_round": 6,
+      "draft_pick": 190,
+      "draft_capital_score": 30,
+      "athletic_score": 83,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041100",
+      "name": "Josh Cameron",
+      "position": "WR",
+      "team": "JAX",
+      "college": "Baylor",
+      "age": 23.4,
+      "draft_year": 2026,
+      "draft_round": 6,
+      "draft_pick": 191,
+      "draft_capital_score": 30,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0040894",
+      "name": "Malik Benson",
+      "position": "WR",
+      "team": "LVR",
+      "college": "Oregon; Florida State; Alabama; Hutchinson CC",
+      "age": 23.8,
+      "draft_year": 2026,
+      "draft_round": 6,
+      "draft_pick": 195,
+      "draft_capital_score": 29,
+      "athletic_score": 55,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041399",
+      "name": "CJ Daniels",
+      "position": "WR",
+      "team": "LAR",
+      "college": "Miami; LSU; Liberty",
+      "age": 24.6,
+      "draft_year": 2026,
+      "draft_round": 6,
+      "draft_pick": 197,
+      "draft_capital_score": 28,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041104",
+      "name": "Demond Claiborne",
+      "position": "RB",
+      "team": "MIN",
+      "college": "Wake Forest",
+      "age": 22.9,
+      "draft_year": 2026,
+      "draft_round": 6,
+      "draft_pick": 198,
+      "draft_capital_score": 27,
+      "athletic_score": 86,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0040895",
+      "name": "Emmanuel Henderson",
+      "position": "WR",
+      "team": "SEA",
+      "college": "Kansas; Alabama",
+      "age": 23.4,
+      "draft_year": 2026,
+      "draft_round": 6,
+      "draft_pick": 199,
+      "draft_capital_score": 27,
+      "athletic_score": 54,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041106",
+      "name": "CJ Williams",
+      "position": "WR",
+      "team": "JAX",
+      "college": "Stanford; Wisconsin",
+      "age": 22.8,
+      "draft_year": 2026,
+      "draft_round": 6,
+      "draft_pick": 203,
+      "draft_capital_score": 25,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041467",
+      "name": "Lewis Bond",
+      "position": "WR",
+      "team": "HOU",
+      "college": "Boston College",
+      "age": 23.2,
+      "draft_year": 2026,
+      "draft_round": 6,
+      "draft_pick": 204,
+      "draft_capital_score": 25,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0040900",
+      "name": "Anthony Smith",
+      "position": "WR",
+      "team": "DAL",
+      "college": "East Carolina; N.C. State",
+      "age": 24.5,
+      "draft_year": 2026,
+      "draft_round": 7,
+      "draft_pick": 218,
+      "draft_capital_score": 20,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041116",
+      "name": "Jack Endries",
+      "position": "TE",
+      "team": "CIN",
+      "college": "Texas; California",
+      "age": 22.4,
+      "draft_year": 2026,
+      "draft_round": 7,
+      "draft_pick": 221,
+      "draft_capital_score": 18,
+      "athletic_score": 80,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041117",
+      "name": "Athan Kaliakmanis",
+      "position": "QB",
+      "team": "WAS",
+      "college": "Rutgers; Minnesota",
+      "age": 23.0,
+      "draft_year": 2026,
+      "draft_round": 7,
+      "draft_pick": 223,
+      "draft_capital_score": 18,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0040901",
+      "name": "Jaren Kanak",
+      "position": "TE",
+      "team": "TEN",
+      "college": "Oklahoma",
+      "age": 22.5,
+      "draft_year": 2026,
+      "draft_round": 7,
+      "draft_pick": 225,
+      "draft_capital_score": 17,
+      "athletic_score": 84,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041123",
+      "name": "Behren Morton",
+      "position": "QB",
+      "team": "NWE",
+      "college": "Texas Tech",
+      "age": 24.6,
+      "draft_year": 2026,
+      "draft_round": 7,
+      "draft_pick": 234,
+      "draft_capital_score": 13,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041125",
+      "name": "Seth McGowan",
+      "position": "RB",
+      "team": "IND",
+      "college": "Kentucky; New Mexico State; Butler University; Oklahoma",
+      "age": 24.8,
+      "draft_year": 2026,
+      "draft_round": 7,
+      "draft_pick": 237,
+      "draft_capital_score": 12,
+      "athletic_score": 68,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041129",
+      "name": "Jam Miller",
+      "position": "RB",
+      "team": "NWE",
+      "college": "Alabama",
+      "age": 22.3,
+      "draft_year": 2026,
+      "draft_round": 7,
+      "draft_pick": 245,
+      "draft_capital_score": 9,
+      "athletic_score": 42,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041131",
+      "name": "Carsen Ryan",
+      "position": "TE",
+      "team": "CLE",
+      "college": "BYU; Utah; UCLA",
+      "age": 23.0,
+      "draft_year": 2026,
+      "draft_round": 7,
+      "draft_pick": 248,
+      "draft_capital_score": 8,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0040906",
+      "name": "Garrett Nussmeier",
+      "position": "QB",
+      "team": "KAN",
+      "college": "LSU",
+      "age": 24.5,
+      "draft_year": 2026,
+      "draft_round": 7,
+      "draft_pick": 249,
+      "draft_capital_score": 7,
+      "athletic_score": null,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 71,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041132",
+      "name": "Deion Burks",
+      "position": "WR",
+      "team": "IND",
+      "college": "Oklahoma; Purdue",
+      "age": 23.6,
+      "draft_year": 2026,
+      "draft_round": 7,
+      "draft_pick": 254,
+      "draft_capital_score": 5,
+      "athletic_score": 97,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    },
+    {
+      "player_key": "gsis:00-0041133",
+      "name": "Dallen Bentley",
+      "position": "TE",
+      "team": "DEN",
+      "college": "Utah; Snow",
+      "age": 25.6,
+      "draft_year": 2026,
+      "draft_round": 7,
+      "draft_pick": 256,
+      "draft_capital_score": 5,
+      "athletic_score": 64,
+      "college_production_score": null,
+      "breakout_age": null,
+      "early_declare": null,
+      "rookie_prior_confidence": 80,
+      "evidence": [
+        "NFL draft capital",
+        "public combine measurements",
+        "canonical college identity"
+      ],
+      "limitations": [
+        "College production metrics are not inferred from draft capital."
+      ]
+    }
+  ],
+  "quality": {
+    "players": 80,
+    "with_athletic_testing": 48,
+    "with_stable_identity": 79,
+    "no_fabricated_college_grades": true
+  }
+}

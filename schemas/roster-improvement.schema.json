@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fantasy-front-office.local/schemas/roster-improvement.schema.json",
+  "title": "Roster Improvement Engine Result",
+  "type": "object",
+  "required": ["version", "lineup", "replacement", "diagnostics", "bottlenecks", "championship", "confidence"],
+  "properties": {
+    "version": { "type": "string" },
+    "lineup": {
+      "type": "object",
+      "required": ["assigned", "bench", "projected", "covered"],
+      "properties": {
+        "assigned": { "type": "array" },
+        "bench": { "type": "array" },
+        "projected": { "type": "number" },
+        "covered": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "replacement": {
+      "type": "object",
+      "required": ["levels", "demand"],
+      "properties": {
+        "levels": { "type": "object", "additionalProperties": { "type": "number" } },
+        "demand": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 1 } }
+      }
+    },
+    "diagnostics": { "type": "array", "items": { "$ref": "#/$defs/diagnostic" } },
+    "bottlenecks": {
+      "type": "array",
+      "items": {
+        "allOf": [
+          { "$ref": "#/$defs/diagnostic" },
+          {
+            "type": "object",
+            "required": ["rank", "opportunityShare", "estimatedEwa", "severity"],
+            "properties": {
+              "rank": { "type": "integer", "minimum": 1 },
+              "opportunityShare": { "type": "number", "minimum": 0, "maximum": 1 },
+              "estimatedEwa": { "type": "number" },
+              "severity": { "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"] }
+            }
+          }
+        ]
+      }
+    },
+    "primaryBottleneck": { "anyOf": [{ "$ref": "#/$defs/diagnostic" }, { "type": "null" }] },
+    "championship": {
+      "type": "object",
+      "required": ["probability", "playoffProbability", "simulations"],
+      "properties": {
+        "probability": { "type": "number", "minimum": 0, "maximum": 1 },
+        "playoffProbability": { "type": "number", "minimum": 0, "maximum": 1 },
+        "simulations": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+  },
+  "$defs": {
+    "diagnostic": {
+      "type": "object",
+      "required": ["slot", "items", "bottleneckScore", "marginalPoints", "worstRank"],
+      "properties": {
+        "slot": { "type": "string" },
+        "items": { "type": "array" },
+        "bottleneckScore": { "type": "number" },
+        "marginalPoints": { "type": "number" },
+        "worstRank": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

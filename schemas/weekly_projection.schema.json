@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/weekly_projection.schema.json",
+  "title": "Fantasy Front Office weekly player projection",
+  "type": "object",
+  "required": ["player_key", "name", "position", "season", "week", "projected_points", "distribution", "availability_probability", "data_confidence", "evidence_cutoff"],
+  "properties": {
+    "player_key": {"type": "string"},
+    "name": {"type": "string"},
+    "position": {"enum": ["QB", "RB", "WR", "TE", "K", "DST"]},
+    "season": {"type": "integer"},
+    "week": {"type": "integer", "minimum": 1, "maximum": 25},
+    "projected_points": {"type": "number", "minimum": 0},
+    "distribution": {
+      "type": "object",
+      "required": ["p10", "p50", "p90"],
+      "properties": {"p10": {"type": "number"}, "p50": {"type": "number"}, "p90": {"type": "number"}}
+    },
+    "availability_probability": {"type": "number", "minimum": 0, "maximum": 1},
+    "data_confidence": {"type": "object"},
+    "evidence_cutoff": {"type": "string"}
+  },
+  "additionalProperties": true
+}
