@@ -20,7 +20,7 @@ const leagueRosters = Array.from({ length: 12 }, (_, team) => ({
   ],
 }));
 
-assert.equal(R.VERSION, '1.1.0');
+assert.equal(R.VERSION, '1.2.0');
 assert.equal(R.eligible('QB', 'SUPER_FLEX'), true);
 assert.equal(R.eligible('QB', 'FLEX'), false);
 
@@ -83,7 +83,24 @@ const accept = R.computeAcceptProbability({
   offerAssets: [{ position: 'WR', age: 29, marketValue: 3500 }],
 });
 assert.equal(accept.probability, 88);
-assert.deepEqual(accept.breakdown, { value: 40, activity: 14, direction: 20, need: 15, history: 5 });
+assert.deepEqual(accept.breakdown, { value: 40, activity: 14, direction: 20, need: 15, history: 5, preference: 0 });
+
+const packages = R.buildTradePackages({
+  target: player('Impact RB', 'RB', 18, { marketValue: 4500, ownerCost: 4500 }),
+  assets: [
+    player('Surplus WR', 'WR', 9, { marketValue: 2500, isSurplus: true, age: 28 }),
+    { id: '2027-2', name: '2027 2nd', position: 'PICK', type: 'pick', projection: null, marketValue: 1700 },
+    player('Core QB', 'QB', 20, { marketValue: 5200, protected: true }),
+  ],
+  roster: myRoster, replacement, rosterPositions: slots, opponentProjections: [105, 110, 100],
+  direction: 'REBUILDING', activity: { totalTrades: 3, tradedWithMe: 1, positionBias: { WR: 2 } },
+  needPositions: ['WR'], remainingWeeks: 3,
+});
+assert.ok(packages.length >= 1, 'an impact-positive target should produce an attainable player/pick package');
+assert.ok(packages.every(pkg => pkg.assets.every(asset => asset.id !== 'Core QB')), 'protected core players must not enter generated packages');
+assert.ok(packages.every(pkg => pkg.impact.lineupDeltaPpg > 0), 'generated packages must improve the optimized starting lineup');
+assert.ok(packages[0].assets.some(asset => asset.type === 'pick'), 'future picks should be usable to close a realistic value gap');
+assert.ok(packages[0].acceptance.breakdown.preference > 0, 'observed positional preference should influence acceptance');
 
 const activity = R.computeTradeActivity([
   { rosterIds: ['1', '2'], assets: [

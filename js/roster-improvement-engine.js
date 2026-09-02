@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const NON_STARTERS = new Set(["BN", "IR", "TAXI"]);
   const FLEX = {
     FLEX: ["RB", "WR", "TE"],
@@ -353,12 +353,60 @@
     const fillsNeed = offerAssets.some(asset => needs.has(String(asset?.position || asset?.pos || "").toUpperCase()));
     const need = fillsNeed ? 15 : 0;
     const history = finite(activity?.tradedWithMe) >= 1 ? 5 : 0;
+    const preference = offerAssets.some(asset => finite(activity?.positionBias?.[String(asset?.position || asset?.pos || "").toUpperCase()]) > 0) ? 5 : 0;
     return {
-      probability: Math.min(88, Math.max(8, value + active + directional + need + history)),
+      probability: Math.min(88, Math.max(8, value + active + directional + need + history + preference)),
       ratio: round(ratio, 3),
       fillsNeed,
-      breakdown: { value, activity: active, direction: directional, need, history },
+      breakdown: { value, activity: active, direction: directional, need, history, preference },
     };
+  }
+
+  function buildTradePackages({
+    target = null, assets = [], roster = [], replacement = {}, rosterPositions = [], opponentProjections = [],
+    remainingWeeks = 6, direction = "RETOOLING", activity = null, needPositions = [], maxAssets = 3, limit = 3,
+  } = {}) {
+    if (!target || projection(target) === null) return [];
+    const targetValue = Math.max(1, finite(target.ownerCost, finite(target.permanentAssetCost, finite(target.marketValue, target.value))));
+    const usable = assets.filter(asset => !asset?.protected && Math.max(0, finite(asset?.marketValue, asset?.value)) > 0);
+    const ordered = [...usable].sort((a, b) => {
+      const aPick = a.type === "pick" || String(a.position).toUpperCase() === "PICK";
+      const bPick = b.type === "pick" || String(b.position).toUpperCase() === "PICK";
+      const aPriority = (a.isSurplus ? 3 : 0) + (aPick ? 2 : 0);
+      const bPriority = (b.isSurplus ? 3 : 0) + (bPick ? 2 : 0);
+      return bPriority - aPriority || Math.abs(finite(a.marketValue, a.value) - targetValue) - Math.abs(finite(b.marketValue, b.value) - targetValue);
+    }).slice(0, 18);
+    const packages = [];
+    const seen = new Set();
+
+    function evaluate(chosen) {
+      const offerValue = chosen.reduce((sum, asset) => sum + Math.max(0, finite(asset.marketValue, asset.value)), 0);
+      const ratio = offerValue / targetValue;
+      if (ratio < 0.68 || ratio > 1.18) return;
+      const key = chosen.map((asset, index) => playerKey(asset, index)).sort().join("|");
+      if (seen.has(key)) return;
+      seen.add(key);
+      const impact = tradeRosterImpact({
+        roster, give: chosen, receive: [target], replacement, rosterPositions, opponentProjections, remainingWeeks,
+      });
+      if (impact.lineupDeltaPpg <= 0 || impact.deltaVorp < -3) return;
+      const acceptance = computeAcceptProbability({ offerValue, targetValue, direction, activity, needPositions, offerAssets: chosen });
+      const overpay = Math.max(0, offerValue - targetValue);
+      const valueGap = offerValue - targetValue;
+      const score = acceptance.probability + impact.lineupDeltaPpg * 6 + Math.max(-5, impact.deltaVorp) * 1.5 - overpay / 250 - (chosen.length - 1) * 2;
+      packages.push({
+        assets: chosen, offerValue: round(offerValue), targetValue: round(targetValue), valueGap: round(valueGap),
+        acceptance, impact, score: round(score),
+      });
+    }
+
+    function visit(start, chosen) {
+      if (chosen.length) evaluate(chosen);
+      if (chosen.length >= Math.max(1, Math.min(3, maxAssets))) return;
+      for (let index = start; index < ordered.length; index += 1) visit(index + 1, chosen.concat(ordered[index]));
+    }
+    visit(0, []);
+    return packages.sort((a, b) => b.score - a.score || b.acceptance.probability - a.acceptance.probability || Math.abs(a.valueGap) - Math.abs(b.valueGap)).slice(0, Math.max(1, limit));
   }
 
   function computeTradeActivity(trades = [], myRosterId = null) {
@@ -570,7 +618,7 @@
     VERSION, finite, clamp, mean, stdev, eligible, starterSlots, optimizeLineup, slotDemand,
     replacementLevels, matchupWinProbability, expectedWinsAdded, championshipProbability,
     positionDiagnostics, detectBottlenecks, marginalLineupValue, transactionImpact, analyzeRoster,
-    tradeAssetMetrics, rosterVorpProfile, tradeRosterImpact, computeAcceptProbability, computeTradeActivity,
+    tradeAssetMetrics, rosterVorpProfile, tradeRosterImpact, computeAcceptProbability, computeTradeActivity, buildTradePackages,
     marketMispricing, rankAcquisitionTargets, compareWaiverTrade, targetPath, evaluateAcquisitionUniverse,
   };
 });

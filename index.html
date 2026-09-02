@@ -425,6 +425,12 @@
       <h2 class="display" style="font-size:16px; margin:0;">Trade Analyzer</h2>
       <div style="display:flex;align-items:center;gap:8px;"><span class="pill" id="trade-market-source">○ Market unavailable</span><button id="clear-trade-btn" style="touch-action:manipulation; background:var(--surface2); color:var(--text-muted); border:none; padding:6px 12px; border-radius:5px; font-size:11px; text-transform:uppercase; cursor:pointer;">Clear</button></div>
     </div>
+    <section id="trade-recommendations-section" style="margin-bottom:24px;">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><h3 class="display" style="font-size:13px;color:var(--gold-light);margin:0">Recommended Targets & Offers</h3><span class="mono" id="trade-recommendations-count" style="font-size:10px;color:var(--text-dim)"></span></div>
+      <p class="mono" style="font-size:10px;color:var(--text-dim);margin:5px 0 10px">Purpose: find attainable players who improve your optimized lineup, match them to a motivated manager, and propose the lowest-cost responsible package from your roster and future picks.</p>
+      <div id="trade-recommendations-list" style="display:grid;gap:10px"></div>
+    </section>
+    <h3 class="display" style="font-size:11px;color:var(--text-muted);margin:0 0 8px">Manual Trade Builder</h3>
     <div class="search-wrap">
       <input type="text" id="trade-search" placeholder="Search a player or pick…" />
       <div class="search-results" id="trade-search-results" style="display:none;"></div>
@@ -510,6 +516,7 @@
     sideA: [], sideB: [], posFilter: "ALL", targetPathFilter: "ALL", fpData: null, weeklyProjectionData: null, weeklyVegasData: null, fetchedAt: null, watcherState: null, scheduleData: null,
     qualityManifest: null, leagueProfile: null, rosterAssessment: null, rosterEngine: null, targetFinder: null,
     transactions: [], tradeActivity: {}, marketSource: "unavailable", tradeHistoryStatus: "unavailable",
+    tradeRecommendations: [], preferredTradeTargetId: null,
   };
 
   function fpRankFor(name, position) {
@@ -934,7 +941,7 @@
   function resetToConnect() {
     state.league = null; state.rosters = []; state.users = []; state.allPlayers = {};
     state.fcData = []; state.tradedPicks = []; state.transactions = []; state.tradeActivity = {}; state.myRosterId = null; state.fpData = null;
-    state.marketSource = "unavailable"; state.tradeHistoryStatus = "unavailable";
+    state.marketSource = "unavailable"; state.tradeHistoryStatus = "unavailable"; state.tradeRecommendations = []; state.preferredTradeTargetId = null;
     state.sideA = []; state.sideB = []; state.fetchedAt = null;
     state.qualityManifest = null; state.leagueProfile = null; state.rosterAssessment = null;
     tabsNav.classList.remove("visible");
@@ -1689,12 +1696,12 @@
         <div><div class="target-number">${data}</div><div class="target-detail">Team value ${Math.round(target.teamValue).toLocaleString()} · ${target.mispricing.action} · ${target.permanentAssetCost === 0 && target.actionable ? "∞ CPA (no permanent asset)" : `${Number(target.championshipReturnPer1000 || 0).toFixed(2)} title pp / 1k cost`}</div></div>
         <div><span class="target-detail">Title added</span><div class="target-number">${titleDelta}</div></div>
         <div><span class="target-detail">Acquisition cost</span><div class="target-detail">${cost}</div></div>
-        <div><div class="target-action">${target.actionable ? target.pathRecommendation : target.dataStatus.replaceAll("_", " ")}</div><div class="target-detail">${pathDetail}</div>${dropGuidance ? `<div class="target-detail" style="margin-top:4px">${dropGuidance}</div>` : ""}${target.path.type === "TRADE" && target.actionable ? `<button class="btn secondary" style="margin-top:7px;padding:6px 9px;font-size:10px" data-build-trade="${escapeHTML(target.id)}">Open in Trade Analyzer</button>` : ""}</div>
+        <div><div class="target-action">${target.actionable ? target.pathRecommendation : target.dataStatus.replaceAll("_", " ")}</div><div class="target-detail">${pathDetail}</div>${dropGuidance ? `<div class="target-detail" style="margin-top:4px">${dropGuidance}</div>` : ""}${target.path.type === "TRADE" && target.actionable ? `<button class="btn secondary" style="margin-top:7px;padding:6px 9px;font-size:10px" data-build-trade="${escapeHTML(target.id)}">Find Offers in Trade Analyzer</button>` : ""}</div>
       </article>`;
     }).join("")}</div>${filtered.length > 150 ? `<p class="rie-caveat">Showing the top 150 of ${filtered.length} filtered candidates; all ${finder.evaluatedCount} were evaluated before ranking.</p>` : ""}`;
     $("targets-list").querySelectorAll("[data-build-trade]").forEach(button => button.addEventListener("click", () => {
       const entry = state.fcData.find(item => String(item.player?.sleeperId || "") === button.dataset.buildTrade);
-      if (entry) { addToSide("B", entry); switchTab("trade"); }
+      if (entry) { state.preferredTradeTargetId = button.dataset.buildTrade; addToSide("B", entry); switchTab("trade"); }
     }));
   }
 
@@ -1713,6 +1720,137 @@
     const same = candidates.filter(player => player.position === position);
     const pool = same.length ? same : candidates;
     return [...pool].sort((a, b) => (a.projPoints ?? -1) - (b.projPoints ?? -1) || (a.value || 0) - (b.value || 0))[0] || null;
+  }
+
+  function ownedFuturePicks(rosterId) {
+    const leagueType = Number(state.league?.settings?.type || 0);
+    if (leagueType !== 2) return [];
+    const mine = String(rosterId);
+    const currentSeason = Number(state.league?.season || new Date().getFullYear());
+    const rounds = Math.max(1, Math.min(5, Number(state.league?.settings?.draft_rounds || state.league?.draft_settings?.rounds || 3)));
+    const owners = ownerMap();
+    const picks = [];
+    const seen = new Set();
+    const add = (season, round, originalOwner) => {
+      const key = `${season}-${round}-${originalOwner}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      const pick = { season, round, roster_id: originalOwner };
+      const market = pickMarketValue(pick);
+      const yearsOut = Math.max(0, Number(season) - (currentSeason + 1));
+      const base = ({ 1: state.leagueProfile?.superflex ? 3600 : 3300, 2: 1600, 3: 750, 4: 350, 5: 175 })[round] || 100;
+      const value = market || Math.round(base * (0.88 ** yearsOut));
+      const suffix = round === 1 ? "1st" : round === 2 ? "2nd" : round === 3 ? "3rd" : `${round}th`;
+      const ownLabel = String(originalOwner) === mine ? "" : ` (${owners[originalOwner] || `Roster ${originalOwner}`})`;
+      picks.push({
+        id: `pick-${key}`, type: "pick", position: "PICK", name: `${season} ${suffix}${ownLabel}`,
+        projection: null, marketValue: value, value, season: Number(season), round,
+        valueSource: market ? "FantasyCalc" : "estimated pick tier",
+      });
+    };
+    for (let season = currentSeason + 1; season <= currentSeason + 3; season += 1) {
+      for (let round = 1; round <= rounds; round += 1) {
+        const moved = state.tradedPicks.find(pick => Number(pick.season) === season && Number(pick.round) === round && String(pick.roster_id) === mine);
+        if (!moved || String(moved.owner_id) === mine) add(season, round, mine);
+      }
+    }
+    state.tradedPicks.filter(pick => String(pick.owner_id) === mine && String(pick.roster_id) !== mine && Number(pick.season) >= currentSeason)
+      .forEach(pick => add(Number(pick.season), Number(pick.round), String(pick.roster_id)));
+    return picks.sort((a, b) => a.season - b.season || a.round - b.round);
+  }
+
+  function buildTradeRecommendations() {
+    if (!state.targetFinder || !window.FFORosterEngine) return [];
+    const myRoster = state.rosters.find(roster => roster.roster_id === state.myRosterId);
+    if (!myRoster) return [];
+    const replacement = replacementContext();
+    const myPlayers = rosterTradePlayers(myRoster);
+    const myProfile = rosterTradeProfile(myRoster);
+    const starterIds = new Set((state.rosterEngine?.lineup?.assigned || []).map(row => String(row.player?.id || "")).filter(Boolean));
+    const playerAssets = myPlayers.map(asset => {
+      const depth = depthAtPosition(myRoster, myProfile, asset.position);
+      const isSurplus = depth >= 3;
+      return { ...asset, isSurplus, protected: depth < 2 || (starterIds.has(String(asset.id)) && !isSurplus) };
+    });
+    const futurePicks = ownedFuturePicks(state.myRosterId);
+    const offerAssets = playerAssets.concat(futurePicks);
+    const opponents = (state.rosterEngine?.leagueRosters || []).filter(team => team.id !== String(state.myRosterId))
+      .map(team => window.FFORosterEngine.optimizeLineup(team.players, state.league.roster_positions || []).projected);
+    const tradeTargets = state.targetFinder.targets.filter(target => target.actionable && target.path?.type === "TRADE" && target.weeklyPointGain > 0)
+      .sort((a, b) => (String(b.id) === String(state.preferredTradeTargetId)) - (String(a.id) === String(state.preferredTradeTargetId)) || b.rankScore - a.rankScore)
+      .slice(0, 24);
+    const recommendations = [];
+    tradeTargets.forEach(target => {
+      const ownerRoster = state.rosters.find(roster => String(roster.roster_id) === String(target.path.ownerId));
+      if (!ownerRoster) return;
+      const ownerProfile = rosterTradeProfile(ownerRoster);
+      const ownerNeeds = ["QB", "RB", "WR", "TE"].filter(position => depthAtPosition(ownerRoster, ownerProfile, position) < 2);
+      const ownerSurplus = depthAtPosition(ownerRoster, ownerProfile, target.position) >= 3;
+      const targetAsset = {
+        id: String(target.id), type: "player", name: target.name, position: target.position,
+        projection: target.projection, marketValue: target.marketValue, value: target.marketValue,
+        ownerCost: Math.round(Number(target.permanentAssetCost || target.marketValue) * (ownerSurplus ? 0.96 : 1.08)),
+        team: target.team,
+      };
+      const activity = state.tradeActivity[String(ownerRoster.roster_id)] || null;
+      const packages = window.FFORosterEngine.buildTradePackages({
+        target: targetAsset, assets: offerAssets, roster: myPlayers, replacement,
+        rosterPositions: state.league.roster_positions || [], opponentProjections: opponents,
+        remainingWeeks: state.rosterEngine?.remainingWeeks || 6, direction: teamDirection(ownerRoster),
+        activity, needPositions: ownerNeeds, maxAssets: 3, limit: 3,
+      });
+      if (!packages.length) return;
+      recommendations.push({ target, targetAsset, ownerRoster, ownerProfile, ownerNeeds, ownerSurplus, activity, packages, futurePickCount: futurePicks.length });
+    });
+    return recommendations.sort((a, b) => {
+      const preferred = (String(b.target.id) === String(state.preferredTradeTargetId)) - (String(a.target.id) === String(state.preferredTradeTargetId));
+      return preferred || b.target.championshipProbabilityAdded - a.target.championshipProbabilityAdded || b.packages[0].score - a.packages[0].score;
+    }).slice(0, 8);
+  }
+
+  function renderTradeRecommendations() {
+    const list = $("trade-recommendations-list");
+    const count = $("trade-recommendations-count");
+    if (!list || !count) return;
+    const recommendations = buildTradeRecommendations();
+    state.tradeRecommendations = recommendations;
+    const positiveTargets = state.targetFinder?.targets?.filter(target => target.actionable && target.path?.type === "TRADE" && target.weeklyPointGain > 0).length || 0;
+    count.textContent = `${recommendations.length} attainable of ${positiveTargets} impact-positive trade targets`;
+    if (!state.targetFinder) {
+      list.innerHTML = '<div class="quality-note"><span class="rie-caveat">Connect a league and select your roster to generate targets and acquisition packages.</span></div>';
+      return;
+    }
+    if (!recommendations.length) {
+      list.innerHTML = '<div class="quality-note"><strong>No responsible package found</strong><div class="rie-caveat" style="margin-top:4px">The engine found no package within the value guardrails that improves your starting lineup without exposing a protected core position. The manual builder remains available below.</div></div>';
+      return;
+    }
+    list.innerHTML = recommendations.map((recommendation, recIndex) => {
+      const target = recommendation.target;
+      const owner = ownerMap()[recommendation.ownerRoster.roster_id] || target.path.ownerName;
+      const bottleneck = state.rosterEngine?.primaryBottleneck?.slot;
+      const reason = target.position === bottleneck
+        ? `Directly attacks your primary ${bottleneck} bottleneck.`
+        : `Adds ${target.weeklyPointGain.toFixed(1)} optimized starter points per week at ${target.position}.`;
+      const ownerContext = `${owner} is ${teamDirection(recommendation.ownerRoster).toLowerCase()}${recommendation.ownerSurplus ? ` with 3+ ${target.position}s above replacement` : ""}${recommendation.ownerNeeds.length ? ` and needs ${recommendation.ownerNeeds.join("/")}` : ""}.`;
+      const waiver = target.waiverAlternative ? ` Waiver check: ${target.waiverAlternative.name} supplies ${Math.round((target.waiverPerformanceShare || 0) * 100)}% of the EWA for $${target.waiverAlternative.faabCost} FAAB.` : "";
+      return `<article class="quality-note" data-trade-target="${escapeHTML(target.id)}"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap"><div><span class="pill gold">TARGET ${recIndex + 1}</span> <strong style="font-size:14px">${escapeHTML(target.name)}</strong> <span class="pill">${target.position}</span><div class="rie-caveat" style="margin-top:4px">Rostered by ${escapeHTML(owner)} · market ${Math.round(target.marketValue).toLocaleString()} · owner ask ${Math.round(recommendation.packages[0].targetValue).toLocaleString()}</div></div><div style="text-align:right"><strong style="color:var(--green)">+${target.weeklyPointGain.toFixed(1)} PPG</strong><div class="rie-caveat">+${target.ewa.toFixed(2)} EWA · +${(target.championshipProbabilityAdded * 100).toFixed(1)} title pp</div></div></div><div style="font-size:12px;margin-top:7px">${reason} ${ownerContext}${waiver}</div><div style="display:grid;gap:7px;margin-top:9px">${recommendation.packages.map((pkg, pkgIndex) => {
+        const impactTone = pkg.impact.lineupDeltaPpg > 0 ? "var(--green)" : "var(--red)";
+        const assets = pkg.assets.map(asset => `${escapeHTML(asset.name)} <span class="mono" style="color:var(--text-dim)">(${Math.round(asset.marketValue || asset.value).toLocaleString()}${asset.type === "pick" && asset.valueSource !== "FantasyCalc" ? " est." : ""})</span>`).join(" + ");
+        const b = pkg.acceptance.breakdown;
+        return `<div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:9px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><div><span class="pill teal">OFFER ${pkgIndex + 1}</span> ${assets}</div><strong style="color:var(--gold-light)">${pkg.acceptance.probability}% est. accept</strong></div><div class="mono" style="font-size:10px;color:var(--text-muted);margin-top:6px">Give ${Math.round(pkg.offerValue).toLocaleString()} vs ask ${Math.round(pkg.targetValue).toLocaleString()} · gap ${pkg.valueGap >= 0 ? "+" : ""}${Math.round(pkg.valueGap).toLocaleString()} · <span style="color:${impactTone}">${pkg.impact.lineupDeltaPpg >= 0 ? "+" : ""}${pkg.impact.lineupDeltaPpg.toFixed(1)} lineup PPG</span> · VORP ${pkg.impact.deltaVorp >= 0 ? "+" : ""}${pkg.impact.deltaVorp.toFixed(1)}</div><details style="margin-top:5px"><summary class="mono" style="font-size:10px;color:var(--text-dim);cursor:pointer">Why this package can work</summary><div class="mono" style="font-size:10px;color:var(--text-muted);margin-top:4px">Value +${b.value} · activity +${b.activity} · direction +${b.direction} · need +${b.need} · history +${b.history} · preference +${b.preference}. Their observed average resolved asset received: ${Math.round(recommendation.activity?.avgValueReceived || 0).toLocaleString()} FC.</div></details><button class="btn secondary" style="margin-top:7px;padding:6px 9px;font-size:10px" data-load-package="${recIndex}:${pkgIndex}">Load offer in analyzer</button></div>`;
+      }).join("")}</div></article>`;
+    }).join("");
+    list.querySelectorAll("[data-load-package]").forEach(button => button.addEventListener("click", () => {
+      const [recIndex, pkgIndex] = button.dataset.loadPackage.split(":").map(Number);
+      const recommendation = state.tradeRecommendations[recIndex];
+      const pkg = recommendation?.packages?.[pkgIndex];
+      if (!recommendation || !pkg) return;
+      state.sideA = pkg.assets.map(asset => ({ ...asset, value: Number(asset.marketValue || asset.value || 0) }));
+      state.sideB = [{ ...recommendation.targetAsset, value: Number(recommendation.targetAsset.marketValue || 0) }];
+      state.preferredTradeTargetId = recommendation.target.id;
+      renderTradeSides();
+      $("verdict-box").scrollIntoView({ behavior: "smooth", block: "center" });
+    }));
   }
 
   // ---------- Render: Trade ----------
@@ -1738,6 +1876,7 @@
       marketPill.textContent = state.marketSource === "live" ? "● Live FantasyCalc" : state.marketSource === "snapshot" ? "○ Snapshot FantasyCalc" : "○ Market unavailable";
       marketPill.className = `pill ${state.marketSource === "live" ? "teal" : ""}`;
     }
+    renderTradeRecommendations();
     renderTradeSides();
     renderTradePartners();
     renderTradeAnalytics();
@@ -1894,7 +2033,7 @@
         <div style="color:var(--teal-light); font-size:12px;margin-top:6px">You give: ${escapeHTML(p.give.name)} (${p.give.position}, ${Math.round(p.give.value)})</div>
         <div style="color:var(--gold-light); font-size:12px">You receive: ${escapeHTML(p.receive.name)} (${p.receive.position}, ${Math.round(p.receive.value)})</div>
         <div style="border-top:1px solid var(--border);padding-top:6px;margin-top:6px;font-size:12px"><span style="color:var(--text-muted)">Roster impact: </span><span style="color:${impactTone}">Δ ${p.deltaPpg >= 0 ? "+" : ""}${p.deltaPpg.toFixed(1)} PPG / wk</span><span class="mono" style="color:var(--text-muted);margin-left:8px">VORP ${p.deltaVorp >= 0 ? "+" : ""}${p.deltaVorp.toFixed(1)}</span></div>
-        <details style="margin-top:6px"><summary class="mono" style="font-size:10px;color:var(--text-dim);cursor:pointer">Probability breakdown</summary><div class="mono" style="font-size:10px;color:var(--text-muted);margin-top:5px">Value match: +${b.value} | Activity: +${b.activity} | Dir. fit: +${b.direction} | Need fill: +${b.need} | History: +${b.history}</div></details>
+        <details style="margin-top:6px"><summary class="mono" style="font-size:10px;color:var(--text-dim);cursor:pointer">Probability breakdown</summary><div class="mono" style="font-size:10px;color:var(--text-muted);margin-top:5px">Value match: +${b.value} | Activity: +${b.activity} | Dir. fit: +${b.direction} | Need fill: +${b.need} | History: +${b.history} | Preference: +${b.preference}</div></details>
       </div>`;
     }).join("");
   }
