@@ -20,7 +20,7 @@ const leagueRosters = Array.from({ length: 12 }, (_, team) => ({
   ],
 }));
 
-assert.equal(R.VERSION, '1.0.0');
+assert.equal(R.VERSION, '1.1.0');
 assert.equal(R.eligible('QB', 'SUPER_FLEX'), true);
 assert.equal(R.eligible('QB', 'FLEX'), false);
 
@@ -55,6 +55,51 @@ const transaction = R.transactionImpact({
 });
 assert.equal(transaction.weeklyPointGain, 7);
 assert.ok(transaction.ewa > 0);
+
+const tradeImpact = R.tradeRosterImpact({
+  roster: myRoster,
+  give: [player('WR3', 'WR', 14, { age: 29, marketValue: 3500 })],
+  receive: [player('Trade RB', 'RB', 18, { age: 24, marketValue: 4500 })],
+  replacement,
+  rosterPositions: slots,
+  opponentProjections: [105, 110, 100],
+  remainingWeeks: 3,
+});
+assert.equal(tradeImpact.deltaPpg, 4);
+assert.equal(
+  tradeImpact.deltaVorp,
+  Math.round(((18 - replacement.levels.RB) - (14 - replacement.levels.WR)) * 10) / 10,
+  'VORP delta should use the position-specific replacement levels',
+);
+assert.ok(tradeImpact.lineupDeltaPpg > 0);
+assert.deepEqual(tradeImpact.surplusPositions, ['WR']);
+assert.deepEqual(tradeImpact.needPositions, ['RB']);
+assert.ok(tradeImpact.weakestPositions.some(position => position.position === 'RB'));
+assert.ok(tradeImpact.weakestPositions[0].vorp <= tradeImpact.weakestPositions.at(-1).vorp);
+
+const accept = R.computeAcceptProbability({
+  offerValue: 4200, targetValue: 4500, direction: 'CONTENDER',
+  activity: { totalTrades: 4, tradedWithMe: 1 }, needPositions: ['WR'],
+  offerAssets: [{ position: 'WR', age: 29, marketValue: 3500 }],
+});
+assert.equal(accept.probability, 88);
+assert.deepEqual(accept.breakdown, { value: 40, activity: 14, direction: 20, need: 15, history: 5 });
+
+const activity = R.computeTradeActivity([
+  { rosterIds: ['1', '2'], assets: [
+    { fromRosterId: '1', toRosterId: '2', position: 'WR', marketValue: 3000 },
+    { fromRosterId: '2', toRosterId: '1', position: 'RB', marketValue: 3500 },
+  ] },
+  { rosterIds: ['2', '3'], assets: [
+    { fromRosterId: '3', toRosterId: '2', position: 'PICK', type: 'pick', marketValue: 2000 },
+  ] },
+], '1');
+assert.equal(activity['2'].totalTrades, 2);
+assert.equal(activity['2'].tradedWithMe, 1);
+assert.equal(activity['2'].positionBias.WR, 1);
+assert.equal(activity['2'].positionBias.RB, -1);
+assert.equal(activity['2'].avgAssetsPerTrade, 1.5);
+assert.equal(activity['1'].valueReceived, 3500);
 
 const diagnostics = R.positionDiagnostics({ roster: myRoster, leagueRosters, rosterPositions: slots, teams: 12, replacement });
 assert.ok(diagnostics.length >= 5);
