@@ -421,9 +421,9 @@
 
   <!-- TRADE VIEW -->
   <div id="view-trade" class="view">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:16px;">
       <h2 class="display" style="font-size:16px; margin:0;">Trade Analyzer</h2>
-      <button id="clear-trade-btn" style="touch-action:manipulation; background:var(--surface2); color:var(--text-muted); border:none; padding:6px 12px; border-radius:5px; font-size:11px; text-transform:uppercase; cursor:pointer;">Clear</button>
+      <div style="display:flex;align-items:center;gap:8px;"><span class="pill" id="trade-market-source">○ Market unavailable</span><button id="clear-trade-btn" style="touch-action:manipulation; background:var(--surface2); color:var(--text-muted); border:none; padding:6px 12px; border-radius:5px; font-size:11px; text-transform:uppercase; cursor:pointer;">Clear</button></div>
     </div>
     <div class="search-wrap">
       <input type="text" id="trade-search" placeholder="Search a player or pick…" />
@@ -449,12 +449,19 @@
       <div class="scale-labels"><span id="scale-give-label">Give: 0</span><span id="scale-get-label">Get: 0</span></div>
     </div>
     <div class="verdict neutral" id="verdict-box">Add assets to both sides</div>
+    <div id="trade-roster-impact" style="margin-top:8px;"></div>
     <div id="trade-championship-impact" style="margin-top:8px;"></div>
+    <div id="trade-counterparty-view" style="margin-top:8px;"></div>
     <div id="trade-partners-section" style="margin-top:28px; display:none;">
       <h3 class="display" style="font-size:12px; color:var(--text-muted);">Potential Trade Partners</h3>
-      <p class="mono" style="font-size:10px; color:var(--text-dim); margin:4px 0 10px;">Based on rostered position counts vs a conservative depth floor. A starting point for who to call, not a guarantee they'll deal.</p>
+      <p class="mono" style="font-size:10px; color:var(--text-dim); margin:4px 0 10px;">Based on projected production above league replacement, roster direction, positional fit, and observed trade behavior. Probabilities are bounded estimates—not guarantees.</p>
       <div id="trade-partners-list" style="display:grid; gap:8px;"></div>
     </div>
+
+    <details id="trade-analytics-section" style="margin-top:28px;">
+      <summary class="display" style="font-size:12px;color:var(--text-muted);cursor:pointer;">📈 Trade Analytics</summary>
+      <div id="trade-analytics-content" style="margin-top:10px;"></div>
+    </details>
 
     <div id="traded-picks-section" style="margin-top:28px; display:none;">
       <h3 class="display" style="font-size:12px; color:var(--text-muted);">Traded Picks in League</h3>
@@ -502,6 +509,7 @@
     tradedPicks: [], myRosterId: null, activeTab: "roster",
     sideA: [], sideB: [], posFilter: "ALL", targetPathFilter: "ALL", fpData: null, weeklyProjectionData: null, weeklyVegasData: null, fetchedAt: null, watcherState: null, scheduleData: null,
     qualityManifest: null, leagueProfile: null, rosterAssessment: null, rosterEngine: null, targetFinder: null,
+    transactions: [], tradeActivity: {}, marketSource: "unavailable", tradeHistoryStatus: "unavailable",
   };
 
   function fpRankFor(name, position) {
@@ -669,6 +677,7 @@
 
   function updateQualityContext() {
     if (!window.FFODashboardIntel) return;
+    updateTradeActivity();
     state.leagueProfile = window.FFODashboardIntel.leagueProfile(state.league);
     state.qualityManifest = window.FFODashboardIntel.sourceManifest([
       { id: "sleeper-league", label: "Sleeper league state", timestamp: state.fetchedAt, maxAgeHours: 0.25, required: true },
@@ -678,6 +687,7 @@
       { id: "weekly-vegas", label: "Weekly sportsbook adjustment", timestamp: state.weeklyVegasData?.generated_at, maxAgeHours: 6, required: false },
       { id: "league-watcher", label: "League watcher", timestamp: state.watcherState?.last_run, maxAgeHours: 3, required: false },
       { id: "schedule", label: "Schedule signals", timestamp: state.scheduleData?.generated_at, maxAgeHours: 24, required: false },
+      { id: "trade-history", label: "Sleeper trade history", timestamp: state.tradeHistoryStatus === "live" ? state.fetchedAt : null, maxAgeHours: 6, required: false },
     ]);
     state.rosterAssessment = window.FFODashboardIntel.rosterAssessment(normalizedRosterPlayers(), state.leagueProfile);
     updateRosterEngine();
@@ -721,6 +731,76 @@
   }
 
   // ---------- Fetch ----------
+  async function fetchLeagueTrades(leagueId) {
+    const weeks = Array.from({ length: 18 }, (_, index) => index + 1);
+    const results = await Promise.allSettled(weeks.map(async week => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 6000);
+      try {
+        const response = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/transactions/${week}`, { signal: controller.signal });
+        if (!response.ok) return [];
+        return await response.json();
+      } finally {
+        clearTimeout(timer);
+      }
+    }));
+    const successful = results.filter(result => result.status === "fulfilled");
+    state.tradeHistoryStatus = successful.length ? "live" : "unavailable";
+    const seen = new Set();
+    return successful.flatMap(result => result.value || []).filter(transaction => {
+      if (transaction?.type !== "trade") return false;
+      const key = String(transaction.transaction_id || `${transaction.created}-${(transaction.roster_ids || []).join("-")}`);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function pickMarketValue(pick) {
+    const season = String(pick?.season || "");
+    const round = Number(pick?.round || 0);
+    const tokens = round === 1 ? ["1st", "first"] : round === 2 ? ["2nd", "second"] : round === 3 ? ["3rd", "third"] : [`${round}th`];
+    const match = state.fcData.find(entry => {
+      const position = String(entry.player?.position || "").toUpperCase();
+      const name = String(entry.player?.name || "").toLowerCase();
+      return position === "PICK" && name.includes(season) && tokens.some(token => name.includes(token));
+    });
+    return Number(match?.value || 0);
+  }
+
+  function normalizedTradeHistory() {
+    const market = fcBySleeperId();
+    return (state.transactions || []).map(transaction => {
+      const rosterIds = (transaction.roster_ids || []).map(String);
+      const adds = transaction.adds || {};
+      const drops = transaction.drops || {};
+      const playerIds = new Set([...Object.keys(adds), ...Object.keys(drops)]);
+      const assets = [...playerIds].map(playerId => {
+        const raw = state.allPlayers[playerId] || {};
+        const toRosterId = adds[playerId] === undefined ? null : String(adds[playerId]);
+        let fromRosterId = drops[playerId] === undefined ? null : String(drops[playerId]);
+        if (!fromRosterId && toRosterId && rosterIds.length === 2) fromRosterId = rosterIds.find(id => id !== toRosterId) || null;
+        return {
+          type: "player", playerId, toRosterId, fromRosterId,
+          position: raw.position || market[playerId]?.player?.position || "UNKNOWN",
+          marketValue: Number(market[playerId]?.value || 0),
+        };
+      });
+      (transaction.draft_picks || []).forEach(pick => assets.push({
+        type: "pick", position: "PICK",
+        fromRosterId: pick.previous_owner_id === undefined ? null : String(pick.previous_owner_id),
+        toRosterId: pick.owner_id === undefined ? null : String(pick.owner_id),
+        marketValue: pickMarketValue(pick), season: pick.season, round: pick.round,
+      }));
+      return { id: transaction.transaction_id, created: transaction.created, rosterIds, assets };
+    });
+  }
+
+  function updateTradeActivity() {
+    if (!window.FFORosterEngine) { state.tradeActivity = {}; return; }
+    state.tradeActivity = window.FFORosterEngine.computeTradeActivity(normalizedTradeHistory(), state.myRosterId);
+  }
+
   async function loadLeague(leagueId) {
     errorBox.style.display = "none";
     connectBtn.disabled = true;
@@ -736,13 +816,16 @@
       if (!leagueRes.ok) throw new Error("League not found — check the League ID");
 
       state.league = await leagueRes.json();
+      const tradeHistoryPromise = fetchLeagueTrades(leagueId);
       state.rosters = await rostersRes.json();
       state.users = await usersRes.json();
       state.tradedPicks = await picksRes.json();
-      state.fcData = await fcRes.json();
+      state.fcData = fcRes.ok ? await fcRes.json() : [];
+      state.marketSource = fcRes.ok ? "live" : "unavailable";
 
       const pRes = await fetch("https://api.sleeper.app/v1/players/nfl");
       state.allPlayers = await pRes.json();
+      state.transactions = await tradeHistoryPromise;
 
       // Same-origin static snapshot — FantasyPros blocks cross-origin fetch,
       // so this file is exported from Colab and committed alongside index.html.
@@ -810,6 +893,9 @@
       if (parsed.traded_picks) state.tradedPicks = parsed.traded_picks;
       if (parsed.fc_data) state.fcData = parsed.fc_data;
       if (parsed.all_players) state.allPlayers = parsed.all_players;
+      state.transactions = parsed.transactions || parsed.all_trades || [];
+      state.tradeHistoryStatus = state.transactions.length ? "snapshot" : "unavailable";
+      state.marketSource = state.fcData.length ? "snapshot" : "unavailable";
       if (parsed.weekly_projection_data?.projection_scope === "weekly") state.weeklyProjectionData = parsed.weekly_projection_data;
       state.fetchedAt = parsed.fetched_at ? new Date(parsed.fetched_at) : null;
       updateQualityContext();
@@ -847,7 +933,8 @@
 
   function resetToConnect() {
     state.league = null; state.rosters = []; state.users = []; state.allPlayers = {};
-    state.fcData = []; state.tradedPicks = []; state.myRosterId = null; state.fpData = null;
+    state.fcData = []; state.tradedPicks = []; state.transactions = []; state.tradeActivity = {}; state.myRosterId = null; state.fpData = null;
+    state.marketSource = "unavailable"; state.tradeHistoryStatus = "unavailable";
     state.sideA = []; state.sideB = []; state.fetchedAt = null;
     state.qualityManifest = null; state.leagueProfile = null; state.rosterAssessment = null;
     tabsNav.classList.remove("visible");
@@ -1646,8 +1733,37 @@
         return `<div>${mineTag}${tp.season} Rd${tp.round} (orig. ${escapeHTML(tp.originalOwner)}) → now owned by <span style="color:var(--text);">${escapeHTML(tp.currentOwner)}</span></div>`;
       }).join("");
     }
+    const marketPill = $("trade-market-source");
+    if (marketPill) {
+      marketPill.textContent = state.marketSource === "live" ? "● Live FantasyCalc" : state.marketSource === "snapshot" ? "○ Snapshot FantasyCalc" : "○ Market unavailable";
+      marketPill.className = `pill ${state.marketSource === "live" ? "teal" : ""}`;
+    }
     renderTradeSides();
     renderTradePartners();
+    renderTradeAnalytics();
+  }
+
+  function renderTradeAnalytics() {
+    const target = $("trade-analytics-content");
+    if (!target) return;
+    const rows = Object.values(state.tradeActivity || {});
+    if (!state.transactions.length || !rows.length) {
+      target.innerHTML = `<div class="quality-note"><span class="rie-caveat">${state.tradeHistoryStatus === "unavailable" ? "Trade history is unavailable; roster and market analysis still work normally." : "No completed trades were found for this league season."}</span></div>`;
+      return;
+    }
+    const owners = ownerMap();
+    const mine = state.tradeActivity[String(state.myRosterId)] || {
+      totalTrades: 0, valueSent: 0, valueReceived: 0, tradePartners: {}, positionsSent: {}, positionsReceived: {},
+    };
+    const topEntries = object => Object.entries(object || {}).filter(([position]) => ["QB", "RB", "WR", "TE"].includes(position))
+      .sort((a, b) => b[1] - a[1]).slice(0, 2).map(([position]) => position).join(", ") || "none";
+    const partner = Object.entries(mine.tradePartners || {}).sort((a, b) => b[1] - a[1])[0];
+    const balance = Number(mine.valueReceived || 0) - Number(mine.valueSent || 0);
+    const fmt = value => `${(Number(value || 0) / 1000).toFixed(1)}k`;
+    const board = rows.sort((a, b) => b.totalTrades - a.totalTrades || b.valueReceived - a.valueReceived);
+    target.innerHTML = `<div class="quality-note"><strong>My trade record this season</strong><div class="metric-grid" style="margin-top:8px"><div class="metric"><b>${mine.totalTrades}</b><small>completed trades</small></div><div class="metric"><b>${fmt(mine.valueSent)} / ${fmt(mine.valueReceived)}</b><small>FC sent / received</small></div><div class="metric"><b style="color:${balance >= 0 ? "var(--green)" : "var(--red)"}">${balance >= 0 ? "+" : ""}${fmt(balance)}</b><small>resolved FC balance</small></div></div><div class="rie-caveat" style="margin-top:7px">Most traded with: ${partner ? `${escapeHTML(owners[partner[0]] || `Roster ${partner[0]}`)} (${partner[1]} deal${partner[1] === 1 ? "" : "s"})` : "none"} · Sold most: ${topEntries(mine.positionsSent)} · Bought most: ${topEntries(mine.positionsReceived)}</div></div>
+      <div style="overflow-x:auto;margin-top:10px"><table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="color:var(--text-dim);text-align:left"><th style="padding:6px">#</th><th style="padding:6px">Manager</th><th style="padding:6px">Trades</th><th style="padding:6px">FC sent</th><th style="padding:6px">FC received</th><th style="padding:6px">Balance</th></tr></thead><tbody>${board.map((row, index) => { const net = row.valueReceived - row.valueSent; return `<tr style="border-top:1px solid var(--border)"><td style="padding:6px">${index + 1}</td><td style="padding:6px">${escapeHTML(owners[row.rosterId] || `Roster ${row.rosterId}`)}</td><td style="padding:6px">${row.totalTrades}</td><td style="padding:6px">${fmt(row.valueSent)}</td><td style="padding:6px">${fmt(row.valueReceived)}</td><td style="padding:6px;color:${net >= 0 ? "var(--green)" : "var(--red)"}">${net >= 0 ? "+" : ""}${fmt(net)}</td></tr>`; }).join("")}</tbody></table></div>
+      <div class="rie-caveat" style="margin-top:6px">FantasyCalc totals include only assets with a resolved market value. Trade counts and positional tendencies include every normalized Sleeper trade asset.</div>`;
   }
 
   function computePositionCounts(roster) {
@@ -1657,6 +1773,50 @@
       if (p.position) counts[p.position] = (counts[p.position] || 0) + 1;
     });
     return counts;
+  }
+
+  function tradeAssetForRosterPlayer(pid) {
+    const raw = state.allPlayers[pid] || {};
+    const market = fcBySleeperId()[String(pid)];
+    const name = `${raw.first_name || ""} ${raw.last_name || ""}`.trim() || market?.player?.name || String(pid);
+    const position = raw.position || market?.player?.position || "";
+    return {
+      id: String(pid), type: "player", name, position,
+      projection: position ? fpProjectionFor(name, position, pid) : null,
+      value: Number(market?.value || 0), marketValue: Number(market?.value || 0),
+      age: Number(raw.age || market?.player?.maybeAge || market?.player?.age || 0),
+      team: raw.team || market?.player?.maybeTeam || null,
+    };
+  }
+
+  function rosterTradePlayers(roster) {
+    return (roster?.players || []).map(tradeAssetForRosterPlayer);
+  }
+
+  function replacementContext() {
+    if (state.rosterEngine?.replacement) return state.rosterEngine.replacement;
+    if (!window.FFORosterEngine || !state.league) return { levels: {}, demand: {} };
+    const pool = state.rosters.flatMap(roster => rosterTradePlayers(roster));
+    return window.FFORosterEngine.replacementLevels(pool, state.league.roster_positions || [], Number(state.league.total_rosters || state.rosters.length || 12));
+  }
+
+  function rosterTradeProfile(roster) {
+    if (!window.FFORosterEngine) return null;
+    return window.FFORosterEngine.rosterVorpProfile({ roster: rosterTradePlayers(roster), replacement: replacementContext() });
+  }
+
+  function depthAtPosition(roster, profile, position) {
+    const covered = profile?.byPosition?.[position]?.covered || 0;
+    return covered ? profile.byPosition[position].aboveReplacement : (computePositionCounts(roster)[position] || 0);
+  }
+
+  function teamDirection(roster) {
+    const ranked = [...state.rosters].sort((a, b) => Number(b.settings?.wins || 0) - Number(a.settings?.wins || 0) || Number(b.settings?.fpts || 0) - Number(a.settings?.fpts || 0));
+    const hasStandingsEvidence = ranked.some(team => Number(team.settings?.wins || 0) > 0 || Number(team.settings?.fpts || 0) > 0);
+    if (!hasStandingsEvidence) return "RETOOLING";
+    const rank = ranked.findIndex(team => team.roster_id === roster?.roster_id);
+    const third = Math.max(1, Math.ceil(ranked.length / 3));
+    return rank < third ? "CONTENDER" : rank >= ranked.length - third ? "REBUILDING" : "RETOOLING";
   }
 
   // Wraps window.FFOPlayoffIntel defensively — works if the module or schedule data
@@ -1669,15 +1829,9 @@
   }
 
   function getLowestValueAtPosition(roster, position) {
-    const fcMap = fcBySleeperId();
-    const candidates = (roster.players || [])
-      .map(pid => {
-        const p = state.allPlayers[pid] || {};
-        const fc = fcMap[pid];
-        return { name: `${p.first_name || ""} ${p.last_name || ""}`.trim() || pid, position: p.position, value: fc ? fc.value : 0 };
-      })
+    const candidates = rosterTradePlayers(roster)
       .filter(p => p.position === position)
-      .sort((a, b) => a.value - b.value);
+      .sort((a, b) => ((a.value > 0 ? a.value : Infinity) - (b.value > 0 ? b.value : Infinity)) || Number(a.projection || 0) - Number(b.projection || 0));
     return candidates.length ? candidates[0] : null;
   }
 
@@ -1686,24 +1840,40 @@
     const myRoster = state.rosters.find(r => r.roster_id === state.myRosterId);
     if (!myRoster) return;
 
-    const requiredMin = { QB: 2, RB: 3, WR: 3, TE: 1 };
-    const positions = Object.keys(requiredMin);
-    const myCounts = computePositionCounts(myRoster);
-    const mySurplus = positions.filter(pos => (myCounts[pos] || 0) > requiredMin[pos] + 1);
-    const myThin = positions.filter(pos => (myCounts[pos] || 0) <= requiredMin[pos]);
+    const positions = ["QB", "RB", "WR", "TE"];
+    const myProfile = rosterTradeProfile(myRoster);
+    const mySurplus = positions.filter(pos => depthAtPosition(myRoster, myProfile, pos) >= 3);
+    const myThin = positions.filter(pos => depthAtPosition(myRoster, myProfile, pos) < 2);
+    const replacement = replacementContext();
 
     const partners = [];
     state.rosters.forEach(r => {
       if (r.roster_id === state.myRosterId) return;
-      const theirCounts = computePositionCounts(r);
-      const theirThin = positions.filter(pos => (theirCounts[pos] || 0) <= requiredMin[pos]);
-      const theirSurplus = positions.filter(pos => (theirCounts[pos] || 0) > requiredMin[pos] + 1);
+      const theirProfile = rosterTradeProfile(r);
+      const theirThin = positions.filter(pos => depthAtPosition(r, theirProfile, pos) < 2);
+      const theirSurplus = positions.filter(pos => depthAtPosition(r, theirProfile, pos) >= 3);
 
       const iCanHelpThem = mySurplus.filter(pos => theirThin.includes(pos));
       const theyCanHelpMe = theirSurplus.filter(pos => myThin.includes(pos));
 
-      if (iCanHelpThem.length || theyCanHelpMe.length) {
+      if (iCanHelpThem.length && theyCanHelpMe.length) {
+        const receive = theyCanHelpMe.map(pos => getLowestValueAtPosition(r, pos)).filter(Boolean).sort((a, b) => b.projection - a.projection || a.value - b.value)[0];
+        const offerOptions = iCanHelpThem.map(pos => getLowestValueAtPosition(myRoster, pos)).filter(Boolean);
+        const give = receive ? offerOptions.sort((a, b) => Math.abs(a.value - receive.value) - Math.abs(b.value - receive.value))[0] : null;
+        if (!give || !receive) return;
+        const direction = teamDirection(r);
+        const acceptance = window.FFORosterEngine.computeAcceptProbability({
+          offerValue: give.value, targetValue: receive.value, direction,
+          activity: state.tradeActivity[String(r.roster_id)] || null,
+          needPositions: theirThin, offerAssets: [give],
+        });
+        const offerImpact = window.FFORosterEngine.tradeRosterImpact({
+          roster: rosterTradePlayers(myRoster), give: [give], receive: [receive], replacement,
+          rosterPositions: state.league.roster_positions || [], remainingWeeks: state.rosterEngine?.remainingWeeks || 6,
+        });
         partners.push({
+          rosterId: String(r.roster_id), direction, acceptance, give, receive,
+          deltaPpg: offerImpact.deltaPpg, deltaVorp: offerImpact.deltaVorp,
           name: owners[r.roster_id] || "Unknown",
           iCanHelpThem: iCanHelpThem.map(pos => ({ pos, player: getLowestValueAtPosition(myRoster, pos) })),
           theyCanHelpMe: theyCanHelpMe.map(pos => ({ pos, player: getLowestValueAtPosition(r, pos) })),
@@ -1715,19 +1885,84 @@
     if (!partners.length) { section.style.display = "none"; return; }
     section.style.display = "block";
 
+    partners.sort((a, b) => b.acceptance.probability - a.acceptance.probability || b.deltaPpg - a.deltaPpg);
     $("trade-partners-list").innerHTML = partners.map(p => {
-      const lines = [];
-      p.iCanHelpThem.forEach(({ pos, player }) => {
-        if (player) lines.push(`<div style="color:var(--teal-light); font-size:12px;">You could send: ${escapeHTML(player.name)} (${pos}, val ${player.value})</div>`);
-      });
-      p.theyCanHelpMe.forEach(({ pos, player }) => {
-        if (player) lines.push(`<div style="color:var(--gold-light); font-size:12px;">They could send: ${escapeHTML(player.name)} (${pos}, val ${player.value})</div>`);
-      });
+      const b = p.acceptance.breakdown;
+      const impactTone = p.deltaPpg > 0 ? "var(--green)" : p.deltaPpg < 0 ? "var(--red)" : "var(--text-muted)";
       return `<div style="background:var(--surface); border-radius:6px; padding:12px;">
-        <div style="font-weight:600; font-size:13px; margin-bottom:4px;">${escapeHTML(p.name)}</div>
-        ${lines.join("") || '<div style="color:var(--text-dim); font-size:12px;">No specific candidates found</div>'}
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div style="font-weight:600; font-size:13px;">${escapeHTML(p.name)} <span class="pill">${p.direction}</span></div><strong style="color:var(--gold-light);font-size:12px">${p.acceptance.probability}% est. accept</strong></div>
+        <div style="color:var(--teal-light); font-size:12px;margin-top:6px">You give: ${escapeHTML(p.give.name)} (${p.give.position}, ${Math.round(p.give.value)})</div>
+        <div style="color:var(--gold-light); font-size:12px">You receive: ${escapeHTML(p.receive.name)} (${p.receive.position}, ${Math.round(p.receive.value)})</div>
+        <div style="border-top:1px solid var(--border);padding-top:6px;margin-top:6px;font-size:12px"><span style="color:var(--text-muted)">Roster impact: </span><span style="color:${impactTone}">Δ ${p.deltaPpg >= 0 ? "+" : ""}${p.deltaPpg.toFixed(1)} PPG / wk</span><span class="mono" style="color:var(--text-muted);margin-left:8px">VORP ${p.deltaVorp >= 0 ? "+" : ""}${p.deltaVorp.toFixed(1)}</span></div>
+        <details style="margin-top:6px"><summary class="mono" style="font-size:10px;color:var(--text-dim);cursor:pointer">Probability breakdown</summary><div class="mono" style="font-size:10px;color:var(--text-muted);margin-top:5px">Value match: +${b.value} | Activity: +${b.activity} | Dir. fit: +${b.direction} | Need fill: +${b.need} | History: +${b.history}</div></details>
       </div>`;
     }).join("");
+  }
+
+  function likelyCounterpartyRoster() {
+    const incomingIds = new Set(state.sideB.filter(item => item.type === "player" && item.id).map(item => String(item.id)));
+    const incomingNames = new Set(state.sideB.filter(item => item.type === "player").map(item => String(item.name).toLowerCase()));
+    const matches = state.rosters.filter(roster => roster.roster_id !== state.myRosterId).map(roster => ({
+      roster,
+      count: (roster.players || []).filter(pid => {
+        if (incomingIds.has(String(pid))) return true;
+        const player = tradeAssetForRosterPlayer(pid);
+        return incomingNames.has(player.name.toLowerCase());
+      }).length,
+    })).filter(item => item.count > 0).sort((a, b) => b.count - a.count);
+    return matches[0]?.roster || null;
+  }
+
+  function renderTradeRosterContext() {
+    const impactBox = $("trade-roster-impact");
+    const counterpartyBox = $("trade-counterparty-view");
+    if (!impactBox || !counterpartyBox) return;
+    impactBox.innerHTML = "";
+    counterpartyBox.innerHTML = "";
+    if (!state.sideA.length || !state.sideB.length || !window.FFORosterEngine) return;
+
+    const myRoster = state.rosters.find(roster => roster.roster_id === state.myRosterId);
+    if (!myRoster) return;
+    const impact = window.FFORosterEngine.tradeRosterImpact({
+      roster: rosterTradePlayers(myRoster), give: state.sideA, receive: state.sideB,
+      replacement: replacementContext(), rosterPositions: state.league?.roster_positions || [],
+      remainingWeeks: state.rosterEngine?.remainingWeeks || 6,
+    });
+    const ppgTone = impact.deltaPpg > 0 ? "var(--green)" : impact.deltaPpg < 0 ? "var(--red)" : "var(--text-muted)";
+    const vorpTone = impact.deltaVorp > 0 ? "var(--green)" : impact.deltaVorp < 0 ? "var(--red)" : "var(--text-muted)";
+    const weakest = impact.weakestPositions.slice(0, 2).map(item => `${item.position} (${item.vorp >= 0 ? "+" : ""}${item.vorp.toFixed(1)})`).join(", ") || "insufficient projection coverage";
+    impactBox.innerHTML = `<div class="quality-note"><strong>Roster impact</strong><div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:5px"><span style="color:${ppgTone}">Asset Δ PPG: ${impact.deltaPpg >= 0 ? "+" : ""}${impact.deltaPpg.toFixed(1)}</span><span style="color:${vorpTone}">Δ VORP: ${impact.deltaVorp >= 0 ? "+" : ""}${impact.deltaVorp.toFixed(1)}</span><span>Starting-lineup Δ: ${impact.lineupDeltaPpg >= 0 ? "+" : ""}${impact.lineupDeltaPpg.toFixed(1)} PPG</span></div><div class="rie-caveat" style="margin-top:5px">Trading from surplus: ${impact.surplusPositions.join(", ") || "none"} · Filling need: ${impact.needPositions.join(", ") || "none"} · Weakest before trade: ${weakest}</div></div>`;
+
+    const counterparty = likelyCounterpartyRoster();
+    if (!counterparty) {
+      counterpartyBox.innerHTML = '<div class="quality-note"><strong>Counter-party view</strong><div class="rie-caveat" style="margin-top:4px">Add a player currently rostered by another manager to estimate their side of the deal.</div></div>';
+      return;
+    }
+    const owners = ownerMap();
+    const theirProfile = rosterTradeProfile(counterparty);
+    const theirImpact = window.FFORosterEngine.tradeRosterImpact({
+      roster: rosterTradePlayers(counterparty), give: state.sideB, receive: state.sideA,
+      replacement: replacementContext(), rosterPositions: state.league?.roster_positions || [],
+      remainingWeeks: state.rosterEngine?.remainingWeeks || 6,
+    });
+    const weakness = theirProfile?.weakestPositions?.[0] || null;
+    const needPositions = ["QB", "RB", "WR", "TE"].filter(position => depthAtPosition(counterparty, theirProfile, position) < 2);
+    const lostPositions = new Set(state.sideB.map(item => item.position));
+    const losesSurplus = [...lostPositions].some(position => depthAtPosition(counterparty, theirProfile, position) >= 3);
+    const acceptance = window.FFORosterEngine.computeAcceptProbability({
+      offerValue: state.sideA.reduce((sum, item) => sum + Number(item.value || 0), 0),
+      targetValue: state.sideB.reduce((sum, item) => sum + Number(item.value || 0), 0),
+      direction: teamDirection(counterparty), activity: state.tradeActivity[String(counterparty.roster_id)] || null,
+      needPositions, offerAssets: state.sideA,
+    });
+    const activity = state.tradeActivity[String(counterparty.roster_id)];
+    const leverage = acceptance.probability >= 65 && losesSurplus ? "HIGH" : acceptance.probability < 40 || theirImpact.lineupDeltaPpg < -2 ? "LOW" : "EVEN";
+    const analysis = acceptance.fillsNeed && theirImpact.lineupDeltaPpg >= 0
+      ? `They gain help at a roster need without a projected starting-lineup loss, so the structure is credible.`
+      : acceptance.fillsNeed
+        ? `The offer fills a need, but their projected lineup declines ${Math.abs(theirImpact.lineupDeltaPpg).toFixed(1)} points per week.`
+        : `The offer does not directly fill their ${needPositions.join("/") || "identified"} need, so value alone may not close the deal.`;
+    counterpartyBox.innerHTML = `<div class="quality-note"><strong>Counter-party view · ${escapeHTML(owners[counterparty.roster_id] || "Unknown manager")}</strong><div class="rie-caveat" style="margin-top:5px">${teamDirection(counterparty)} · weakest: ${weakness ? `${weakness.position} (${weakness.vorp >= 0 ? "+" : ""}${weakness.vorp.toFixed(1)} VORP)` : "unknown"} · their lineup Δ: ${theirImpact.lineupDeltaPpg >= 0 ? "+" : ""}${theirImpact.lineupDeltaPpg.toFixed(1)} PPG · ${activity?.totalTrades || 0} recorded trade(s)</div><div style="margin-top:6px">${analysis}</div><div class="mono" style="font-size:10px;color:var(--text-muted);margin-top:5px">Estimated acceptance ${acceptance.probability}% · negotiating leverage: ${leverage}</div></div>`;
   }
 
   function renderTradeSides() {
@@ -1772,6 +2007,7 @@
       verdictBox.classList.add("neutral");
       verdictBox.textContent = "Add assets to both sides";
     }
+    renderTradeRosterContext();
 
     const championshipImpact = $("trade-championship-impact");
     if (championshipImpact) championshipImpact.innerHTML = "";
@@ -1870,10 +2106,13 @@
   function addToSide(side, entry) {
     const item = {
       type: entry.player.position === "PICK" ? "pick" : "player",
+      id: entry.player.sleeperId ? String(entry.player.sleeperId) : null,
       name: entry.player.name,
       value: entry.value,
+      marketValue: entry.value,
       position: entry.player.position,
       team: entry.player.maybeTeam,
+      age: Number(entry.player.maybeAge || entry.player.age || 0),
       projection: entry.player.position ? fpProjectionFor(entry.player.name, entry.player.position) : null,
     };
     if (side === "A") state.sideA.push(item); else state.sideB.push(item);

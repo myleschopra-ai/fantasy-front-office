@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const NON_STARTERS = new Set(["BN", "IR", "TAXI"]);
   const FLEX = {
     FLEX: ["RB", "WR", "TE"],
@@ -269,6 +269,150 @@
     return { beforeLineup, afterLineup, weeklyPointGain: round(afterLineup.projected - beforeLineup.projected), ewa: ewa.expectedWins, weeks: ewa.weeks };
   }
 
+  const CORE_POSITIONS = ["QB", "RB", "WR", "TE"];
+
+  function tradeAssetMetrics(assets = [], replacement = {}) {
+    const levels = replacement?.levels || replacement || {};
+    return assets.map((asset, index) => {
+      const position = String(asset?.position || asset?.pos || "").toUpperCase();
+      const ppg = projection(asset);
+      const level = CORE_POSITIONS.includes(position) ? finite(levels[position]) : 0;
+      return {
+        ...asset,
+        id: playerKey(asset, index),
+        position,
+        ppg,
+        replacement: round(level),
+        vorp: ppg === null ? null : round(ppg - level),
+      };
+    });
+  }
+
+  function rosterVorpProfile({ roster = [], replacement = {} } = {}) {
+    const metrics = tradeAssetMetrics(roster, replacement);
+    const byPosition = {};
+    CORE_POSITIONS.forEach(position => {
+      const players = metrics.filter(player => player.position === position && player.ppg !== null)
+        .sort((a, b) => b.vorp - a.vorp);
+      const positive = players.filter(player => player.vorp > 0);
+      const starterSample = players.slice(0, 2);
+      byPosition[position] = {
+        position,
+        covered: players.length,
+        aboveReplacement: positive.length,
+        totalVorp: round(positive.reduce((sum, player) => sum + player.vorp, 0)),
+        starterVorp: round(mean(starterSample.map(player => player.vorp))),
+        bestVorp: players.length ? round(players[0].vorp) : null,
+      };
+    });
+    const weakestPositions = CORE_POSITIONS.filter(position => byPosition[position].covered > 0)
+      .sort((a, b) => byPosition[a].starterVorp - byPosition[b].starterVorp)
+      .map(position => ({ position, vorp: byPosition[position].starterVorp }));
+    return {
+      byPosition,
+      weakestPositions,
+      coveredPlayers: metrics.filter(player => player.ppg !== null && CORE_POSITIONS.includes(player.position)).length,
+    };
+  }
+
+  function tradeRosterImpact({ roster = [], give = [], receive = [], replacement = {}, rosterPositions = [], opponentProjections = [], remainingWeeks = 6 } = {}) {
+    const giveMetrics = tradeAssetMetrics(give, replacement);
+    const receiveMetrics = tradeAssetMetrics(receive, replacement);
+    const sumMetric = (items, key) => items.reduce((sum, item) => sum + finite(item[key]), 0);
+    const profile = rosterVorpProfile({ roster, replacement });
+    const givingPositions = new Set(giveMetrics.map(item => item.position).filter(position => CORE_POSITIONS.includes(position)));
+    const receivingPositions = new Set(receiveMetrics.map(item => item.position).filter(position => CORE_POSITIONS.includes(position)));
+    const surplusPositions = [...givingPositions].filter(position => profile.byPosition[position]?.aboveReplacement >= 3);
+    const needPositions = [...receivingPositions].filter(position => profile.byPosition[position]?.aboveReplacement < 2);
+    const lineup = transactionImpact({ roster, give, receive, rosterPositions, opponentProjections, remainingWeeks });
+    return {
+      give: giveMetrics,
+      receive: receiveMetrics,
+      deltaPpg: round(sumMetric(receiveMetrics, "ppg") - sumMetric(giveMetrics, "ppg")),
+      deltaVorp: round(sumMetric(receiveMetrics, "vorp") - sumMetric(giveMetrics, "vorp")),
+      lineupDeltaPpg: lineup.weeklyPointGain,
+      ewa: lineup.ewa,
+      beforeLineup: lineup.beforeLineup,
+      afterLineup: lineup.afterLineup,
+      surplusPositions,
+      needPositions,
+      weakestPositions: profile.weakestPositions,
+      profile,
+    };
+  }
+
+  function computeAcceptProbability({ offerValue = 0, targetValue = 0, direction = "RETOOLING", activity = null, needPositions = [], offerAssets = [] } = {}) {
+    const ratio = finite(offerValue) / Math.max(finite(targetValue), 1);
+    const value = ratio >= 0.90 ? 40 : ratio >= 0.80 ? 25 : ratio >= 0.70 ? 12 : 0;
+    const trades = finite(activity?.totalTrades);
+    const active = trades >= 5 ? 20 : trades >= 3 ? 14 : trades >= 1 ? 8 : 0;
+    const hasPick = offerAssets.some(asset => String(asset?.position || asset?.pos || "").toUpperCase() === "PICK" || asset?.type === "pick");
+    const hasVeteran = offerAssets.some(asset => finite(asset?.age) >= 28 && finite(asset?.marketValue, asset?.value) > 1500);
+    const directional = direction === "REBUILDING" && hasPick ? 20 : direction === "CONTENDER" && hasVeteran ? 20 : 5;
+    const needs = new Set((needPositions || []).map(position => String(position).toUpperCase()));
+    const fillsNeed = offerAssets.some(asset => needs.has(String(asset?.position || asset?.pos || "").toUpperCase()));
+    const need = fillsNeed ? 15 : 0;
+    const history = finite(activity?.tradedWithMe) >= 1 ? 5 : 0;
+    return {
+      probability: Math.min(88, Math.max(8, value + active + directional + need + history)),
+      ratio: round(ratio, 3),
+      fillsNeed,
+      breakdown: { value, activity: active, direction: directional, need, history },
+    };
+  }
+
+  function computeTradeActivity(trades = [], myRosterId = null) {
+    const activity = {};
+    const mine = myRosterId === null || myRosterId === undefined ? null : String(myRosterId);
+    const ensure = rosterId => {
+      const id = String(rosterId);
+      if (!activity[id]) activity[id] = {
+        rosterId: id, totalTrades: 0, avgAssetsPerTrade: 0, positionBias: {}, tradedWithMe: 0,
+        avgValueReceived: 0, valueReceived: 0, valueSent: 0, valuedAssetsReceived: 0,
+        positionsReceived: {}, positionsSent: {}, tradePartners: {}, assetTouches: 0,
+      };
+      return activity[id];
+    };
+    trades.forEach(trade => {
+      const rosterIds = [...new Set((trade?.rosterIds || []).map(String))];
+      const assets = Array.isArray(trade?.assets) ? trade.assets : [];
+      rosterIds.forEach(rosterId => {
+        const row = ensure(rosterId);
+        row.totalTrades += 1;
+        const touched = assets.filter(asset => String(asset.toRosterId) === rosterId || String(asset.fromRosterId) === rosterId);
+        row.assetTouches += touched.length;
+        rosterIds.filter(other => other !== rosterId).forEach(other => {
+          row.tradePartners[other] = (row.tradePartners[other] || 0) + 1;
+        });
+        if (mine && rosterId !== mine && rosterIds.includes(mine)) row.tradedWithMe += 1;
+      });
+      assets.forEach(asset => {
+        const to = asset?.toRosterId === null || asset?.toRosterId === undefined ? null : String(asset.toRosterId);
+        const from = asset?.fromRosterId === null || asset?.fromRosterId === undefined ? null : String(asset.fromRosterId);
+        const position = String(asset?.position || asset?.pos || (asset?.type === "pick" ? "PICK" : "UNKNOWN")).toUpperCase();
+        const value = Math.max(0, finite(asset?.marketValue, asset?.value));
+        if (to) {
+          const row = ensure(to);
+          row.positionsReceived[position] = (row.positionsReceived[position] || 0) + 1;
+          row.positionBias[position] = (row.positionBias[position] || 0) + 1;
+          row.valueReceived += value;
+          if (value > 0) row.valuedAssetsReceived += 1;
+        }
+        if (from) {
+          const row = ensure(from);
+          row.positionsSent[position] = (row.positionsSent[position] || 0) + 1;
+          row.positionBias[position] = (row.positionBias[position] || 0) - 1;
+          row.valueSent += value;
+        }
+      });
+    });
+    Object.values(activity).forEach(row => {
+      row.avgAssetsPerTrade = round(row.assetTouches / Math.max(1, row.totalTrades), 2);
+      row.avgValueReceived = round(row.valueReceived / Math.max(1, row.valuedAssetsReceived));
+    });
+    return activity;
+  }
+
   function marketMispricing({ marketValue = 0, teamValue = 0 } = {}) {
     const market = Math.max(0, finite(marketValue));
     const team = Math.max(0, finite(teamValue));
@@ -426,6 +570,7 @@
     VERSION, finite, clamp, mean, stdev, eligible, starterSlots, optimizeLineup, slotDemand,
     replacementLevels, matchupWinProbability, expectedWinsAdded, championshipProbability,
     positionDiagnostics, detectBottlenecks, marginalLineupValue, transactionImpact, analyzeRoster,
+    tradeAssetMetrics, rosterVorpProfile, tradeRosterImpact, computeAcceptProbability, computeTradeActivity,
     marketMispricing, rankAcquisitionTargets, compareWaiverTrade, targetPath, evaluateAcquisitionUniverse,
   };
 });
