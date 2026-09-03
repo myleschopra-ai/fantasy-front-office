@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-02T16:14:41Z",
+  "generated_at": "2026-09-03T10:31:26Z",
   "draft_year": 2026,
   "players": [
     {
@@ -1125,12 +1125,12 @@
       ]
     },
     {
-      "player_key": "gsis:00-0041081",
+      "player_key": null,
       "name": "Max Bredeson",
       "position": "TE",
       "team": "MIN",
       "college": "Michigan",
-      "age": 23.9,
+      "age": null,
       "draft_year": 2026,
       "draft_round": 5,
       "draft_pick": 159,
@@ -1139,13 +1139,12 @@
       "college_production_score": null,
       "breakout_age": null,
       "early_declare": null,
-      "rookie_prior_confidence": 71,
+      "rookie_prior_confidence": 54,
       "evidence": [
-        "NFL draft capital",
-        "canonical college identity"
+        "NFL draft capital"
       ],
       "limitations": [
-        "College production metrics are not inferred from draft capital."
+        "College production remains null until a licensed public college snapshot resolves this player."
       ]
     },
     {
@@ -1995,7 +1994,7 @@
   "quality": {
     "players": 80,
     "with_athletic_testing": 48,
-    "with_stable_identity": 79,
+    "with_stable_identity": 78,
     "no_fabricated_college_grades": true
   }
 }
