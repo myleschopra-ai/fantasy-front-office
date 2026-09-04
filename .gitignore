@@ -4,5 +4,7 @@ __pycache__/
 .env.*
 !.env.example
 data/vegas/*.json
+!data/vegas/consensus.json
+!data/vegas/weekly-projections.json
 data/raw/
 artifacts/

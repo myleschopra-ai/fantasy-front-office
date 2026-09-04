@@ -20,7 +20,7 @@ const leagueRosters = Array.from({ length: 12 }, (_, team) => ({
   ],
 }));
 
-assert.equal(R.VERSION, '1.2.0');
+assert.equal(R.VERSION, '1.3.0');
 assert.equal(R.eligible('QB', 'SUPER_FLEX'), true);
 assert.equal(R.eligible('QB', 'FLEX'), false);
 
@@ -128,6 +128,15 @@ const bottlenecks = R.detectBottlenecks(diagnostics, 6, 6);
 assert.equal(bottlenecks[0].rank, 1);
 assert.ok(bottlenecks[0].opportunityShare > bottlenecks.at(-1).opportunityShare);
 assert.ok(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].includes(bottlenecks[0].severity));
+
+const uncoveredAnalysis = R.analyzeRoster({
+  roster: myRoster.map(item => ({ ...item, projection: null })),
+  leagueRosters: leagueRosters.map(team => ({ ...team, players: team.players.map(item => ({ ...item, projection: null })) })),
+  rosterPositions: slots, teams: 12, teamId: '1', simulations: 100,
+});
+assert.equal(uncoveredAnalysis.primaryBottleneck, null, 'missing projections must not fabricate a primary bottleneck');
+assert.ok(uncoveredAnalysis.bottlenecks.every(item => item.severity === 'NO DATA'));
+assert.ok(uncoveredAnalysis.bottlenecks.every(item => item.worstRank === null), 'missing projections must not render fake 1/12 ranks');
 
 const standingTeams = leagueRosters.map(team => ({
   id: team.id, projection: R.optimizeLineup(team.players, slots).projected, wins: team.wins, pointsFor: team.pointsFor,
