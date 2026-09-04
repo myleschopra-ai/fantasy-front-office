@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const VERSION = "1.2.0";
+  const VERSION = "1.3.0";
   const NON_STARTERS = new Set(["BN", "IR", "TAXI"]);
   const FLEX = {
     FLEX: ["RB", "WR", "TE"],
@@ -186,56 +186,63 @@
     const grouped = new Map();
     lineup.assigned.forEach((row, index) => {
       const position = row.slot;
-      const playerProjection = finite(projection(row.player));
-      const comparable = teamLineups.map(team => finite(projection(team.assigned[index]?.player))).sort((a, b) => b - a);
+      const rawProjection = projection(row.player);
+      const covered = rawProjection !== null;
+      const playerProjection = covered ? finite(rawProjection) : null;
+      const comparable = teamLineups.map(team => projection(team.assigned[index]?.player))
+        .filter(value => value !== null).map(value => finite(value)).sort((a, b) => b - a);
       const rank = comparable.length ? comparable.filter(value => value > playerProjection).length + 1 : null;
       const baselinePositions = FLEX[position] || [position];
       const baseline = Math.max(...baselinePositions.map(pos => finite(replacementData.levels[pos])), 0);
       const benchOptions = lineup.bench.filter(player => eligible(player.position, position) && projection(player) !== null).sort((a, b) => projection(b) - projection(a));
       const backup = finite(projection(benchOptions[0]), baseline);
-      const gap = Math.max(0, baseline - playerProjection);
-      const replacementGap = Math.max(0, playerProjection - backup);
-      const uncertainty = finite(row.player?.weeklySd, Math.max(2, playerProjection * 0.18));
+      const gap = covered ? Math.max(0, baseline - playerProjection) : null;
+      const replacementGap = covered ? Math.max(0, playerProjection - backup) : null;
+      const uncertainty = covered ? finite(row.player?.weeklySd, Math.max(2, playerProjection * 0.18)) : null;
       const floorThreshold = baseline * 0.8;
-      const eliteThreshold = comparable.length ? comparable[Math.max(0, Math.ceil(comparable.length * 0.25) - 1)] : playerProjection * 1.25;
-      const floorProbability = clamp(normalCdf((floorThreshold - playerProjection) / Math.max(1, uncertainty)), 0, 1);
-      const ceilingProbability = clamp(1 - normalCdf((eliteThreshold - playerProjection) / Math.max(1, uncertainty)), 0, 1);
+      const eliteThreshold = comparable.length ? comparable[Math.max(0, Math.ceil(comparable.length * 0.25) - 1)] : covered ? playerProjection * 1.25 : null;
+      const floorProbability = covered ? clamp(normalCdf((floorThreshold - playerProjection) / Math.max(1, uncertainty)), 0, 1) : null;
+      const ceilingProbability = covered ? clamp(1 - normalCdf((eliteThreshold - playerProjection) / Math.max(1, uncertainty)), 0, 1) : null;
       const availabilityRisk = clamp(finite(row.player?.availabilityRisk, row.player?.injury ? 0.45 : 0.12), 0, 1);
       const schedule = clamp(finite(row.player?.scheduleMultiplier, 1), 0.75, 1.25);
-      const weeklyAdvantage = Math.max(0, Math.max(...comparable, baseline) - playerProjection);
+      const weeklyAdvantage = covered ? Math.max(0, Math.max(...comparable, baseline) - playerProjection) : 0;
       const exposure = 1;
-      const riskMultiplier = 1 + availabilityRisk + floorProbability * 0.35;
-      const bottleneckScore = weeklyAdvantage * exposure * riskMultiplier * (2 - schedule) + gap + replacementGap * availabilityRisk;
+      const riskMultiplier = covered ? 1 + availabilityRisk + floorProbability * 0.35 : 0;
+      const bottleneckScore = covered ? weeklyAdvantage * exposure * riskMultiplier * (2 - schedule) + gap + replacementGap * availabilityRisk : 0;
       const item = {
-        slot: position, player: row.player || null, projection: round(playerProjection), starterRank: rank,
-        teams: comparable.length || teams, replacement: round(baseline), backup: round(backup),
-        marginalPoints: round(playerProjection - baseline), replacementGap: round(replacementGap),
-        ceilingProbability: round(ceilingProbability, 3), floorProbability: round(floorProbability, 3),
-        consistency: round(1 / (1 + uncertainty), 3), availabilityRisk: round(availabilityRisk, 3),
+        slot: position, player: row.player || null, covered, projection: covered ? round(playerProjection) : null, starterRank: covered ? rank : null,
+        teams: comparable.length, replacement: comparable.length ? round(baseline) : null, backup: covered ? round(backup) : null,
+        marginalPoints: covered ? round(playerProjection - baseline) : null, replacementGap: covered ? round(replacementGap) : null,
+        ceilingProbability: covered ? round(ceilingProbability, 3) : null, floorProbability: covered ? round(floorProbability, 3) : null,
+        consistency: covered ? round(1 / (1 + uncertainty), 3) : null, availabilityRisk: round(availabilityRisk, 3),
         scheduleMultiplier: round(schedule, 3), bottleneckScore: round(bottleneckScore),
       };
       if (!grouped.has(position)) grouped.set(position, []);
       grouped.get(position).push(item);
     });
-    return [...grouped.entries()].map(([slot, items]) => ({
-      slot, items, bottleneckScore: round(items.reduce((sum, item) => sum + item.bottleneckScore, 0)),
-      marginalPoints: round(items.reduce((sum, item) => sum + item.marginalPoints, 0)),
-      worstRank: Math.max(...items.map(item => item.starterRank || teams)),
-      floorProbability: round(Math.max(...items.map(item => item.floorProbability)), 3),
+    return [...grouped.entries()].map(([slot, items]) => {
+      const coveredItems = items.filter(item => item.covered);
+      return {
+      slot, items, covered: coveredItems.length, expected: items.length,
+      bottleneckScore: round(coveredItems.reduce((sum, item) => sum + item.bottleneckScore, 0)),
+      marginalPoints: coveredItems.length ? round(coveredItems.reduce((sum, item) => sum + item.marginalPoints, 0)) : null,
+      worstRank: coveredItems.length ? Math.max(...coveredItems.map(item => item.starterRank || teams)) : null,
+      floorProbability: coveredItems.length ? round(Math.max(...coveredItems.map(item => item.floorProbability)), 3) : null,
       availabilityRisk: round(Math.max(...items.map(item => item.availabilityRisk)), 3),
-    })).sort((a, b) => b.bottleneckScore - a.bottleneckScore);
+    }; }).sort((a, b) => Number(b.covered > 0) - Number(a.covered > 0) || b.bottleneckScore - a.bottleneckScore);
   }
 
   function detectBottlenecks(diagnostics = [], attainableWeeklyPoints = 6, remainingWeeks = 6) {
-    const total = diagnostics.reduce((sum, diagnostic) => sum + Math.max(0, diagnostic.bottleneckScore), 0) || 1;
+    const coveredDiagnostics = diagnostics.filter(diagnostic => diagnostic.covered > 0);
+    const total = coveredDiagnostics.reduce((sum, diagnostic) => sum + Math.max(0, diagnostic.bottleneckScore), 0) || 1;
     return diagnostics.map((diagnostic, index) => {
-      const share = Math.max(0, diagnostic.bottleneckScore) / total;
+      const share = diagnostic.covered > 0 ? Math.max(0, diagnostic.bottleneckScore) / total : 0;
       const projectedPointGain = attainableWeeklyPoints * share;
       const estimatedEwa = projectedPointGain / 13.5 * Math.max(1, remainingWeeks) * 0.45;
       return {
         ...diagnostic, rank: index + 1, opportunityShare: round(share, 4),
         projectedPointGain: round(projectedPointGain), estimatedEwa: round(estimatedEwa),
-        severity: share >= 0.45 ? "CRITICAL" : share >= 0.25 ? "HIGH" : share >= 0.12 ? "MEDIUM" : "LOW",
+        severity: diagnostic.covered === 0 ? "NO DATA" : share >= 0.45 ? "CRITICAL" : share >= 0.25 ? "HIGH" : share >= 0.12 ? "MEDIUM" : "LOW",
       };
     });
   }
@@ -610,7 +617,7 @@
       return { id: String(team.id ?? index + 1), projection: optimized.projected, wins: finite(team.wins), pointsFor: finite(team.pointsFor) };
     });
     const championship = championshipProbability({ teams: leagueTeams, teamId, remainingWeeks, playoffTeams, simulations, seed });
-    const primary = bottlenecks[0] || null;
+    const primary = bottlenecks.find(item => item.covered > 0) || null;
     return { version: VERSION, lineup, replacement, diagnostics, bottlenecks, primaryBottleneck: primary, championship, confidence: round(lineup.covered / Math.max(1, lineup.assigned.length), 3) };
   }
 

@@ -37,7 +37,7 @@
               "rank": { "type": "integer", "minimum": 1 },
               "opportunityShare": { "type": "number", "minimum": 0, "maximum": 1 },
               "estimatedEwa": { "type": "number" },
-              "severity": { "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"] }
+              "severity": { "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "NO DATA"] }
             }
           }
         ]
@@ -58,13 +58,15 @@
   "$defs": {
     "diagnostic": {
       "type": "object",
-      "required": ["slot", "items", "bottleneckScore", "marginalPoints", "worstRank"],
+      "required": ["slot", "items", "covered", "expected", "bottleneckScore", "marginalPoints", "worstRank"],
       "properties": {
         "slot": { "type": "string" },
         "items": { "type": "array" },
+        "covered": { "type": "integer", "minimum": 0 },
+        "expected": { "type": "integer", "minimum": 0 },
         "bottleneckScore": { "type": "number" },
-        "marginalPoints": { "type": "number" },
-        "worstRank": { "type": "integer", "minimum": 1 }
+        "marginalPoints": { "type": ["number", "null"] },
+        "worstRank": { "type": ["integer", "null"], "minimum": 1 }
       }
     }
   }

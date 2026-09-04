@@ -1,4 +1,6 @@
-import { chromium } from 'playwright';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const { chromium } = require('playwright');
 
 const base = process.env.DASHBOARD_E2E_URL || 'http://127.0.0.1:4185/index.html';
 const browser = await chromium.launch({ headless: true });
@@ -39,6 +41,9 @@ try {
   if ((await page.locator('.decision-card').count()) < 1) throw new Error('Command Center produced no ranked decisions');
   await page.click('[data-tab="targets"]');
   if (!/drop/i.test(await page.locator('#targets-list').innerText())) throw new Error('Targets lack matching drop guidance');
+  await page.click('[data-tab="roster"]');
+  const uncoveredDiagnostics = await page.locator('#roster-improvement-diagnostics').innerText();
+  if (!/need production data/i.test(uncoveredDiagnostics) || /\b1\/12\b/.test(uncoveredDiagnostics)) throw new Error('Missing projections still fabricate roster bottleneck rankings');
   await page.click('[data-tab="validation"]');
   const validationText = await page.locator('#validation-content').innerText();
   if (!/Decision System Gate/i.test(validationText)) throw new Error(`Validation lacks decision gate. Browser errors: ${pageErrors.join(' | ') || 'none'}. Content: ${validationText}`);

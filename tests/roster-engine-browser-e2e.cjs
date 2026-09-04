@@ -44,6 +44,9 @@ const snapshot = {
   transactions:[{ type:'trade', transaction_id:'trade-1', created:Date.now(), roster_ids:[1,2],
     adds:{ t2p2:1, t1p8:2 }, drops:{ t2p2:2, t1p8:1 }, draft_picks:[] }],
   weekly_projection_data:{ projection_scope:'weekly', week:8, generated_at:new Date().toISOString(), players:projections },
+  weekly_vegas_data:{ kind:'weekly_vegas_adjusted_projections', projection_scope:'weekly', week:8, generated_at:new Date().toISOString(), players:[
+    { projection_scope:'weekly', player_key:'team1-qb1', player_name:'Team1 QB1', adjusted_points:21.1, applied_market_delta:1.2, books:2, markets_used:3 },
+  ] },
 };
 
 (async () => {
@@ -68,6 +71,9 @@ const snapshot = {
       await page.waitForSelector('.rie-executive');
       const command = await page.locator('#command-content').innerText();
       if (!/Championship probability/i.test(command) || !/Primary bottleneck/i.test(command) || !/EWA opportunity/i.test(command)) throw new Error(`${viewport.name}: command engine summary missing`);
+      await page.click('[data-tab="lineup"]');
+      const lineupText = await page.locator('#view-lineup').innerText();
+      if (!/pts · OPEN WEEKLY/i.test(lineupText) || !/VEGAS HIGHER \+1\.2 pts · 2 books \/ 3 props/i.test(lineupText)) throw new Error(`${viewport.name}: production forecast and Vegas direction are not visible together`);
       await page.click('[data-tab="targets"]');
       await page.waitForSelector('.target-card');
       const targetText = await page.locator('#view-targets').innerText();
@@ -76,6 +82,8 @@ const snapshot = {
       if ((await page.locator('.target-card').count()) < 1 || /Rostered by/i.test(await page.locator('#targets-list').innerText())) throw new Error(`${viewport.name}: waiver filter failed`);
       await page.click('[data-path="TRADE"]');
       if ((await page.locator('[data-build-trade]').count()) < 1) throw new Error(`${viewport.name}: trade paths are not connected to Trade Analyzer`);
+      const tradeTargetText = await page.locator('#targets-list').innerText();
+      if (!/SUGGESTED OFFER/i.test(tradeTargetText) || !/owner ask/i.test(tradeTargetText) || !/estimated acceptance/i.test(tradeTargetText)) throw new Error(`${viewport.name}: target cards do not list acquisition assets and estimated cost`);
       await page.click('[data-tab="roster"]');
       await page.waitForSelector('.rie-bottleneck');
       const diagnostics = await page.locator('#roster-improvement-diagnostics').innerText();

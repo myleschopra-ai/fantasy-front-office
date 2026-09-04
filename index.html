@@ -385,7 +385,7 @@
   <div id="view-lineup" class="view">
     <h2 class="display" style="font-size:16px; margin-bottom:6px;">Suggested Starting Lineup</h2>
     <p class="mono" style="font-size:11px; color:var(--text-dim); margin:0 0 16px;">
-      Ranked by real FantasyPros projections where available (labeled "pts (proj)"), falling back to dynasty trade value for players outside the free-tier projection depth. Verify each start against real matchups/injuries before kickoff.
+      Ranked by the current weekly production forecast where available, with the projection source and player-prop Vegas comparison shown on every player. Missing forecasts remain missing evidence; dynasty market value is never labeled as weekly production.
     </p>
     <div id="lineup-content"></div>
   </div>
@@ -518,6 +518,7 @@
     league: null, rosters: [], users: [], allPlayers: {}, fcData: [],
     tradedPicks: [], myRosterId: null, activeTab: "roster",
     sideA: [], sideB: [], posFilter: "ALL", targetPathFilter: "ALL", fpData: null, weeklyProjectionData: null, weeklyVegasData: null, fetchedAt: null, watcherState: null, scheduleData: null,
+    decisionDataStatus: { projections: "idle", vegas: "idle", projectionError: null, vegasError: null },
     qualityManifest: null, leagueProfile: null, rosterAssessment: null, rosterEngine: null, targetFinder: null,
     transactions: [], tradeActivity: {}, marketSource: "unavailable", tradeHistoryStatus: "unavailable",
     tradeRecommendations: [], preferredTradeTargetId: null,
@@ -561,16 +562,7 @@
   }
 
   function fpProjectionFor(name, position, sleeperId = null) {
-    const weekly = weeklyProjectionFor(name, position, sleeperId);
-    const vegas = weeklyVegasFor(name);
-    if (vegas) return vegas.adjusted_points;
-    if (weekly) return weekly.projected_points ?? weekly.distribution?.p50 ?? null;
-    if (!state.fpData || !state.fpData.projections) return null;
-    const list = state.fpData.projections[position];
-    if (!list) return null;
-    const entry = list.find(p => p.name === name);
-    if (!entry) return null;
-    return entry.projected_points ?? entry.points_half ?? null;
+    return projectionEvidenceFor(name, position, sleeperId).points;
   }
 
   function weeklyProjectionFor(name, position, sleeperId = null) {
@@ -590,6 +582,64 @@
     if (!Array.isArray(players)) return null;
     const key = String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     return players.find(player => player.projection_scope === "weekly" && player.player_key === key) || null;
+  }
+
+  function projectionEvidenceFor(name, position, sleeperId = null) {
+    const weekly = weeklyProjectionFor(name, position, sleeperId);
+    const vegas = weeklyVegasFor(name);
+    const fantasyPros = fpProjectionForSeasonOnly(name, position);
+    const baseline = weekly ? weekly.projected_points ?? weekly.distribution?.p50 ?? null : fantasyPros;
+    const adjusted = vegas?.adjusted_points;
+    return {
+      points: adjusted !== null && adjusted !== undefined ? Number(adjusted) : baseline === null || baseline === undefined ? null : Number(baseline),
+      baseline: baseline === null || baseline === undefined ? null : Number(baseline),
+      source: weekly ? "OPEN WEEKLY" : fantasyPros !== null ? "FANTASYPROS" : "NO PROJECTION",
+      vegas,
+    };
+  }
+
+  function fpProjectionForSeasonOnly(name, position) {
+    if (!state.fpData || !state.fpData.projections) return null;
+    const list = state.fpData.projections[position];
+    if (!list) return null;
+    const entry = list.find(p => p.name === name);
+    if (!entry) return null;
+    return entry.projected_points ?? entry.points_half ?? null;
+  }
+
+  function vegasEvidenceHTML(name) {
+    const vegas = weeklyVegasFor(name);
+    if (!vegas) return '<span class="mono" style="color:var(--text-dim);font-size:10px">VEGAS · no current player market</span>';
+    const delta = Number(vegas.applied_market_delta || 0);
+    const direction = delta > 0.05 ? "HIGHER" : delta < -0.05 ? "LOWER" : "IN LINE";
+    const color = direction === "HIGHER" ? "var(--green)" : direction === "LOWER" ? "var(--red)" : "var(--gold-light)";
+    const books = Number(vegas.books || 0);
+    const props = Number(vegas.markets_used || Object.keys(vegas.market_detail || {}).length || 0);
+    return `<span class="mono" style="color:${color};font-size:10px">VEGAS ${direction}${delta ? ` ${delta > 0 ? "+" : ""}${delta.toFixed(1)} pts` : ""} · ${books} book${books === 1 ? "" : "s"} / ${props} prop${props === 1 ? "" : "s"}</span>`;
+  }
+
+  async function loadDecisionSnapshots() {
+    state.fpData = null;
+    state.weeklyProjectionData = null;
+    state.weeklyVegasData = null;
+    state.decisionDataStatus = { projections: "loading", vegas: "loading", projectionError: null, vegasError: null };
+    const bust = Date.now();
+    const [fpResult, weeklyResult, vegasResult] = await Promise.allSettled([
+      fetch(`fantasypros.json?t=${bust}`).then(response => response.ok ? response.json() : Promise.reject(new Error(`FantasyPros HTTP ${response.status}`))),
+      fetch(`data/weekly_projections.json?t=${bust}`).then(response => response.ok ? response.json() : Promise.reject(new Error(`weekly projections HTTP ${response.status}`))),
+      fetch(`data/vegas/weekly-projections.json?t=${bust}`).then(response => response.ok ? response.json() : Promise.reject(new Error(`weekly Vegas HTTP ${response.status}`))),
+    ]);
+    if (fpResult.status === "fulfilled") state.fpData = fpResult.value;
+    if (weeklyResult.status === "fulfilled" && weeklyResult.value?.projection_scope === "weekly" && Array.isArray(weeklyResult.value.players)) {
+      state.weeklyProjectionData = weeklyResult.value;
+    }
+    state.decisionDataStatus.projections = state.weeklyProjectionData ? "current" : state.fpData ? "fallback" : "unavailable";
+    state.decisionDataStatus.projectionError = weeklyResult.status === "rejected" ? weeklyResult.reason?.message : null;
+    if (vegasResult.status === "fulfilled" && vegasResult.value?.kind === "weekly_vegas_adjusted_projections" && Array.isArray(vegasResult.value.players)) {
+      state.weeklyVegasData = vegasResult.value;
+    }
+    state.decisionDataStatus.vegas = state.weeklyVegasData?.players?.length ? "current" : "unavailable";
+    state.decisionDataStatus.vegasError = vegasResult.status === "rejected" ? vegasResult.reason?.message : null;
   }
 
   // ---------- DOM refs ----------
@@ -874,15 +924,9 @@
       if (!state.allPlayers || typeof state.allPlayers !== "object" || !Object.keys(state.allPlayers).length) throw new Error("Sleeper returned an empty NFL player directory.");
       state.transactions = await tradeHistoryPromise;
 
-      // Same-origin static snapshot — FantasyPros blocks cross-origin fetch,
-      // so this file is exported from Colab and committed alongside index.html.
-      // Non-fatal if missing: dashboard still works without it.
-      try {
-        const fpRes = await fetch("fantasypros.json?t=" + Date.now());
-        if (fpRes.ok) state.fpData = await fpRes.json();
-      } catch (e) {
-        console.warn("fantasypros.json not found or unreadable — continuing without it.");
-      }
+      // Load all decision snapshots as one lifecycle. Any one optional source may
+      // be unavailable, but the roster is recomputed only after their states are known.
+      await loadDecisionSnapshots();
 
       try {
         const wsRes = await fetch("watcher_state.json?t=" + Date.now());
@@ -896,26 +940,6 @@
         if (schedRes.ok) state.scheduleData = await schedRes.json();
       } catch (e) {
         console.warn("data/schedule_signals.json not found or unreadable — continuing without it (bye-week check unavailable until the schedule collector has run).");
-      }
-
-      try {
-        const weeklyRes = await fetch("data/weekly_projections.json?t=" + Date.now());
-        if (weeklyRes.ok) {
-          const weekly = await weeklyRes.json();
-          if (weekly.projection_scope === "weekly") state.weeklyProjectionData = weekly;
-        }
-      } catch (e) {
-        console.warn("Open weekly role projections unavailable — season projection fallback remains active.");
-      }
-
-      try {
-        const vegasRes = await fetch("data/vegas/weekly-projections.json?t=" + Date.now());
-        if (vegasRes.ok) {
-          const weekly = await vegasRes.json();
-          if (weekly.kind === "weekly_vegas_adjusted_projections") state.weeklyVegasData = weekly;
-        }
-      } catch (e) {
-        console.warn("Weekly Vegas projections unavailable — baseline projections remain unchanged.");
       }
 
       localStorage.setItem(STORAGE_KEY, leagueId);
@@ -951,6 +975,9 @@
       state.tradeHistoryStatus = state.transactions.length ? "snapshot" : "unavailable";
       state.marketSource = state.fcData.length ? "snapshot" : "unavailable";
       if (parsed.weekly_projection_data?.projection_scope === "weekly") state.weeklyProjectionData = parsed.weekly_projection_data;
+      if (parsed.weekly_vegas_data?.kind === "weekly_vegas_adjusted_projections") state.weeklyVegasData = parsed.weekly_vegas_data;
+      state.decisionDataStatus.projections = state.weeklyProjectionData ? "current" : state.fpData ? "fallback" : "unavailable";
+      state.decisionDataStatus.vegas = state.weeklyVegasData?.players?.length ? "current" : "unavailable";
       state.fetchedAt = parsed.fetched_at ? new Date(parsed.fetched_at) : null;
       errorBox.style.display = "none";
       renderHeader();
@@ -1212,24 +1239,26 @@
     const startersWithReal = assigned.filter(a => a.player && a.player.projPoints !== null);
     const startersTotal = assigned.filter(a => a.player).length;
     const partialSum = startersWithReal.reduce((sum, a) => sum + a.player.projPoints, 0);
+    const vegasCovered = assigned.filter(a => a.player && weeklyVegasFor(a.player.name)).length;
     const summaryHTML = startersWithReal.length
       ? `<div style="background:var(--surface); border-radius:6px; padding:12px; margin-bottom:16px;">
           <span class="mono" style="color:var(--green); font-size:14px; font-weight:600;">${partialSum.toFixed(1)} pts</span>
           <span style="color:var(--text-dim); font-size:11px; margin-left:8px;">
-            from ${startersWithReal.length}/${startersTotal} starters with real projections — not a full lineup total, the rest use value-based fallback on a different scale and aren't included here.
+            from ${startersWithReal.length}/${startersTotal} starters with production forecasts. ${state.weeklyProjectionData ? `Open weekly Week ${state.weeklyProjectionData.week} is primary;` : "Weekly data is unavailable;"} uncovered players remain explicitly unprojected.
           </span>
+          <div class="mono" style="color:${vegasCovered ? "var(--gold-light)" : "var(--text-dim)"};font-size:10px;margin-top:7px">Vegas cross-check: ${vegasCovered}/${startersTotal} starters have a current player-prop market${vegasCovered ? "; HIGHER/LOWER signals are included below." : ". No odds adjustment is being invented."}</div>
         </div>`
-      : "";
+      : `<div class="quality-note"><strong>Production forecasts unavailable</strong><div class="rie-caveat" style="margin-top:4px">The lineup is temporarily ordered by dynasty market value, but market value is not presented as weekly production. Refresh the league data before acting.</div></div>`;
     const closeMoves = window.FFODashboardIntel ? window.FFODashboardIntel.lineupMoves(assigned, bench) : [];
     const decisionHTML = closeMoves.length ? `<div class="quality-note"><strong>Closest lineup decisions</strong><br>${closeMoves.slice(0, 3).map(move =>
       `${escapeHTML(move.starter.name)} over ${escapeHTML(move.alternative.name)} by ${move.delta.toFixed(1)} projected points · ${window.FFODashboardIntel.confidenceLabel(move.confidence)} confidence`
     ).join("<br>")}</div>` : `<div class="quality-note">The optimizer found no bench alternative within three projected points of a current starter. Injury designations still require confirmation before lock.</div>`;
 
     const metricHTML = (p) => {
-      const vegas = weeklyVegasFor(p.name);
+      const evidence = projectionEvidenceFor(p.name, p.position, p.id);
       return p.projPoints !== null
-      ? `<span class="mono" style="color:var(--green); font-size:12px;">${p.projPoints} pts ${vegas ? `(weekly market ${vegas.applied_market_delta >= 0 ? "+" : ""}${vegas.applied_market_delta})` : "(proj)"}</span>`
-      : `<span class="mono" style="color:var(--text-muted); font-size:12px;">val ${p.value}</span>`;
+      ? `<span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><span class="mono" style="color:var(--green); font-size:12px;">${Number(p.projPoints).toFixed(2)} pts · ${evidence.source}</span>${vegasEvidenceHTML(p.name)}</span>`
+      : `<span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><span class="mono" style="color:var(--text-muted); font-size:12px;">NO PROJECTION · market ${p.value ?? "—"}</span>${vegasEvidenceHTML(p.name)}</span>`;
     };
 
     const rowHTML = (slot, p) => {
@@ -1326,14 +1355,14 @@
     const target = $("roster-improvement-diagnostics");
     const engine = state.rosterEngine;
     if (!target) return;
-    if (!engine?.bottlenecks?.length) { target.innerHTML = '<p class="rie-caveat">Roster diagnostics need league-wide weekly projection coverage.</p>'; return; }
+    if (!engine?.bottlenecks?.length || !engine.bottlenecks.some(item => item.covered > 0)) { target.innerHTML = '<div class="quality-note"><strong>Roster bottlenecks need production data</strong><div class="rie-caveat" style="margin-top:4px">No starter has a usable weekly projection, so the dashboard will not fabricate ranks, opportunity shares, or expected wins. Reload the league after the weekly source recovers.</div></div>'; return; }
     target.innerHTML = `<div class="ffo2-section-head"><strong>Roster bottlenecks</strong><span>Starting exposure, replacement gap, weekly disadvantage, and availability risk</span></div>
       <div class="rie-bottlenecks">${engine.bottlenecks.map(item => `
         <div class="rie-bottleneck">
-          <div><span>Slot</span><b>${escapeHTML(item.slot)}</b> <span>${item.severity}</span></div>
-          <div><span>${Math.round(item.opportunityShare * 100)}% of attainable improvement</span><div class="rie-track"><i style="width:${Math.max(2, Math.round(item.opportunityShare * 100))}%"></i></div></div>
-          <div><span>EWA opportunity</span><b>+${item.estimatedEwa.toFixed(2)}</b></div>
-          <div><span>Starter rank</span><b>${item.worstRank}/${state.league.total_rosters || item.items[0]?.teams || 12}</b></div>
+          <div><span>Slot</span><b>${escapeHTML(item.slot)}</b> <span>${item.severity}</span><small class="mono" style="display:block;color:var(--text-dim);margin-top:3px">${item.covered}/${item.expected} starter projection${item.expected === 1 ? "" : "s"}</small></div>
+          <div><span>${item.covered ? `${Math.round(item.opportunityShare * 100)}% of attainable improvement` : "Insufficient projection coverage"}</span><div class="rie-track"><i style="width:${item.covered ? Math.max(2, Math.round(item.opportunityShare * 100)) : 0}%"></i></div></div>
+          <div><span>EWA opportunity</span><b>${item.covered ? `+${item.estimatedEwa.toFixed(2)}` : "—"}</b></div>
+          <div><span>Starter rank</span><b>${item.worstRank ? `${item.worstRank}/${item.items.find(entry => entry.covered)?.teams || state.league.total_rosters || 12}` : "—"}</b></div>
         </div>`).join("")}</div>`;
   }
 
@@ -1761,6 +1790,7 @@
     $("pos-filters").querySelectorAll("[data-pos]").forEach(btn => btn.addEventListener("click", () => { state.posFilter = btn.dataset.pos; renderTargets(); }));
     $("pos-filters").querySelectorAll("[data-path]").forEach(btn => btn.addEventListener("click", () => { state.targetPathFilter = btn.dataset.path; renderTargets(); }));
 
+    const recommendedOffers = new Map(buildTradeRecommendations().map(recommendation => [String(recommendation.target.id), recommendation]));
     const filtered = finder.targets.filter(target =>
       (state.posFilter === "ALL" || target.position === state.posFilter) &&
       (state.targetPathFilter === "ALL" || target.path.type === state.targetPathFilter || (state.targetPathFilter === "ACTIONABLE" && target.actionable))
@@ -1778,13 +1808,18 @@
         ? drop ? `Suggested drop: ${escapeHTML(drop.name)} · verify depth impact` : "No legal drop candidate identified"
         : "";
       const pathDetail = alternative || (target.path.type === "WAIVER" ? `Use $${finder.budgetRemaining} remaining FAAB` : "Market price is a constraint, not the objective");
+      const recommendation = target.path.type === "TRADE" ? recommendedOffers.get(String(target.id)) : null;
+      const suggestedPackage = recommendation?.packages?.[0] || null;
+      const packageDetail = target.path.type !== "TRADE" ? "" : suggestedPackage
+        ? `<div style="margin-top:7px;padding:7px;border:1px solid var(--border-hover);border-radius:5px;background:var(--bg)"><strong style="color:var(--gold-light);font-size:10px">SUGGESTED OFFER</strong><div class="target-detail" style="margin-top:3px">${suggestedPackage.assets.map(asset => `${escapeHTML(asset.name)} (${Math.round(asset.marketValue || asset.value || 0).toLocaleString()})`).join(" + ")}</div><div class="target-detail" style="margin-top:2px">Give ${Math.round(suggestedPackage.offerValue).toLocaleString()} vs owner ask ${Math.round(suggestedPackage.targetValue).toLocaleString()} · ${suggestedPackage.acceptance.probability}% estimated acceptance</div></div>`
+        : `<div class="target-detail" style="margin-top:7px"><strong>Assets:</strong> no package clears lineup-impact and protected-core guardrails at the estimated ${Math.round(target.permanentAssetCost).toLocaleString()} ask.</div>`;
       return `<article class="target-card" data-actionable="${target.actionable}" data-target-id="${escapeHTML(target.id)}">
         <div class="target-rank">#${target.rank}</div>
         <div><div class="target-name"><span class="pill ${target.path.type === "WAIVER" ? "teal" : "gold"}">${target.path.label}</span> ${escapeHTML(target.name)} <span class="pill">${escapeHTML(target.position)}</span></div><div class="target-owner">${owner}</div></div>
         <div><div class="target-number">${data}</div><div class="target-detail">Team value ${Math.round(target.teamValue).toLocaleString()} · ${target.mispricing.action} · ${target.permanentAssetCost === 0 && target.actionable ? "∞ CPA (no permanent asset)" : `${Number(target.championshipReturnPer1000 || 0).toFixed(2)} title pp / 1k cost`}</div></div>
         <div><span class="target-detail">Title added</span><div class="target-number">${titleDelta}</div></div>
         <div><span class="target-detail">Acquisition cost</span><div class="target-detail">${cost}</div></div>
-        <div><div class="target-action">${target.actionable ? target.pathRecommendation : target.dataStatus.replaceAll("_", " ")}</div><div class="target-detail">${pathDetail}</div>${dropGuidance ? `<div class="target-detail" style="margin-top:4px">${dropGuidance}</div>` : ""}${target.path.type === "TRADE" && target.actionable ? `<button class="btn secondary" style="margin-top:7px;padding:6px 9px;font-size:10px" data-build-trade="${escapeHTML(target.id)}">Find Offers in Trade Analyzer</button>` : ""}</div>
+        <div><div class="target-action">${target.actionable ? target.pathRecommendation : target.dataStatus.replaceAll("_", " ")}</div><div class="target-detail">${pathDetail}</div>${dropGuidance ? `<div class="target-detail" style="margin-top:4px">${dropGuidance}</div>` : ""}${packageDetail}${target.path.type === "TRADE" && target.actionable ? `<button class="btn secondary" style="margin-top:7px;padding:6px 9px;font-size:10px" data-build-trade="${escapeHTML(target.id)}">Open in Trade Analyzer</button>` : ""}</div>
       </article>`;
     }).join("")}</div>${filtered.length > 150 ? `<p class="rie-caveat">Showing the top 150 of ${filtered.length} filtered candidates; all ${finder.evaluatedCount} were evaluated before ranking.</p>` : ""}`;
     $("targets-list").querySelectorAll("[data-build-trade]").forEach(button => button.addEventListener("click", () => {
@@ -1893,14 +1928,14 @@
     return recommendations.sort((a, b) => {
       const preferred = (String(b.target.id) === String(state.preferredTradeTargetId)) - (String(a.target.id) === String(state.preferredTradeTargetId));
       return preferred || b.target.championshipProbabilityAdded - a.target.championshipProbabilityAdded || b.packages[0].score - a.packages[0].score;
-    }).slice(0, 8);
+    });
   }
 
   function renderTradeRecommendations() {
     const list = $("trade-recommendations-list");
     const count = $("trade-recommendations-count");
     if (!list || !count) return;
-    const recommendations = buildTradeRecommendations();
+    const recommendations = buildTradeRecommendations().slice(0, 8);
     state.tradeRecommendations = recommendations;
     const positiveTargets = state.targetFinder?.targets?.filter(target => target.actionable && target.path?.type === "TRADE" && target.weeklyPointGain > 0).length || 0;
     count.textContent = `${recommendations.length} attainable of ${positiveTargets} impact-positive trade targets`;

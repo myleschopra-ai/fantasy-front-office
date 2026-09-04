@@ -18,6 +18,8 @@ jobs:
           node-version: 22
       - run: node tests/dashboard-intelligence.test.js
       - run: node tests/dashboard-quality.test.js
+      - run: node tests/roster-improvement-engine.test.js
+      - run: node tests/roster-engine-integration.test.js
 
   all-tabs-browser:
     runs-on: ubuntu-latest
@@ -30,3 +32,4 @@ jobs:
       - run: npx playwright install chromium
       - run: python3 -m http.server 4185 >/tmp/ffo-dashboard.log 2>&1 &
       - run: node tests/dashboard-tabs-e2e.mjs
+      - run: node tests/roster-engine-browser-e2e.cjs

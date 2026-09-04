@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "kind": "weekly_vegas_adjusted_projections",
+  "projection_scope": "weekly",
+  "generated_at": null,
+  "week": null,
+  "players": [],
+  "quality": {
+    "status": "unavailable",
+    "reason": "No current weekly player-prop markets have been collected. Baseline projections remain unchanged."
+  }
+}
