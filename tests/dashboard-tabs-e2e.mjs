@@ -7,6 +7,10 @@ try {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   await page.goto(base, { waitUntil: 'domcontentloaded' });
+  const initialViews = await page.locator('.view.active').count();
+  if (initialViews !== 1 || !(await page.locator('#view-connect').isVisible())) throw new Error('Disconnected dashboard exposed a data view before a roster was selected');
+  await page.evaluate(() => document.querySelector('[data-tab="roster"]').click());
+  if (!(await page.locator('#view-connect').isVisible()) || /undefined/i.test(await page.locator('body').innerText())) throw new Error('Roster navigation bypassed the team-selection gate');
   await page.click('#paste-toggle');
   const players = {
     p1:{player_id:'p1',first_name:'Alpha',last_name:'QB',position:'QB',team:'BUF'},
@@ -41,6 +45,38 @@ try {
   if (pageErrors.length) throw new Error(`Dashboard emitted browser errors: ${pageErrors.join(' | ')}`);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   if (overflow > 1) throw new Error(`mobile dashboard overflows by ${overflow}px`);
+
+  const livePage = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const liveErrors = [];
+  livePage.on('pageerror', error => liveErrors.push(error.message));
+  await livePage.addInitScript(() => {
+    localStorage.setItem('ffo_active_league_id_v1', 'sleeper-partender-dynasty');
+    localStorage.setItem('ffo_provider_league_ids_v1', JSON.stringify({ 'sleeper-partender-dynasty':'live-test' }));
+    localStorage.setItem('ffo_roster_id_by_league_v1', JSON.stringify({ 'live-test':'1' }));
+  });
+  await livePage.route('https://api.sleeper.app/v1/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    let body;
+    if (path === '/v1/league/live-test') body = snapshot.league;
+    else if (path === '/v1/league/live-test/rosters') body = [{ ...snapshot.rosters[0], players:['p1','p2','p3','p4','p5'] }];
+    else if (path === '/v1/league/live-test/users') body = snapshot.users;
+    else if (path === '/v1/players/nfl') body = players;
+    else body = [];
+    return route.fulfill({ contentType:'application/json', body:JSON.stringify(body) });
+  });
+  await livePage.route('https://api.fantasycalc.com/**', route => route.fulfill({ contentType:'application/json', body:JSON.stringify(fc) }));
+  await livePage.goto(`${base}#roster`, { waitUntil:'domcontentloaded' });
+  await livePage.waitForFunction(() => /Quality Team/.test(document.querySelector('#roster-title')?.textContent || ''));
+  if ((await livePage.locator('#roster-body tr').count()) !== 5) throw new Error('Saved Sleeper league did not hydrate all roster players');
+  if ((await livePage.locator('.ffo2-lineup-card').count()) < 4 || !/1 player/i.test(await livePage.locator('#roster-bench-count').innerText())) throw new Error('Hydrated roster did not populate starters and bench');
+  const hydratedText = await livePage.locator('body').innerText();
+  if (/\b0% roster evidence|undefined/i.test(hydratedText)) {
+    const evidence = await livePage.locator('#quality-strip').innerText();
+    const suspect = hydratedText.split('\n').filter(line => /\b0% roster evidence|undefined/i.test(line)).join(' | ');
+    throw new Error(`Hydrated roster still reports empty or undefined evidence: ${evidence} · ${suspect}`);
+  }
+  if (liveErrors.length) throw new Error(`Saved-league hydration emitted browser errors: ${liveErrors.join(' | ')}`);
+  await livePage.close();
   console.log('all seven dashboard tabs passed mobile decision journey');
 } finally {
   await browser.close();
