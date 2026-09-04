@@ -359,6 +359,11 @@
           <textarea id="paste-input" rows="6" placeholder='{"league":{...},"rosters":[...],"users":[...],"traded_picks":[...],"fc_data":[...],"all_players":{...}}'></textarea>
           <button class="btn secondary" id="paste-load-btn" style="margin-top:8px;">Load pasted data</button>
         </div>
+        <div id="team-picker" style="display:none;" class="ffo2-team-picker">
+          <h2 class="display" style="font-size:16px;">Which team is yours?</h2>
+          <p class="desc">Choose once. This browser will remember your team for this league.</p>
+          <div class="team-grid" id="team-grid"></div>
+        </div>
       </div>
     </section>
 
@@ -368,14 +373,10 @@
       <article><span class="ffo2-feature-icon">03</span><div><strong>Trade Intelligence</strong><p>Market value plus roster impact, replacement value, and independently bounded evidence.</p></div></article>
     </section>
 
-    <div id="team-picker" style="display:none;" class="connect-box">
-      <h2 class="display" style="font-size:16px;">Which team is yours?</h2>
-      <div class="team-grid" id="team-grid"></div>
-    </div>
   </div>
 
   <!-- COMMAND CENTER VIEW -->
-  <div id="view-command" class="view active">
+  <div id="view-command" class="view">
     <h2 class="display" style="font-size:16px; margin-bottom:16px;">Highest-Value Actions</h2>
     <div id="command-content"></div>
   </div>
@@ -509,6 +510,9 @@
 
   const FC_URL = "https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=2&numTeams=12&ppr=0.5";
   const STORAGE_KEY = "ffo_league_id";
+  const PROVIDER_IDS_KEY = "ffo_provider_league_ids_v1";
+  const ACTIVE_LEAGUE_KEY = "ffo_active_league_id_v1";
+  const ROSTER_IDS_KEY = "ffo_roster_id_by_league_v1";
 
   const state = {
     league: null, rosters: [], users: [], allPlayers: {}, fcData: [],
@@ -517,7 +521,32 @@
     qualityManifest: null, leagueProfile: null, rosterAssessment: null, rosterEngine: null, targetFinder: null,
     transactions: [], tradeActivity: {}, marketSource: "unavailable", tradeHistoryStatus: "unavailable",
     tradeRecommendations: [], preferredTradeTargetId: null,
+    connectedLeagueId: null, leagueLoadId: null,
   };
+
+  function readStoredObject(key) {
+    try { return JSON.parse(localStorage.getItem(key) || "{}"); }
+    catch (_error) { return {}; }
+  }
+
+  function sameRosterId(left, right) {
+    return left !== null && left !== undefined && right !== null && right !== undefined && String(left) === String(right);
+  }
+
+  function requestedDashboardTab() {
+    return ({ "#matchup": "lineup", "#lineup": "lineup", "#roster": "roster", "#targets": "targets", "#trade": "trade", "#validation": "validation", "#draft": "draft" })[location.hash] || "command";
+  }
+
+  function rememberedRosterId(leagueId) {
+    return readStoredObject(ROSTER_IDS_KEY)[String(leagueId || "")];
+  }
+
+  function rememberRosterId(leagueId, rosterId) {
+    if (leagueId === null || leagueId === undefined || leagueId === "") return;
+    const selections = readStoredObject(ROSTER_IDS_KEY);
+    selections[String(leagueId)] = String(rosterId);
+    localStorage.setItem(ROSTER_IDS_KEY, JSON.stringify(selections));
+  }
 
   function fpRankFor(name, position) {
     if (!state.fpData || !state.fpData.rankings) return null;
@@ -575,9 +604,9 @@
   // ---------- Helpers ----------
   function ownerMap() {
     const userById = {};
-    state.users.forEach(u => userById[u.user_id] = u.display_name);
+    state.users.forEach(u => userById[u.user_id] = u.display_name || u.metadata?.team_name || u.username || `Manager ${u.user_id}`);
     const map = {};
-    state.rosters.forEach(r => map[r.roster_id] = userById[r.owner_id] || "Unknown");
+    state.rosters.forEach(r => map[r.roster_id] = userById[r.owner_id] || r.metadata?.team_name || `Roster ${r.roster_id}`);
     return map;
   }
 
@@ -593,7 +622,7 @@
   function normalizedRosterPlayers() {
     if (!window.FFODashboardIntel) return [];
     const market = fcBySleeperId();
-    const roster = state.rosters.find(r => r.roster_id === state.myRosterId);
+    const roster = state.rosters.find(r => sameRosterId(r.roster_id, state.myRosterId));
     return (roster?.players || []).map(pid => {
       const raw = state.allPlayers[pid] || { player_id: pid };
       const name = `${raw.first_name || ""} ${raw.last_name || ""}`.trim() || pid;
@@ -615,7 +644,7 @@
   }
 
   function updateRosterEngine() {
-    if (!window.FFORosterEngine || !state.league || !state.myRosterId) { state.rosterEngine = null; state.targetFinder = null; return; }
+    if (!window.FFORosterEngine || !state.league || state.myRosterId === null || state.myRosterId === undefined) { state.rosterEngine = null; state.targetFinder = null; return; }
     const leagueRosters = state.rosters.map(roster => ({
       id: String(roster.roster_id),
       wins: Number(roster.settings?.wins || 0),
@@ -643,7 +672,7 @@
     const market = fcBySleeperId();
     const rosterOwner = new Map();
     state.rosters.forEach(roster => (roster.players || []).forEach(pid => rosterOwner.set(String(pid), roster)));
-    const myIds = new Set((state.rosters.find(roster => roster.roster_id === state.myRosterId)?.players || []).map(String));
+    const myIds = new Set((state.rosters.find(roster => sameRosterId(roster.roster_id, state.myRosterId))?.players || []).map(String));
     const candidateIds = new Set();
     state.fcData.forEach(entry => { if (entry.player?.sleeperId) candidateIds.add(String(entry.player.sleeperId)); });
     state.rosters.forEach(roster => (roster.players || []).forEach(pid => candidateIds.add(String(pid))));
@@ -809,29 +838,40 @@
   }
 
   async function loadLeague(leagueId) {
+    leagueId = String(leagueId || "").trim();
+    if (!leagueId || state.leagueLoadId === leagueId) return;
+    if (state.connectedLeagueId === leagueId && state.rosters.length && Object.keys(state.allPlayers).length) return;
+    state.leagueLoadId = leagueId;
     errorBox.style.display = "none";
     connectBtn.disabled = true;
     connectBtn.innerHTML = '<span class="loading-spinner"></span>Loading…';
     try {
+      const optionalFetch = url => fetch(url).catch(() => null);
       const [leagueRes, rostersRes, usersRes, picksRes, fcRes] = await Promise.all([
         fetch(`https://api.sleeper.app/v1/league/${leagueId}`),
         fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`),
         fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`),
-        fetch(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`),
-        fetch(FC_URL),
+        optionalFetch(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`),
+        optionalFetch(FC_URL),
       ]);
       if (!leagueRes.ok) throw new Error("League not found — check the League ID");
+      if (!rostersRes.ok) throw new Error("Sleeper returned the league, but its rosters could not be loaded. Try Connect again.");
+      if (!usersRes.ok) throw new Error("Sleeper returned the league, but its managers could not be loaded. Try Connect again.");
 
       state.league = await leagueRes.json();
       const tradeHistoryPromise = fetchLeagueTrades(leagueId);
       state.rosters = await rostersRes.json();
       state.users = await usersRes.json();
-      state.tradedPicks = await picksRes.json();
-      state.fcData = fcRes.ok ? await fcRes.json() : [];
-      state.marketSource = fcRes.ok ? "live" : "unavailable";
+      state.tradedPicks = picksRes?.ok ? await picksRes.json() : [];
+      state.fcData = fcRes?.ok ? await fcRes.json() : [];
+      state.marketSource = fcRes?.ok ? "live" : "unavailable";
+      if (!Array.isArray(state.rosters) || !state.rosters.length) throw new Error("Sleeper returned no rosters for this league.");
+      if (!Array.isArray(state.users)) state.users = [];
 
       const pRes = await fetch("https://api.sleeper.app/v1/players/nfl");
+      if (!pRes.ok) throw new Error("Sleeper rosters loaded, but the NFL player directory did not. Try Connect again.");
       state.allPlayers = await pRes.json();
+      if (!state.allPlayers || typeof state.allPlayers !== "object" || !Object.keys(state.allPlayers).length) throw new Error("Sleeper returned an empty NFL player directory.");
       state.transactions = await tradeHistoryPromise;
 
       // Same-origin static snapshot — FantasyPros blocks cross-origin fetch,
@@ -879,15 +919,22 @@
       }
 
       localStorage.setItem(STORAGE_KEY, leagueId);
+      state.connectedLeagueId = leagueId;
       state.fetchedAt = new Date();
-      updateQualityContext();
       renderHeader();
-      showTeamPicker();
+      const savedRosterId = rememberedRosterId(leagueId);
+      const savedRoster = state.rosters.find(roster => sameRosterId(roster.roster_id, savedRosterId));
+      if (savedRoster) selectMyRoster(savedRoster.roster_id);
+      else {
+        updateQualityContext();
+        showTeamPicker();
+      }
     } catch (e) {
       showError(e.message || "Fetch failed — check your connection and League ID.");
     } finally {
+      state.leagueLoadId = null;
       connectBtn.disabled = false;
-      connectBtn.textContent = "Connect";
+      connectBtn.textContent = "Connect league";
     }
   }
 
@@ -905,10 +952,16 @@
       state.marketSource = state.fcData.length ? "snapshot" : "unavailable";
       if (parsed.weekly_projection_data?.projection_scope === "weekly") state.weeklyProjectionData = parsed.weekly_projection_data;
       state.fetchedAt = parsed.fetched_at ? new Date(parsed.fetched_at) : null;
-      updateQualityContext();
       errorBox.style.display = "none";
       renderHeader();
-      showTeamPicker();
+      const importedLeagueId = state.league?.league_id || state.league?.id || "manual-import";
+      state.connectedLeagueId = String(importedLeagueId);
+      const savedRoster = state.rosters.find(roster => sameRosterId(roster.roster_id, rememberedRosterId(importedLeagueId)));
+      if (savedRoster) selectMyRoster(savedRoster.roster_id);
+      else {
+        updateQualityContext();
+        showTeamPicker();
+      }
     } catch (e) {
       showError("Couldn't parse that JSON — check it's the full bundle export.");
     }
@@ -942,6 +995,7 @@
     state.league = null; state.rosters = []; state.users = []; state.allPlayers = {};
     state.fcData = []; state.tradedPicks = []; state.transactions = []; state.tradeActivity = {}; state.myRosterId = null; state.fpData = null;
     state.marketSource = "unavailable"; state.tradeHistoryStatus = "unavailable"; state.tradeRecommendations = []; state.preferredTradeTargetId = null;
+    state.connectedLeagueId = null; state.leagueLoadId = null;
     state.sideA = []; state.sideB = []; state.fetchedAt = null;
     state.qualityManifest = null; state.leagueProfile = null; state.rosterAssessment = null;
     tabsNav.classList.remove("visible");
@@ -954,6 +1008,10 @@
     $("connect-desc").style.display = "block";
     document.querySelector(".input-row").style.display = "flex";
     $("paste-toggle").style.display = "block";
+    document.querySelector(".ffo2-card-kicker").style.display = "";
+    document.querySelector(".ffo2-field-label").style.display = "";
+    document.querySelector(".ffo2-security-note").style.display = "";
+    teamPicker.style.display = "none";
   }
 
   function renderFreshnessBar() {
@@ -978,11 +1036,18 @@
 
   // ---------- Render: team picker ----------
   function showTeamPicker() {
+    document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+    $("view-connect").classList.add("active");
+    tabsNav.classList.remove("visible");
+    $("quality-strip").style.display = "none";
     $("connect-title").style.display = "none";
     $("connect-desc").style.display = "none";
     document.querySelector(".input-row").style.display = "none";
     $("paste-toggle").style.display = "none";
     $("paste-area").style.display = "none";
+    document.querySelector(".ffo2-card-kicker").style.display = "none";
+    document.querySelector(".ffo2-field-label").style.display = "none";
+    document.querySelector(".ffo2-security-note").style.display = "none";
     errorBox.style.display = "none";
 
     const owners = ownerMap();
@@ -995,20 +1060,34 @@
     teamPicker.style.display = "block";
 
     teamGrid.querySelectorAll(".team-card").forEach(btn => {
-      btn.addEventListener("click", () => selectMyRoster(Number(btn.dataset.rosterId)));
+      btn.addEventListener("click", () => selectMyRoster(btn.dataset.rosterId));
     });
   }
 
   function selectMyRoster(rosterId) {
-    state.myRosterId = rosterId;
+    const roster = state.rosters.find(item => sameRosterId(item.roster_id, rosterId));
+    if (!roster) {
+      state.myRosterId = null;
+      showTeamPicker();
+      return;
+    }
+    state.myRosterId = roster.roster_id;
+    rememberRosterId(state.league?.league_id || state.league?.id || state.connectedLeagueId, roster.roster_id);
     updateQualityContext();
     $("view-connect").classList.remove("active");
+    teamPicker.style.display = "none";
     tabsNav.classList.add("visible");
-    switchTab("command");
+    switchTab(requestedDashboardTab());
   }
 
   // ---------- Tabs ----------
   function switchTab(tab) {
+    if (tab !== "command" && (state.myRosterId === null || state.myRosterId === undefined)) {
+      document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+      $("view-connect").classList.add("active");
+      if (state.league && state.rosters.length) showTeamPicker();
+      return;
+    }
     state.activeTab = tab;
     document.querySelectorAll("nav button").forEach(b => {
       const selected = b.dataset.tab === tab;
@@ -1051,7 +1130,7 @@
   // ---------- Shared: compute starter/bench assignment ----------
   function computeAssignedLineup() {
     const fcMap = fcBySleeperId();
-    const myRoster = state.rosters.find(r => r.roster_id === state.myRosterId);
+    const myRoster = state.rosters.find(r => sameRosterId(r.roster_id, state.myRosterId));
     if (!myRoster || !state.league) return { assigned: [], bench: [] };
 
     const slots = (state.league.roster_positions || [])
@@ -1546,10 +1625,19 @@
   // ---------- Render: Roster ----------
   function renderRoster() {
     const owners = ownerMap();
-    $("roster-title").textContent = `Your Roster — ${owners[state.myRosterId]}`;
-    const myRoster = state.rosters.find(r => r.roster_id === state.myRosterId);
+    const myRoster = state.rosters.find(r => sameRosterId(r.roster_id, state.myRosterId));
     const fcMap = fcBySleeperId();
-    if (!myRoster) return;
+    if (!myRoster) {
+      $("roster-title").textContent = "Choose your team to populate this roster";
+      $("roster-validation").textContent = "A valid roster has not been selected for the connected league.";
+      $("roster-summary").innerHTML = "";
+      $("roster-lineup").innerHTML = "";
+      $("roster-bench").innerHTML = "";
+      $("roster-body").innerHTML = "";
+      $("roster-bench-count").textContent = "";
+      return;
+    }
+    $("roster-title").textContent = `Your Roster — ${owners[myRoster.roster_id] || `Roster ${myRoster.roster_id}`}`;
 
     const players = (myRoster.players || []).map(pid => {
       const p = state.allPlayers[pid] || {};
@@ -1761,7 +1849,7 @@
 
   function buildTradeRecommendations() {
     if (!state.targetFinder || !window.FFORosterEngine) return [];
-    const myRoster = state.rosters.find(roster => roster.roster_id === state.myRosterId);
+    const myRoster = state.rosters.find(roster => sameRosterId(roster.roster_id, state.myRosterId));
     if (!myRoster) return [];
     const replacement = replacementContext();
     const myPlayers = rosterTradePlayers(myRoster);
@@ -2985,8 +3073,23 @@
   }
 
   // ---------- Restore last league ----------
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) leagueIdInput.value = saved;
+  document.addEventListener("ffo:league-changed", event => {
+    const league = event.detail?.league || event.detail || {};
+    if (String(league.provider || "").toLowerCase() !== "sleeper") return;
+    const providerLeagueId = String(league.provider_league_id || "").trim();
+    if (!providerLeagueId) return;
+    leagueIdInput.value = providerLeagueId;
+    loadLeague(providerLeagueId);
+  });
+
+  const providerIds = readStoredObject(PROVIDER_IDS_KEY);
+  const activeRegistryLeague = localStorage.getItem(ACTIVE_LEAGUE_KEY) || "sleeper-partender-dynasty";
+  const legacyLeagueId = localStorage.getItem(STORAGE_KEY);
+  const saved = providerIds[activeRegistryLeague] || (String(activeRegistryLeague).includes("sleeper") ? legacyLeagueId : null);
+  if (saved) {
+    leagueIdInput.value = saved;
+    Promise.resolve().then(() => loadLeague(saved));
+  }
 
 })();
 </script>
