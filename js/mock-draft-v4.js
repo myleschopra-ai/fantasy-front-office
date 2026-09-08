@@ -76,6 +76,9 @@
   const clamp = (value, min = 0, max = 100) =>
     Math.max(min, Math.min(max, numeric(value)));
   const formatSigned = (value) => `${value > 0 ? "+" : ""}${Math.round(value)}`;
+  let pageLifecycleEnding = false;
+  window.addEventListener("beforeunload", () => { pageLifecycleEnding = true; });
+  window.addEventListener("pagehide", () => { pageLifecycleEnding = true; });
 
   function providerLeagueId() {
     if (String(state.activeLeague?.provider || "").toLowerCase() !== "sleeper") return "";
@@ -1766,6 +1769,9 @@
         return await response.json();
       } catch (error) {
         lastError = error;
+        // Safari/WebKit can report canceled navigation requests as access-control
+        // failures. Do not start a retry from a document that is already unloading.
+        if (pageLifecycleEnding) throw error;
         if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 120 * (attempt + 1)));
       }
     }
