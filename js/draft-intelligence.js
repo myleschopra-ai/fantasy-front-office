@@ -2245,8 +2245,13 @@
     // confidence clustering near 100% for most players. Fixed: source count now
     // needs ~7 sources to saturate and carries less weight; genuine cross-source
     // agreement (the real "how clear-cut" signal) now carries more.
-    const confidence = clamp(
-      numeric(player.agreement, 50) * 0.55 +
+    const earlyRound = numeric(context.round, 1) <= 4;
+    const confidence = clamp(earlyRound
+      ? numeric(player.agreement, 50) * 0.50 +
+        Math.min(100, numeric(player.sourceCount, 1) * 15) * 0.20 +
+        numeric(player.projectionConfidence, 50) * 0.20 +
+        numeric(player.schemeFit?.confidence, 45) * 0.10
+      : numeric(player.agreement, 50) * 0.55 +
         Math.min(100, numeric(player.sourceCount, 1) * 15) * 0.20 +
         numeric(player.schemeFit?.confidence, 45) * 0.25,
     );

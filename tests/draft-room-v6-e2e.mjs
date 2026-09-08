@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+const { chromium } = await import(process.env.CODEX_PLAYWRIGHT_PATH || 'playwright');
 
 const base = process.env.DRAFT_ROOM_V6_URL || 'http://127.0.0.1:4175/draft.html';
 const positions = ['WR','RB','QB','TE','WR','RB','K','DST'];

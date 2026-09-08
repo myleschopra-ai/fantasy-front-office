@@ -116,11 +116,14 @@
     const selected = rows.filter((record) => record.selectedKey);
     const followed = selected.filter((record) => record.selectedKey === record.recommendation?.key);
     const locked = rows.filter((record) => record.timeLock?.valid);
+    const correct = resolved.filter((record) => record.outcome.won === 1).length;
     return {
       captured: rows.length,
       selected: selected.length,
       followed: followed.length,
       resolved: resolved.length,
+      correct,
+      accuracy: resolved.length ? correct / resolved.length * 100 : null,
       timeLocked: locked.length,
       promotionEligible: resolved.length >= 100 && resolved.every((record) => record.timeLock?.valid),
     };

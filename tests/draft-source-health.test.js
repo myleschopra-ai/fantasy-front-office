@@ -36,6 +36,11 @@ const base = {
   assert.equal(r.level, H.LEVELS.STALE);
   assert.equal(r.usable, true);
   assert.equal(H.confidencePenalty(r), 12);
+
+  const runtime = H.assessRuntime({ intelligence: stale, marketOk: true, scoutingOk: true, newsOk: true }, { now });
+  assert.equal(runtime.level, H.LEVELS.DEGRADED);
+  assert.equal(H.confidencePenalty(runtime), 5);
+  assert.ok(runtime.issues.some(x => x.includes('current market')));
 }
 
 {
@@ -64,6 +69,13 @@ const base = {
   const r = H.assessIntelligence(null, { now });
   assert.equal(r.level, H.LEVELS.UNAVAILABLE);
   assert.equal(r.usable, false);
+}
+
+{
+  const oldButComplete = { ...base, generated_at: '2026-08-01T00:00:00Z', sources: base.sources.map(s => ({ ...s, retrieved_at: '2026-08-01T00:00:00Z' })) };
+  const r = H.assessRuntime({ intelligence: oldButComplete, marketOk: true, scoutingOk: true, newsOk: true }, { now });
+  assert.equal(r.level, H.LEVELS.DEGRADED);
+  assert.ok(r.issues.some(x => x.includes('current market')));
 }
 
 {

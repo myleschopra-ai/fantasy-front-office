@@ -19,7 +19,7 @@ assert.equal(Ledger.forSession(sessionId,storage)[0].recommendation.key,'p2');
 Ledger.markSelection(first.id,'p2',storage,'2026-08-24T15:01:00Z');
 Ledger.resolve(first.id,{won:true,outcomeAt:'2027-01-10T00:00:00Z',modelPoints:2010,baselinePoints:1940},storage);
 const snapshot=Ledger.sessionSnapshot(sessionId,storage);
-assert.deepEqual(snapshot.summary,{captured:1,selected:1,followed:1,resolved:1,timeLocked:1,promotionEligible:false});
+assert.deepEqual(snapshot.summary,{captured:1,selected:1,followed:1,resolved:1,correct:1,accuracy:100,timeLocked:1,promotionEligible:false});
 assert.equal(snapshot.records[0].outcome.won,1);
 
 const future=Ledger.capture({sessionId,kind:'snake',decisionNumber:8,capturedAt:'2026-08-24T15:00:00Z',sourceGeneratedAt:'2026-08-25T15:00:00Z'},storage);

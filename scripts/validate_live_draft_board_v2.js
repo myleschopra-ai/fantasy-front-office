@@ -54,6 +54,9 @@ function apiAudit(snapshot) {
   }
   const nonzero = Object.values(rankingCounts).filter((n) => n > 0);
   const sampleLimited = nonzero.length > 0 && Math.max(...nonzero) <= 10;
+  const requiredProjectionDepth = { QB: 32, RB: 72, WR: 84, TE: 32 };
+  const projectionComplete = Object.entries(requiredProjectionDepth)
+    .every(([position, required]) => Number(projectionCounts[position] || 0) >= required);
   return {
     schemaVersion: snapshot.schema_version || null,
     generatedAt: snapshot.generated_at || null,
@@ -61,6 +64,8 @@ function apiAudit(snapshot) {
     scoring: snapshot.scoring || null,
     rankingCounts,
     projectionCounts,
+    requiredProjectionDepth,
+    projectionAccessMode: projectionComplete ? 'production' : 'legacy-or-partial',
     sampleLimited,
     accessMode: sampleLimited ? 'sample' : (rankingCounts.OVERALL >= 100 ? 'production' : 'legacy-or-partial'),
   };
@@ -79,14 +84,14 @@ function projectionMap(snapshot) {
   return map;
 }
 
-function preparePlayers(snapshot, intelligence, league) {
+function preparePlayers(snapshot, intelligence, league, options = {}) {
   const profile = D.selectProfile(intelligence, league);
   if (!profile) throw new Error(`No full draft-intelligence profile for ${league.name}`);
 
   let players = D.enrichPlayers([], profile);
   players = D.mergeSupplementalPositions(players, profile.players || [], league);
 
-  const projections = projectionMap(snapshot);
+  const projections = options.useDirectProjections ? projectionMap(snapshot) : new Map();
   let projectionMatches = 0;
   for (const player of players) {
     const points = projections.get(identity(player));
@@ -120,8 +125,8 @@ function average(values) {
   return clean.length ? clean.reduce((a, b) => a + b, 0) / clean.length : null;
 }
 
-function evaluateFormat(snapshot, intelligence, league) {
-  const prepared = preparePlayers(snapshot, intelligence, league);
+function evaluateFormat(snapshot, intelligence, league, options = {}) {
+  const prepared = preparePlayers(snapshot, intelligence, league, options);
   const context = contextFor(league, prepared.players);
   const boards = D.buildBoards(prepared.players, context);
   const guardrails = D.validateConsensusAlignment(prepared.players, context, { deviationThreshold: 15 });
@@ -265,6 +270,7 @@ function toMarkdown(report) {
     `- Direct FantasyPros API mode: ${report.api.accessMode}`,
     `- API ranking counts: ${JSON.stringify(report.api.rankingCounts)}`,
     `- API projection counts: ${JSON.stringify(report.api.projectionCounts)}`,
+    `- Direct projection overlay: ${report.api.projectionAccessMode === 'production' ? 'enabled' : 'disabled (partial positional sample)'}`,
     `- Full board source: ${report.fullBoardSource}`,
   ];
   if (report.limitations.length) {
@@ -295,16 +301,20 @@ function main() {
   const fantasyPros = readJson('fantasypros.json');
   const intelligence = readJson('data/draft_intelligence.json');
   const api = apiAudit(fantasyPros);
+  const projectionOptions = { useDirectProjections: api.projectionAccessMode === 'production' };
   const limitations = [];
   if (api.sampleLimited) {
     limitations.push('Direct FantasyPros API credential is sample-limited (10 rows per endpoint); full-board validation uses the live aggregated draft-intelligence build instead.');
   } else if (api.accessMode !== 'production') {
     limitations.push('Direct FantasyPros API snapshot is legacy/partial; full-board validation uses the live aggregated draft-intelligence build.');
   }
+  if (!projectionOptions.useDirectProjections) {
+    limitations.push('Partial direct projections are audited but do not overwrite isolated players on the complete aggregate board.');
+  }
 
-  const oneQB = evaluateFormat(fantasyPros, intelligence, leagueConfig());
-  const superflex = evaluateFormat(fantasyPros, intelligence, leagueConfig({ superflex: true }));
-  const threeWR = evaluateFormat(fantasyPros, intelligence, leagueConfig({ wr: 3 }));
+  const oneQB = evaluateFormat(fantasyPros, intelligence, leagueConfig(), projectionOptions);
+  const superflex = evaluateFormat(fantasyPros, intelligence, leagueConfig({ superflex: true }), projectionOptions);
+  const threeWR = evaluateFormat(fantasyPros, intelligence, leagueConfig({ wr: 3 }), projectionOptions);
 
   const formats = { oneQB, superflex, threeWR };
   const rosterState = rosterStateScenario(oneQB);

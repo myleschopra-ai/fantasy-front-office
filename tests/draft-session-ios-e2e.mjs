@@ -1,5 +1,5 @@
-import { webkit, devices } from 'playwright';
 import { readFileSync } from 'node:fs';
+const { webkit, devices } = await import(process.env.CODEX_PLAYWRIGHT_PATH || 'playwright');
 
 const base = process.env.DRAFT_SESSION_IOS_URL || 'http://127.0.0.1:4175/draft.html';
 const positions = ['WR','RB','WR','RB','QB','TE','K','DST'];

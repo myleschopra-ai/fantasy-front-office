@@ -517,7 +517,7 @@
   const state = {
     league: null, rosters: [], users: [], allPlayers: {}, fcData: [],
     tradedPicks: [], myRosterId: null, activeTab: "roster",
-    sideA: [], sideB: [], posFilter: "ALL", targetPathFilter: "ALL", fpData: null, weeklyProjectionData: null, weeklyVegasData: null, fetchedAt: null, watcherState: null, scheduleData: null,
+    sideA: [], sideB: [], posFilter: "ALL", targetPathFilter: "ALL", fpData: null, weeklyProjectionData: null, weeklyVegasData: null, gameLinesData: null, fetchedAt: null, watcherState: null, scheduleData: null,
     decisionDataStatus: { projections: "idle", vegas: "idle", projectionError: null, vegasError: null },
     qualityManifest: null, leagueProfile: null, rosterAssessment: null, rosterEngine: null, targetFinder: null,
     transactions: [], tradeActivity: {}, marketSource: "unavailable", tradeHistoryStatus: "unavailable",
@@ -607,9 +607,21 @@
     return entry.projected_points ?? entry.points_half ?? null;
   }
 
-  function vegasEvidenceHTML(name) {
+  function gameLineFor(team) {
+    const code = String(team || "").toUpperCase();
+    return state.gameLinesData?.games?.find(game => game.home === code || game.away === code) || null;
+  }
+
+  function vegasEvidenceHTML(name, team) {
     const vegas = weeklyVegasFor(name);
-    if (!vegas) return '<span class="mono" style="color:var(--text-dim);font-size:10px">VEGAS · no current player market</span>';
+    if (!vegas) {
+      const game = gameLineFor(team);
+      if (!game) return '<span class="mono" style="color:var(--text-dim);font-size:10px">VEGAS · no current player or game market</span>';
+      const code = String(team || "").toUpperCase();
+      const opponent = game.home === code ? game.away : game.home;
+      const teamSpread = game.home === code ? Number(game.spread_home) : -Number(game.spread_home);
+      return `<span class="mono" style="color:var(--gold-light);font-size:10px">VEGAS GAME · ${code} ${teamSpread > 0 ? "+" : ""}${teamSpread.toFixed(1)} vs ${opponent} · O/U ${Number(game.total).toFixed(1)} · no player prop</span>`;
+    }
     const delta = Number(vegas.applied_market_delta || 0);
     const direction = delta > 0.05 ? "HIGHER" : delta < -0.05 ? "LOWER" : "IN LINE";
     const color = direction === "HIGHER" ? "var(--green)" : direction === "LOWER" ? "var(--red)" : "var(--gold-light)";
@@ -622,12 +634,29 @@
     state.fpData = null;
     state.weeklyProjectionData = null;
     state.weeklyVegasData = null;
+    state.gameLinesData = null;
     state.decisionDataStatus = { projections: "loading", vegas: "loading", projectionError: null, vegasError: null };
-    const bust = Date.now();
-    const [fpResult, weeklyResult, vegasResult] = await Promise.allSettled([
-      fetch(`fantasypros.json?t=${bust}`).then(response => response.ok ? response.json() : Promise.reject(new Error(`FantasyPros HTTP ${response.status}`))),
-      fetch(`data/weekly_projections.json?t=${bust}`).then(response => response.ok ? response.json() : Promise.reject(new Error(`weekly projections HTTP ${response.status}`))),
-      fetch(`data/vegas/weekly-projections.json?t=${bust}`).then(response => response.ok ? response.json() : Promise.reject(new Error(`weekly Vegas HTTP ${response.status}`))),
+    async function fetchSnapshot(path, label) {
+      let lastError;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const url = new URL(path, document.baseURI);
+          url.searchParams.set("t", `${Date.now()}-${attempt}`);
+          const response = await fetch(url.href, { cache: "no-store" });
+          if (!response.ok) throw new Error(`${label} HTTP ${response.status}`);
+          return await response.json();
+        } catch (error) {
+          lastError = error;
+          if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 120 * (attempt + 1)));
+        }
+      }
+      throw lastError;
+    }
+    const [fpResult, weeklyResult, vegasResult, gameLinesResult] = await Promise.allSettled([
+      fetchSnapshot("fantasypros.json", "FantasyPros"),
+      fetchSnapshot("data/weekly_projections.json", "weekly projections"),
+      fetchSnapshot("data/vegas/weekly-projections.json", "weekly Vegas"),
+      fetchSnapshot("data/vegas/game-lines.json", "game lines"),
     ]);
     if (fpResult.status === "fulfilled") state.fpData = fpResult.value;
     if (weeklyResult.status === "fulfilled" && weeklyResult.value?.projection_scope === "weekly" && Array.isArray(weeklyResult.value.players)) {
@@ -638,7 +667,8 @@
     if (vegasResult.status === "fulfilled" && vegasResult.value?.kind === "weekly_vegas_adjusted_projections" && Array.isArray(vegasResult.value.players)) {
       state.weeklyVegasData = vegasResult.value;
     }
-    state.decisionDataStatus.vegas = state.weeklyVegasData?.players?.length ? "current" : "unavailable";
+    if (gameLinesResult.status === "fulfilled" && Array.isArray(gameLinesResult.value?.games)) state.gameLinesData = gameLinesResult.value;
+    state.decisionDataStatus.vegas = state.weeklyVegasData?.players?.length || state.gameLinesData?.games?.length ? "current" : "unavailable";
     state.decisionDataStatus.vegasError = vegasResult.status === "rejected" ? vegasResult.reason?.message : null;
   }
 
@@ -1240,15 +1270,16 @@
     const startersTotal = assigned.filter(a => a.player).length;
     const partialSum = startersWithReal.reduce((sum, a) => sum + a.player.projPoints, 0);
     const vegasCovered = assigned.filter(a => a.player && weeklyVegasFor(a.player.name)).length;
+    const gameLineCovered = assigned.filter(a => a.player && gameLineFor(a.player.team)).length;
     const summaryHTML = startersWithReal.length
       ? `<div style="background:var(--surface); border-radius:6px; padding:12px; margin-bottom:16px;">
           <span class="mono" style="color:var(--green); font-size:14px; font-weight:600;">${partialSum.toFixed(1)} pts</span>
           <span style="color:var(--text-dim); font-size:11px; margin-left:8px;">
             from ${startersWithReal.length}/${startersTotal} starters with production forecasts. ${state.weeklyProjectionData ? `Open weekly Week ${state.weeklyProjectionData.week} is primary;` : "Weekly data is unavailable;"} uncovered players remain explicitly unprojected.
           </span>
-          <div class="mono" style="color:${vegasCovered ? "var(--gold-light)" : "var(--text-dim)"};font-size:10px;margin-top:7px">Vegas cross-check: ${vegasCovered}/${startersTotal} starters have a current player-prop market${vegasCovered ? "; HIGHER/LOWER signals are included below." : ". No odds adjustment is being invented."}</div>
+          <div class="mono" style="color:${vegasCovered || gameLineCovered ? "var(--gold-light)" : "var(--text-dim)"};font-size:10px;margin-top:7px">Vegas cross-check: ${vegasCovered}/${startersTotal} player props · ${gameLineCovered}/${startersTotal} game lines. ${vegasCovered ? "HIGHER/LOWER signals are included below." : "Game spreads and totals are context only; no player adjustment is being invented. No odds adjustment is being invented."}</div>
         </div>`
-      : `<div class="quality-note"><strong>Production forecasts unavailable</strong><div class="rie-caveat" style="margin-top:4px">The lineup is temporarily ordered by dynasty market value, but market value is not presented as weekly production. Refresh the league data before acting.</div></div>`;
+      : `<div class="quality-note"><strong>Production forecasts unavailable</strong><div class="rie-caveat" style="margin-top:4px">The lineup is temporarily ordered by dynasty market value, but market value is not presented as weekly production.</div><button id="retry-production-data" class="target-action" style="margin-top:8px">Retry production data</button></div>`;
     const closeMoves = window.FFODashboardIntel ? window.FFODashboardIntel.lineupMoves(assigned, bench) : [];
     const decisionHTML = closeMoves.length ? `<div class="quality-note"><strong>Closest lineup decisions</strong><br>${closeMoves.slice(0, 3).map(move =>
       `${escapeHTML(move.starter.name)} over ${escapeHTML(move.alternative.name)} by ${move.delta.toFixed(1)} projected points · ${window.FFODashboardIntel.confidenceLabel(move.confidence)} confidence`
@@ -1257,8 +1288,8 @@
     const metricHTML = (p) => {
       const evidence = projectionEvidenceFor(p.name, p.position, p.id);
       return p.projPoints !== null
-      ? `<span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><span class="mono" style="color:var(--green); font-size:12px;">${Number(p.projPoints).toFixed(2)} pts · ${evidence.source}</span>${vegasEvidenceHTML(p.name)}</span>`
-      : `<span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><span class="mono" style="color:var(--text-muted); font-size:12px;">NO PROJECTION · market ${p.value ?? "—"}</span>${vegasEvidenceHTML(p.name)}</span>`;
+      ? `<span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><span class="mono" style="color:var(--green); font-size:12px;">${Number(p.projPoints).toFixed(2)} pts · ${evidence.source}</span>${vegasEvidenceHTML(p.name, p.team)}</span>`
+      : `<span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><span class="mono" style="color:var(--text-muted); font-size:12px;">NO PROJECTION · market ${p.value ?? "—"}</span>${vegasEvidenceHTML(p.name, p.team)}</span>`;
     };
 
     const rowHTML = (slot, p) => {
@@ -1297,6 +1328,13 @@
     </div>`;
 
     $("lineup-content").innerHTML = html;
+    const retry = document.getElementById("retry-production-data");
+    if (retry) retry.addEventListener("click", async () => {
+      retry.disabled = true;
+      retry.textContent = "Retrying…";
+      await loadDecisionSnapshots();
+      renderLineup();
+    });
   }
 
   function topDecisionActions() {
