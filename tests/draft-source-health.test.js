@@ -36,6 +36,11 @@ const base = {
   assert.equal(r.level, H.LEVELS.STALE);
   assert.equal(r.usable, true);
   assert.equal(H.confidencePenalty(r), 12);
+
+  const runtime = H.assessRuntime({ intelligence: stale, marketOk: true, scoutingOk: true, newsOk: true }, { now });
+  assert.equal(runtime.level, H.LEVELS.DEGRADED);
+  assert.equal(H.confidencePenalty(runtime), 5);
+  assert.ok(runtime.issues.some(x => x.includes('current market')));
 }
 
 {

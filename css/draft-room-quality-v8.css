@@ -33,5 +33,5 @@ body[aria-busy="true"] .players{cursor:progress}body[aria-busy="true"] #board{po
    allowing the draft grid's full content height to escape its app row. */
 .board-shell{overflow:hidden!important}.draft-grid-wrap{height:100%!important;min-height:0!important;max-height:100%!important}
 @media(min-width:1100px){.app{grid-template-rows:58px minmax(240px,min(32vh,310px)) minmax(0,1fr) 0!important}.board-shell,.board-shell.expanded{height:min(32vh,310px)!important;min-height:240px!important;grid-template-rows:28px minmax(0,1fr)!important}.quickmetrics{position:static!important;display:grid!important;grid-template-columns:repeat(7,minmax(66px,1fr));margin-top:7px!important}.decision-main{padding-right:0!important}.decision{max-height:300px;overflow:auto!important}}
-@media(min-width:701px) and (max-width:1099px){.board-shell.expanded{height:min(38vh,380px)!important}.draft-grid-wrap{min-height:0!important}}
-@media(max-width:700px){.board-shell.expanded{height:min(32vh,260px)!important;min-height:180px!important}.draft-grid-wrap{min-height:0!important}}
+@media(min-width:701px) and (max-width:1099px){.board-shell.expanded{height:clamp(400px,48dvh,520px)!important}.draft-grid-wrap{min-height:0!important}}
+@media(max-width:700px){.board-shell.expanded{height:clamp(340px,58dvh,520px)!important;min-height:340px!important}.draft-grid-wrap{min-height:0!important}}
