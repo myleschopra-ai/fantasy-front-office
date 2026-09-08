@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 const { chromium, devices } = await import(process.env.CODEX_PLAYWRIGHT_PATH || 'playwright');
 
-const base=process.env.DASHBOARD_E2E_URL||'http://127.0.0.1:4173/';
+const base=process.env.DASHBOARD_E2E_URL||'http://127.0.0.1:4185/';
 const browser=await chromium.launch({headless:true});
 const weekly={projection_scope:'weekly',week:1,players:[
  {name:'D’Andre Swift',position:'RB',team:'CHI',opponent:'CAR',projected_points:13.7,source_ids:{sleeper:'swift'} ,data_confidence:{label:'HIGH'}},
