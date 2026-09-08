@@ -1,12 +1,20 @@
 # Fantasy Front Office
 
-A local-first Sleeper fantasy football dashboard deployed with GitHub Pages.
+The published Sleeper fantasy football dashboard is **[Fantasy Front Office](https://myleschopra-ai.github.io/fantasy-front-office/)**.
+
+This repository is the source of truth for the application, styles, data builders, published data, tests, and documentation. Finished work belongs here and is served by GitHub Pages from `main`. Local previews and Codex visualization folders are development copies, not a separate release destination.
+
+Browser preferences and saved draft sessions remain in that browser's local storage; GitHub hosts the application, not private browser state. Open the published site on any device without running a server on a laptop.
+
+See [Publishing and source locations](docs/PUBLISHING.md) for the release workflow and consolidation record.
 
 Season estimates can be built without paid API keys using the auditable [Open Projection Engine](docs/OPEN_PROJECTION_ENGINE.md). Internally modeled values remain explicitly labeled and are coverage-gated before projected-points VORP activates.
 
 ## Pages
 
-- `index.html` — existing front-office dashboard
+- [Dashboard](https://myleschopra-ai.github.io/fantasy-front-office/) — team, lineup, waivers, targets, and trade analyzer
+- [Trade Intelligence](https://myleschopra-ai.github.io/fantasy-front-office/trade-intelligence.html) — market and weekly forecast board with a package sandbox
+- [Matchup](https://myleschopra-ai.github.io/fantasy-front-office/matchup.html) — opponent and suggested lineups
 - `draft.html` — production Draft Room with a Sleeper-inspired v6 interface for mock drafts and confirmed-only Sleeper live sync
 - `draft-review.html` — local post-draft review, counterfactual audit, and replay export
 - `auction.html` — iOS-first, Sleeper-inspired auction mock room with complete CPU teams, live draft board, finite-budget logic, and historical room calibration

@@ -1,0 +1,2 @@
+# Unified-diff archives contain a required space prefix on blank context lines.
+docs/archive/*.patch -whitespace
