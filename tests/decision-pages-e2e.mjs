@@ -43,6 +43,6 @@ try{
  if(await matchup.locator('#my-lineup .player').count()!==2)throw Error('Suggested starting lineup did not render');
  if(!/VEGAS/.test(await matchup.locator('#my-lineup').innerText()))throw Error('Matchup lineup omitted Vegas context');
 
- const phone=await browser.newPage({...devices['iPhone 13']});await routeCommon(phone);await phone.goto(`${base}trade-intelligence.html`,{waitUntil:'domcontentloaded'});await phone.waitForFunction(()=>document.querySelectorAll('#board [data-player]').length>0);const overflow=await phone.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth+1);if(overflow)throw Error('Trade Intelligence overflows iPhone width');
+ const phone=await browser.newPage({...devices['iPhone 13'],viewport:{width:375,height:812}});await routeCommon(phone);await phone.goto(`${base}trade-intelligence.html`,{waitUntil:'domcontentloaded'});await phone.waitForFunction(()=>document.querySelectorAll('#board [data-player]').length>0);const overflow=await phone.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth+1);if(overflow)throw Error('Trade Intelligence overflows iPhone width');
  console.log('decision pages desktop + iPhone E2E passed');
 }finally{await browser.close()}
