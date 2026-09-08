@@ -67,6 +67,13 @@ const base = {
 }
 
 {
+  const oldButComplete = { ...base, generated_at: '2026-08-01T00:00:00Z', sources: base.sources.map(s => ({ ...s, retrieved_at: '2026-08-01T00:00:00Z' })) };
+  const r = H.assessRuntime({ intelligence: oldButComplete, marketOk: true, scoutingOk: true, newsOk: true }, { now });
+  assert.equal(r.level, H.LEVELS.DEGRADED);
+  assert.ok(r.issues.some(x => x.includes('current market')));
+}
+
+{
   const noProfiles = H.assessIntelligence({ ...base, profiles: {} }, { now });
   assert.equal(noProfiles.level, H.LEVELS.UNAVAILABLE);
   assert.equal(noProfiles.usable, false);

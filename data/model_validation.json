@@ -7,6 +7,8 @@
       "status": "historically_backtested",
       "calibration_status": "points-outcome validated",
       "sample_size": 192,
+      "snake_sample_size": 96,
+      "historical_win_rate": 0.542,
       "evidence": "Paired 2024-2025 snake and auction replay against need-aware baselines.",
       "report": "data/backtests/redraft-mock-validation-strong/report.json"
     },

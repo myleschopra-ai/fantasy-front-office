@@ -23,7 +23,11 @@ function confidence(input={}){
  const validation=validationComponent(input.validation,input.component);
  const calibrated=validation.status==='validated'&&validation.calibration_status==='calibrated';
  const validationScore=calibrated?92:validation.status==='historically_backtested'?76:55;
- const score=Math.round(sourceBase*.32+evidence*.28+projectionEvidence*.25+validationScore*.15);
+ const round=numeric(input.round,1),earlyRound=round<=4;
+ const consensus=clamp(input.player?.agreement??50);
+ const score=Math.round(earlyRound
+  ? sourceBase*.22+evidence*.33+projectionEvidence*.20+validationScore*.10+consensus*.15
+  : sourceBase*.32+evidence*.28+projectionEvidence*.25+validationScore*.15);
  const label=score>=82?'HIGH':score>=66?'MEDIUM':score>=48?'LOW':'VERY LOW';
  const reasons=[];
  if(sourceLevel!=='FRESH')reasons.push(`source health ${sourceLevel.toLowerCase()}`);
@@ -40,7 +44,9 @@ function winRateRange(winRate,confidenceResult,validation={}){
 }
 function snakeCard(input={}){
  const wwpa=input.evaluation?.wwpa||{},trust=confidence({...input,component:'wwpa'}),validation=validationComponent(input.validation,'wwpa'),range=winRateRange(wwpa.winRateAfter??input.winRateAfter??50,trust,validation),comparable=input.comparable||null,scenario=input.scenario||{};
- return{trust,range,headline:scenario.decision||`Draft ${input.player?.name||'best fit'} now`,whyNow:scenario.whyNow||'Best combination of weekly lineup value, roster fit and tier pressure.',waitCost:numeric(scenario.expectedWaitLoss,comparable?.valueDrop||0),comparable,proof:trust.calibrated?`Calibrated on ${trust.sampleSize} held-out decisions`:'Estimated probability · promotion gate pending'};
+ const policy=input.validation?.components?.draft_policy||{},policyRate=numeric(policy.win_rate??policy.historical_win_rate,null),policyN=numeric(policy.snake_sample_size??policy.sample_size,0);
+ const proof=trust.calibrated?`Calibrated on ${trust.sampleSize} held-out decisions`:policyRate!=null?`Evidence confidence · historical policy beat its baseline in ${(policyRate*100).toFixed(1)}% of ${policyN} snake replays · live correctness pending`:'Evidence confidence · live correctness pending';
+ return{trust,range,headline:scenario.decision||`Draft ${input.player?.name||'best fit'} now`,whyNow:scenario.whyNow||'Best combination of weekly lineup value, roster fit and tier pressure.',waitCost:numeric(scenario.expectedWaitLoss,comparable?.valueDrop||0),comparable,proof};
 }
 function auctionCard(input={}){
  const wwpa=input.evaluation?.draft?.wwpa||input.evaluation?.wwpa||{},trust=confidence({...input,evaluation:input.evaluation?.draft||input.evaluation,component:'auction'}),validation=validationComponent(input.validation,'auction'),range=winRateRange(wwpa.winRateAfter??50,trust,validation),current=numeric(input.evaluation?.current),max=Math.max(current,numeric(input.evaluation?.maxBid,current)),comparable=input.evaluation?.nextComparable||null;

@@ -698,7 +698,9 @@
     const sourcePenalty = SourceHealth ? SourceHealth.confidencePenalty(state.sourceHealth) : 0;
     return {
       ...model,
-      confidence: Math.max(1, numeric(model.confidence, 50) - sourcePenalty),
+      // Evidence confidence is not observed correctness. Source freshness is
+      // already scored separately in MODEL CHECK, so cap its penalty here.
+      confidence: Math.max(20, numeric(model.confidence, 50) - Math.min(15, sourcePenalty * 0.4)),
       sourcePenalty,
       eq: rosterEquity(projected),
       sv: survives,
@@ -934,6 +936,7 @@
       sourceHealth: state.sourceHealth,
       projectionCoverage: state.projectionCoverage,
       validation: state.modelValidation,
+      round: Math.floor(state.picks.length / state.teams) + 1,
       comparable,
       scenario: best.scenario,
     }) : null;
@@ -974,7 +977,7 @@
     $("delta").textContent = formatSigned(marketDelta(best));
     $("ceiling").textContent = `T${numeric(best.tier, 99)}`;
     $("breakout").textContent = `${Math.round(numeric(best.agreement, 50))}%`;
-    $("bust").textContent = `${best.confidence}%`;
+    $("bust").textContent = `${Math.round(best.confidence)} / 100`;
     $("survive").textContent = `${best.sv}%`;
     if ($("evidence")) $("evidence").textContent = `${best.evidence?.grade || "—"} · ${best.evidence?.score || 0}%`;
     $("why").textContent =
@@ -982,7 +985,8 @@
     if ($("decision-trust") && decisionCard) {
       const reasons = decisionCard.trust.reasons.length ? decisionCard.trust.reasons.slice(0, 2).join(" · ") : "fresh complete evidence";
       const audit = DecisionLedger ? DecisionLedger.sessionSnapshot(state.decisionSessionId).summary : null;
-      $("decision-trust").innerHTML = `<strong>MODEL CHECK</strong><span class="trust-chip ${decisionCard.trust.label.toLowerCase().replace(/\s+/g, "-")}">${esc(decisionCard.trust.label)} ${decisionCard.trust.score}/100</span><span>${esc(decisionCard.proof)}</span><span>${esc(reasons)}</span>${audit ? `<span>FORWARD AUDIT · ${audit.captured} captured · ${audit.resolved} resolved</span>` : ""}`;
+      const accuracy = audit?.resolved ? `${audit.accuracy.toFixed(1)}% on ${audit.resolved} resolved live decisions` : "NOT YET MEASURED · 0 resolved live decisions";
+      $("decision-trust").innerHTML = `<strong>MODEL CHECK</strong><span class="trust-chip ${decisionCard.trust.label.toLowerCase().replace(/\s+/g, "-")}">${esc(decisionCard.trust.label)} ${decisionCard.trust.score}/100 EVIDENCE</span><span>${esc(decisionCard.proof)}</span><span>ACTUAL CORRECTNESS · ${esc(accuracy)}</span><span>${esc(reasons)}</span>${audit ? `<span>FORWARD AUDIT · ${audit.captured} captured · ${audit.resolved} resolved</span>` : ""}`;
     }
     if ($("room-impact")) $("room-impact").textContent = recommendationState.strategyImpact;
     if ($("decision-now")) $("decision-now").innerHTML = `<strong>${esc(best.scenario?.decision || actionFor(best, best))}</strong><span>${esc(best.scenario?.whyNow || needReason(best))}</span>`;
@@ -1752,10 +1756,20 @@
   }
 
   async function fetchJson(url) {
-    const response = await fetch(url, { cache: "no-store" });
-    if (!response.ok)
-      throw new Error(`${response.status} ${response.statusText}`);
-    return response.json();
+    let lastError;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const resolved = new URL(url, document.baseURI);
+        if (resolved.origin === location.origin) resolved.searchParams.set("retry", `${Date.now()}-${attempt}`);
+        const response = await fetch(resolved.href, { cache: "no-store" });
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+        return await response.json();
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 120 * (attempt + 1)));
+      }
+    }
+    throw lastError;
   }
 
   function liveMarketPlayers(data) {

@@ -121,6 +121,10 @@
 
     let level = intelligence.level;
     if (intelligence.usable && level === LEVELS.FRESH && failedSupplemental.length) level = LEVELS.DEGRADED;
+    if (intelligence.usable && level === LEVELS.EXPIRED && input.marketOk === true && input.newsOk === true && intelligence.minimumProjectionCoverage >= 1) {
+      level = LEVELS.DEGRADED;
+      issues.push('Base consensus snapshot is old; current market and complete projection coverage keep the room operational');
+    }
 
     return {
       ...intelligence,
