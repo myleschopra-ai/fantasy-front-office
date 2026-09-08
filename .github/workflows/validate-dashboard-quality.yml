@@ -19,6 +19,9 @@ jobs:
       - run: node tests/dashboard-intelligence.test.js
       - run: node tests/dashboard-quality.test.js
       - run: node tests/repository-delivery.test.js
+      - run: node scripts/build_league_workspace.cjs --check
+      - run: node tests/league-decision-engine.test.js
+      - run: node tests/league-decision-data.test.js
       - run: node tests/roster-improvement-engine.test.js
       - run: node tests/roster-engine-integration.test.js
       - run: node tests/decision-confidence.test.js
@@ -38,3 +41,4 @@ jobs:
       - run: node tests/dashboard-tabs-e2e.mjs
       - run: node tests/roster-engine-browser-e2e.cjs
       - run: node tests/decision-pages-e2e.mjs
+      - run: node tests/league-decisions-e2e.cjs
