@@ -1,0 +1,313 @@
+diff --git a/auction.html b/auction.html
+index 291df30..63d6302 100644
+--- a/auction.html
++++ b/auction.html
+@@ -21,6 +21,8 @@
+     <label>My team<input id="userTeam" type="number" value="7" min="1" max="12"></label>
+     <label>Budget/team<input id="budget" type="number" value="200" min="1"></label>
+     <label>Minimum bid<input id="minbid" type="number" value="1" min="1"></label>
++    <label>Opening clock<input id="biddingSeconds" type="number" value="20" min="10" max="60"></label>
++    <label>Bid reset<input id="bidResetSeconds" type="number" value="10" min="5" max="30"></label>
+     <label>Mode<select id="auctionMode"><option value="mock">CPU Mock</option><option value="manual">Manual Companion</option></select></label>
+   </div>
+   <details id="formatDetails"><summary>Starting lineup and bench</summary><div class="format-fields"><label>QB<input id="rosterQB" type="number" value="1" min="0" max="4"></label><label>RB<input id="rosterRB" type="number" value="2" min="0" max="6"></label><label>WR<input id="rosterWR" type="number" value="2" min="0" max="8"></label><label>TE<input id="rosterTE" type="number" value="1" min="0" max="4"></label><label>FLEX<input id="rosterFLEX" type="number" value="2" min="0" max="6"></label><label>Superflex<input id="rosterSF" type="number" value="0" min="0" max="3"></label><label>K<input id="rosterK" type="number" value="1" min="0" max="2"></label><label>DST<input id="rosterDST" type="number" value="1" min="0" max="2"></label><label>Bench<input id="rosterBench" type="number" value="6" min="0" max="12"></label><label>Reception PPR<input id="scoringPpr" type="number" value="0.5" min="0" max="2" step="0.5"></label><label>TE premium<input id="tePremium" type="number" value="0" min="0" max="2" step="0.5"></label></div></details>
+@@ -35,8 +37,9 @@
+ <div class="grid" style="margin-top:14px">
+ <div class="stack">
+ <section id="lotPanel" class="panel lot-panel">
+-  <div class="toolbar"><div><span class="eyebrow">CURRENT NOMINATION</span><h2 id="lotPlayer">Waiting to start</h2><div id="lotMeta" class="muted">Start a new auction to enter the room.</div></div><div class="lot-price"><span>Current bid</span><strong id="lotBid">—</strong><small id="lotLeader"></small></div></div>
+-  <div class="lot-actions"><button id="nominateSelected" class="btn">Nominate Selected</button><button id="bidLot" class="btn good-btn">Bid</button><button id="passLot" class="btn danger">Pass</button></div>
++  <div class="toolbar"><div><span class="eyebrow">CURRENT NOMINATION</span><h2 id="lotPlayer">Waiting to start</h2><div id="lotMeta" class="muted">Start a new auction to enter the room.</div></div><div class="lot-live"><div class="auction-clock"><span>Time remaining</span><strong id="lotClock">—</strong><small>late bids reset the clock</small></div><div class="lot-price"><span>Current bid</span><strong id="lotBid">—</strong><small id="lotLeader"></small></div></div></div>
++  <div id="bidHistory" class="bid-history muted">Nominate a player to open bidding.</div>
++  <div class="lot-actions"><button id="nominateSelected" class="btn">Nominate Selected</button><label class="custom-bid">Your bid<input id="customBid" type="number" min="1" value="2"></label><button id="bidLot" class="btn good-btn">Bid +$1</button><button id="passLot" class="btn danger">Pass This Player</button></div>
+ </section>
+ <section class="panel">
+   <div class="toolbar"><div><strong>Available players</strong><div id="source" class="muted">Loading calibrated draft intelligence…</div></div><div><span class="meta">Room inflation</span> <span id="infl" class="score">1.00×</span></div></div>
+diff --git a/css/auction-room-v2.css b/css/auction-room-v2.css
+index e5e24ff..cba05b2 100644
+--- a/css/auction-room-v2.css
++++ b/css/auction-room-v2.css
+@@ -4,13 +4,13 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
+ header{padding-top:max(12px,env(safe-area-inset-top))!important;background:rgba(9,13,24,.97)!important}
+ .header-actions{display:flex;gap:6px}.hidden-compat{display:none}.setup-panel{position:relative}.setup-actions{margin-top:10px}.setup-actions>div{display:flex;gap:7px;flex-wrap:wrap}.grid>*,.stack{min-width:0}.stack{grid-template-columns:minmax(0,1fr)}
+ .format-fields{display:grid;grid-template-columns:repeat(11,minmax(58px,1fr));gap:7px;margin-top:9px}.format-fields input{min-width:0}.setup-panel details{margin-top:8px}.setup-panel summary{font-size:11px;color:var(--m);cursor:pointer}
+-.eyebrow{color:var(--auction-accent);font-size:9px;font-weight:900;letter-spacing:.09em}.lot-panel{border-color:rgba(69,229,215,.35)!important;background:linear-gradient(120deg,rgba(69,229,215,.08),var(--auction-panel) 48%)!important}.lot-panel h2{margin:3px 0;font-size:22px}.lot-price{text-align:right}.lot-price span,.lot-price small{display:block;color:var(--m);font-size:9px}.lot-price strong{font-size:32px;color:var(--auction-accent)}.lot-actions{display:flex;gap:8px;margin-top:10px}.lot-actions .btn{min-height:42px;flex:1}.good-btn{background:var(--ok)!important}.lot-actions button:disabled,.setup-actions button:disabled{opacity:.38;cursor:not-allowed}
++.eyebrow{color:var(--auction-accent);font-size:9px;font-weight:900;letter-spacing:.09em}.lot-panel{border-color:rgba(69,229,215,.35)!important;background:linear-gradient(120deg,rgba(69,229,215,.08),var(--auction-panel) 48%)!important}.lot-panel h2{margin:3px 0;font-size:22px}.lot-live{display:flex;gap:22px;align-items:center}.lot-price,.auction-clock{text-align:right}.lot-price span,.lot-price small,.auction-clock span,.auction-clock small{display:block;color:var(--m);font-size:9px}.lot-price strong{font-size:32px;color:var(--auction-accent)}.auction-clock strong{font-size:32px;color:var(--auction-gold)}.auction-clock.urgent strong{color:var(--r)}.bid-history{display:flex;gap:6px;overflow:auto;margin-top:10px;padding:7px;background:rgba(2,6,23,.45);border-radius:7px;min-height:32px}.bid-history span{white-space:nowrap;padding:3px 6px;background:var(--s2);border-radius:5px}.lot-actions{display:grid;grid-template-columns:minmax(130px,1fr) 110px minmax(120px,1fr) minmax(130px,1fr);gap:8px;margin-top:10px;align-items:end}.lot-actions .btn{min-height:44px}.custom-bid{font-size:9px}.custom-bid input{min-height:44px}.good-btn{background:var(--ok)!important}.lot-actions button:disabled,.setup-actions button:disabled{opacity:.38;cursor:not-allowed}
+ .auction-columns{display:grid;grid-template-columns:minmax(220px,1fr) 78px 88px 70px 104px;padding:6px 10px;color:#687891;font-size:8px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--auction-line)}
+ .auction-player{display:grid!important;grid-template-columns:minmax(220px,1fr) 78px 88px 70px 104px!important;align-items:center!important;cursor:pointer!important;min-height:58px}.auction-player.selected-row{outline:1px solid var(--auction-accent)}.auction-player .player-name{font-size:13px;font-weight:850}.auction-player .player-meta{font-size:9px;color:var(--m);margin-top:3px}.auction-player .cell{font-size:11px;font-weight:800}.auction-player .action{font-size:9px;color:var(--auction-gold);text-align:right}.position-pill{display:inline-block;color:#071019;border-radius:4px;padding:2px 5px;font-size:8px;font-weight:950;margin-right:6px}.position-pill.qb{background:#f58aa0}.position-pill.rb{background:#52d0bd}.position-pill.wr{background:#59b8ef}.position-pill.te{background:#efc85b}.position-pill.k{background:#aa8bea}.position-pill.dst{background:#99a7bb}
+ .valuation-grid{grid-template-columns:repeat(3,1fr)!important}.valuation-grid .metric strong{display:block;margin-top:4px;font-size:16px}.team-board{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;margin-top:10px}.team-card{background:var(--bg);border:1px solid var(--b);border-radius:8px;padding:9px;min-width:0}.team-card.mine{border-color:var(--auction-accent);box-shadow:inset 0 0 0 1px rgba(69,229,215,.15)}.team-card-head{display:flex;justify-content:space-between;gap:6px;font-size:11px}.team-card-meta{font-size:8px;color:var(--m);margin:4px 0 6px}.team-roster-chips{display:flex;gap:3px;flex-wrap:wrap;max-height:48px;overflow:hidden}.team-roster-chips span{font-size:7px;padding:2px 4px;border-radius:3px;background:var(--s2);white-space:nowrap}.sales-log{max-height:180px;overflow:auto}.sale-row{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:6px;padding:6px 0;border-bottom:1px solid var(--b);font-size:9px}.sale-row strong:last-child{color:var(--auction-gold)}
+ .app>.ffo-league-switcher,.app>.ffo-provider-strip{display:none!important}.ffo-league-switcher,.ffo-provider-strip{max-width:1320px!important}
+ @media(max-width:1100px){.grid{grid-template-columns:minmax(0,1fr)!important}.format-fields{grid-template-columns:repeat(6,1fr)}.auction-player,.auction-columns{grid-template-columns:minmax(190px,1fr) 70px 80px 62px 92px!important}}
+-@media(max-width:700px){header{position:sticky!important;padding:calc(8px + env(safe-area-inset-top)) 9px 8px!important;flex-wrap:nowrap!important}.header-actions .btn:nth-child(3){display:none}.header-actions .btn{min-height:40px;padding:7px 9px}main{padding:7px!important;padding-bottom:calc(12px + env(safe-area-inset-bottom))!important}.panel{padding:10px!important}.fields{grid-template-columns:repeat(3,1fr)!important}.format-fields{grid-template-columns:repeat(4,1fr)}input,select,textarea{font-size:16px!important;min-height:44px}.setup-actions{align-items:flex-start!important}.setup-actions>div{display:grid;grid-template-columns:1fr 1fr;width:100%}.setup-actions .btn{min-height:44px}.lot-panel h2{font-size:18px}.lot-price strong{font-size:26px}.lot-actions .btn{min-height:48px}.grid{gap:7px!important}.stack{gap:7px!important}.notice{display:none}.auction-columns{display:none}.auction-player{grid-template-columns:minmax(0,1fr) 58px 62px!important;min-height:66px;padding:8px!important}.auction-player .format-cell{display:none}.auction-player .action{display:none}.auction-player .cell.max-cell{font-size:0}.auction-player .cell.max-cell:before{content:'MAX ';font-size:7px;color:var(--m);display:block}.auction-player .cell.max-cell:after{content:attr(data-value);font-size:11px}.board{max-height:58vh!important}.valuation-grid{grid-template-columns:repeat(3,1fr)!important}.team-board{display:flex;overflow:auto;scroll-snap-type:x mandatory}.team-card{min-width:210px;scroll-snap-align:start}.btn{touch-action:manipulation;-webkit-tap-highlight-color:transparent}.row{margin:4px 0}.manual-controls{grid-template-columns:1fr 1fr!important}}
++@media(max-width:700px){header{position:sticky!important;padding:calc(8px + env(safe-area-inset-top)) 9px 8px!important;flex-wrap:nowrap!important}.header-actions .btn:nth-child(3){display:none}.header-actions .btn{min-height:40px;padding:7px 9px}main{padding:7px!important;padding-bottom:calc(12px + env(safe-area-inset-bottom))!important}.panel{padding:10px!important}.fields{grid-template-columns:repeat(3,1fr)!important}.format-fields{grid-template-columns:repeat(4,1fr)}input,select,textarea{font-size:16px!important;min-height:44px}.setup-actions{align-items:flex-start!important}.setup-actions>div{display:grid;grid-template-columns:1fr 1fr;width:100%}.setup-actions .btn{min-height:44px}.lot-panel h2{font-size:18px}.lot-live{gap:12px}.lot-price strong,.auction-clock strong{font-size:26px}.lot-actions{grid-template-columns:1fr 1fr}.lot-actions .btn{min-height:48px}.grid{gap:7px!important}.stack{gap:7px!important}.notice{display:none}.auction-columns{display:none}.auction-player{grid-template-columns:minmax(0,1fr) 58px 62px!important;min-height:66px;padding:8px!important}.auction-player .format-cell{display:none}.auction-player .action{display:none}.auction-player .cell.max-cell{font-size:0}.auction-player .cell.max-cell:before{content:'MAX ';font-size:7px;color:var(--m);display:block}.auction-player .cell.max-cell:after{content:attr(data-value);font-size:11px}.board{max-height:58vh!important}.valuation-grid{grid-template-columns:repeat(3,1fr)!important}.team-board{display:flex;overflow:auto;scroll-snap-type:x mandatory}.team-card{min-width:210px;scroll-snap-align:start}.btn{touch-action:manipulation;-webkit-tap-highlight-color:transparent}.row{margin:4px 0}.manual-controls{grid-template-columns:1fr 1fr!important}}
+ @media(max-width:430px){.fields{grid-template-columns:1fr 1fr!important}.format-fields{grid-template-columns:repeat(3,1fr)}.header-actions .btn:nth-child(2){display:none}.toolbar>div:has(#pos){width:100%;display:grid!important;grid-template-columns:90px 1fr}.toolbar #pos,.toolbar #search{width:100%!important}.valuation-grid{grid-template-columns:1fr 1fr!important}.lot-price strong{font-size:23px}}
+ @media(hover:none) and (pointer:coarse){input,select,textarea{font-size:16px!important;min-height:44px}.btn{min-height:44px;touch-action:manipulation;-webkit-tap-highlight-color:transparent}.lot-actions .btn{min-height:48px}}
+ @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+diff --git a/js/auction-mock-engine.js b/js/auction-mock-engine.js
+index f9320c2..c225c4e 100644
+--- a/js/auction-mock-engine.js
++++ b/js/auction-mock-engine.js
+@@ -126,7 +126,7 @@
+     { id: 'scarcity', aggression: 1.02, stars: 1.02, value: 1.02 },
+   ];
+ 
+-  function createState({ league = {}, players = [], userTeamId = '1', seed = 17, priceMap = {}, expectedPriceMap = {}, leagueModel = null, projectionCoverage = null } = {}) {
++  function createState({ league = {}, players = [], userTeamId = '1', seed = 17, priceMap = {}, expectedPriceMap = {}, leagueModel = null, projectionCoverage = null, biddingSeconds = 20, bidResetSeconds = 10 } = {}) {
+     if (!Auction) throw new Error('FFOAuction is required before FFOAuctionMock.');
+     const config = Auction.compileAuctionConfig({ league });
+     const required = { QB:0, RB:0, WR:0, TE:0, K:0, DST:0 };
+@@ -167,6 +167,10 @@
+       nomination: null,
+       status: 'READY',
+       seed: Math.abs(Math.round(seed)) || 17,
++      auctionClock: {
++        biddingSeconds: Math.max(10, Math.round(numeric(biddingSeconds, 20))),
++        bidResetSeconds: Math.max(5, Math.round(numeric(bidResetSeconds, 10))),
++      },
+     };
+   }
+ 
+@@ -286,7 +290,76 @@
+     const player = playerKey ? availablePlayers(state).find((item) => keyOf(item) === String(playerKey)) : chooseNomination(state, nominator);
+     if (!player) throw new Error(`${state.teams[nominator].name} has no legal nomination.`);
+     if (!canRoster(state.teams[nominator].roster, player, state.league)) throw new Error('Nominator cannot legally roster that player.');
+-    return { ...state, nomination: { playerKey: keyOf(player), nominatorTeamId: nominator, currentBid: state.config.minBid, leaderTeamId: nominator, passedTeamIds: [], awaitingUser: false }, status: 'BIDDING' };
++    const clock = state.auctionClock || { biddingSeconds:20, bidResetSeconds:10 };
++    return { ...state, nomination: {
++      playerKey: keyOf(player), nominatorTeamId: nominator,
++      openingBid: state.config.minBid, currentBid: state.config.minBid,
++      leaderTeamId: nominator, passedTeamIds: [], awaitingUser: false,
++      secondsRemaining: clock.biddingSeconds,
++      bidHistory: [{ teamId:nominator, amount:state.config.minBid, kind:'NOMINATION' }],
++    }, status: 'BIDDING' };
++  }
++
++  function nextBidAmount(state, amount = null) {
++    const current = numeric(state.nomination?.currentBid, state.config.minBid - 1);
++    return amount == null ? current + 1 : Math.max(current + 1, Math.round(numeric(amount, current + 1)));
++  }
++
++  function placeBid(state, { teamId, amount = null, kind = 'BID' } = {}) {
++    if (!state.nomination || !['BIDDING','AWAITING_USER'].includes(state.status)) throw new Error('No player is open for bidding.');
++    const id = String(teamId || '');
++    const player = state.players.find((item) => keyOf(item) === state.nomination.playerKey);
++    if (!player) throw new Error('Nominated player is unavailable.');
++    if (!state.teams[id]) throw new Error('Unknown bidding team.');
++    if ((state.nomination.passedTeamIds || []).includes(id)) throw new Error(`${state.teams[id].name} already passed on this player.`);
++    if (id === String(state.nomination.leaderTeamId)) throw new Error(`${state.teams[id].name} already has the high bid.`);
++    const bid = nextBidAmount(state, amount);
++    const legal = teamBidLimit(state, id, player);
++    if (bid > legal) throw new Error(`${state.teams[id].name}'s maximum legal bid is $${legal}.`);
++    const reset = numeric(state.auctionClock?.bidResetSeconds, 10);
++    const secondsRemaining = numeric(state.nomination.secondsRemaining, reset) <= reset ? reset : state.nomination.secondsRemaining;
++    return { ...state, nomination: {
++      ...state.nomination,
++      currentBid: bid,
++      leaderTeamId: id,
++      awaitingUser: false,
++      secondsRemaining,
++      bidHistory: [...(state.nomination.bidHistory || []), { teamId:id, amount:bid, kind }],
++    }, status:'BIDDING' };
++  }
++
++  function passBid(state, teamId) {
++    if (!state.nomination) throw new Error('No player is open for bidding.');
++    const id = String(teamId || '');
++    if (id === String(state.nomination.leaderTeamId)) throw new Error('The current high bidder cannot pass.');
++    const passed = new Set(state.nomination.passedTeamIds || []); passed.add(id);
++    return { ...state, nomination:{ ...state.nomination, passedTeamIds:[...passed], awaitingUser:false }, status:'BIDDING' };
++  }
++
++  function cpuBidder(state) {
++    if (!state.nomination) return null;
++    const player = state.players.find((item) => keyOf(item) === state.nomination.playerKey);
++    const current = numeric(state.nomination.currentBid, state.config.minBid);
++    const passed = new Set(state.nomination.passedTeamIds || []);
++    return bidderLimits(state, player)
++      .filter((entry) => entry.teamId !== state.userTeamId && entry.teamId !== String(state.nomination.leaderTeamId) && !passed.has(entry.teamId) && entry.maxBid > current)
++      .sort((a, b) => b.maxBid - a.maxBid || Number(a.teamId) - Number(b.teamId))[0] || null;
++  }
++
++  function advanceClock(state, { seconds = 1, allowCpuBid = true } = {}) {
++    if (!state.nomination || state.status === 'COMPLETE') return state;
++    let next = state;
++    const cpu = allowCpuBid ? cpuBidder(next) : null;
++    if (cpu) {
++      const current = numeric(next.nomination.currentBid, next.config.minBid);
++      const increment = current >= 50 ? 3 : current >= 20 ? 2 : 1;
++      next = placeBid(next, { teamId:cpu.teamId, amount:Math.min(cpu.maxBid, current + increment), kind:'CPU_BID' });
++    }
++    const remaining = Math.max(0, numeric(next.nomination.secondsRemaining, 0) - Math.max(1, numeric(seconds, 1)));
++    next = { ...next, nomination:{ ...next.nomination, secondsRemaining:remaining } };
++    if (remaining > 0) return next;
++    const player = next.players.find((item) => keyOf(item) === next.nomination.playerKey);
++    return completePurchase(next, next.nomination.leaderTeamId, player, next.nomination.currentBid);
+   }
+ 
+   function completePurchase(state, teamId, player, price) {
+@@ -389,5 +462,5 @@
+     return { valid: issues.length === 0, issues, drafted: seen.size, projectedPointsByTeam: Object.fromEntries(Object.values(state.teams || {}).map((team) => [team.id, optimalStarterPoints(team.roster, state.league)])) };
+   }
+ 
+-  return { keyOf, rosterSlots, eligible, assignRoster, canRoster, optimalStarterPoints, marginalStarterPoints, positionalNeed, createState, availablePlayers, intrinsicPrice, expectedPrice, preservesRequiredSupply, teamBidLimit, nextNominator, chooseNomination, bidderLimits, startNomination, resolveNomination, userDecision, recordPurchase, step, simulateComplete, validateState };
++  return { keyOf, rosterSlots, eligible, assignRoster, canRoster, optimalStarterPoints, marginalStarterPoints, positionalNeed, createState, availablePlayers, intrinsicPrice, expectedPrice, preservesRequiredSupply, teamBidLimit, nextNominator, chooseNomination, bidderLimits, startNomination, nextBidAmount, placeBid, passBid, cpuBidder, advanceClock, resolveNomination, userDecision, recordPurchase, step, simulateComplete, validateState };
+ });
+diff --git a/js/auction-room.js b/js/auction-room.js
+index c2e165c..718b366 100644
+--- a/js/auction-room.js
++++ b/js/auction-room.js
+@@ -9,7 +9,7 @@
+   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[char]));
+   const money = (value) => `$${Math.max(0, Math.round(Number(value) || 0))}`;
+   const numeric = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+-  const state = { intelligence:null, sourceHealth:null, projectionCoverage:null, league:null, profile:null, players:[], priceRows:new Map(), auction:null, selectedKey:null, history:null, model:null, pendingRestore:null };
++  const state = { intelligence:null, sourceHealth:null, projectionCoverage:null, league:null, profile:null, players:[], priceRows:new Map(), auction:null, selectedKey:null, history:null, model:null, pendingRestore:null, clockTimer:null };
+ 
+   function defaultLeague() {
+     return { name:'12-team Half-PPR Auction', league_type:'redraft', teams:12, scoring:{ reception:.5, te_premium:0 }, roster:{ QB:1,RB:2,WR:2,TE:1,FLEX:2,SUPER_FLEX:0,K:1,DST:1,BENCH:6 }, draft:{ format:'auction',budget:200,minimum_bid:1 } };
+@@ -100,14 +100,14 @@
+   function newAuction({ preserveSelection = false } = {}) {
+     const league = leagueFromInputs(), prepared = preparePlayers(league), userTeamId = String(Math.max(1,Math.min(league.teams,Math.round(inputNumber('userTeam',7)))));
+     state.league = league;
+-    state.auction = M.createState({ league,players:prepared.players,userTeamId,seed:29,priceMap:prepared.pricing.prices,leagueModel:state.model,projectionCoverage:state.projectionCoverage });
++    state.auction = M.createState({ league,players:prepared.players,userTeamId,seed:29,priceMap:prepared.pricing.prices,leagueModel:state.model,projectionCoverage:state.projectionCoverage,biddingSeconds:inputNumber('biddingSeconds',20),bidResetSeconds:inputNumber('bidResetSeconds',10) });
+     if (!preserveSelection) state.selectedKey = null;
+     refreshExpectedPrices(); syncCompatibilityFields(); save(); render();
+   }
+ 
+   function compactState() {
+     const auction = state.auction;
+-    return auction ? { version:auction.version,userTeamId:auction.userTeamId,teams:auction.teams,draftedKeys:auction.draftedKeys,purchases:auction.purchases,nominationIndex:auction.nominationIndex,nomination:auction.nomination,status:auction.status,seed:auction.seed } : null;
++    return auction ? { version:auction.version,userTeamId:auction.userTeamId,teams:auction.teams,draftedKeys:auction.draftedKeys,purchases:auction.purchases,nominationIndex:auction.nominationIndex,nomination:auction.nomination,status:auction.status,seed:auction.seed,auctionClock:auction.auctionClock } : null;
+   }
+ 
+   function sessionPayload() {
+@@ -128,7 +128,7 @@
+   function restoreSaved(payload) {
+     if (!payload?.mockState) return false;
+     state.league = payload.leagueSnapshot || state.league || defaultLeague(); applyLeagueInputs(state.league);
+-    const prepared = preparePlayers(state.league), base = M.createState({ league:state.league,players:prepared.players,userTeamId:payload.mockState.userTeamId,seed:payload.mockState.seed,priceMap:prepared.pricing.prices,leagueModel:state.model,projectionCoverage:state.projectionCoverage });
++    const prepared = preparePlayers(state.league), base = M.createState({ league:state.league,players:prepared.players,userTeamId:payload.mockState.userTeamId,seed:payload.mockState.seed,priceMap:prepared.pricing.prices,leagueModel:state.model,projectionCoverage:state.projectionCoverage,biddingSeconds:payload.mockState.auctionClock?.biddingSeconds||inputNumber('biddingSeconds',20),bidResetSeconds:payload.mockState.auctionClock?.bidResetSeconds||inputNumber('bidResetSeconds',10) });
+     state.auction = { ...base,...payload.mockState,league:state.league,config:base.config,players:base.players,priceMap:base.priceMap,expectedPriceMap:base.expectedPriceMap,leagueModel:state.model };
+     state.selectedKey = payload.selectedKey || null; refreshExpectedPrices(); syncCompatibilityFields(); return true;
+   }
+@@ -176,10 +176,10 @@
+   function renderLot() {
+     const auction=state.auction, nomination=auction?.nomination, nominator=auction?M.nextNominator(auction):null;
+     $('mockStatus').textContent=auction?.status||'READY';
+-    if(!nomination){$('lotPlayer').textContent=auction?.status==='COMPLETE'?'Auction complete':auction?.status==='AWAITING_NOMINATION'?'Your nomination':'Waiting for next nomination';$('lotMeta').textContent=auction?.status==='AWAITING_NOMINATION'?'Select a player, then tap Nominate Selected.':auction?.status==='COMPLETE'?'Every roster spot and purchase has been resolved.':nominator?`${auction.teams[nominator.id].name} nominates next.`:'Start a new auction.';$('lotBid').textContent='—';$('lotLeader').textContent='';}
+-    else{const player=auction.players.find((item)=>M.keyOf(item)===nomination.playerKey);$('lotPlayer').textContent=`${player.name} · ${player.position}`;$('lotMeta').textContent=`Nominated by ${auction.teams[nomination.nominatorTeamId].name} · ${nomination.awaitingUser?'Your decision':'CPU bidding'}`;$('lotBid').textContent=money(nomination.currentBid);$('lotLeader').textContent=`${auction.teams[nomination.leaderTeamId]?.name||'Room'} leads`;if(state.selectedKey!==nomination.playerKey)state.selectedKey=nomination.playerKey;}
+-    const awaitingNomination=auction?.status==='AWAITING_NOMINATION',awaitingUser=auction?.status==='AWAITING_USER';$('nominateSelected').disabled=!awaitingNomination||!selectedPlayer();$('bidLot').disabled=!awaitingUser;$('passLot').disabled=!awaitingUser;$('advanceMock').disabled=!auction||['AWAITING_USER','AWAITING_NOMINATION','COMPLETE'].includes(auction.status);
+-    if(awaitingUser&&nomination){$('bidLot').textContent=`Bid to ${money(nomination.userMaxBid)}`;}else $('bidLot').textContent='Bid';
++    if(!nomination){$('lotPlayer').textContent=auction?.status==='COMPLETE'?'Auction complete':auction?.status==='AWAITING_NOMINATION'?'Your nomination':'Waiting for next nomination';$('lotMeta').textContent=auction?.status==='AWAITING_NOMINATION'?'Select a player, then tap Nominate Selected.':auction?.status==='COMPLETE'?'Every roster spot and purchase has been resolved.':nominator?`${auction.teams[nominator.id].name} nominates next.`:'Start a new auction.';$('lotBid').textContent='—';$('lotLeader').textContent='';$('lotClock').textContent='—';$('lotClock').parentElement.classList.remove('urgent');$('bidHistory').textContent=auction?.status==='AWAITING_NOMINATION'?'Your turn: choose any available player to nominate.':'Nominate a player to open bidding.';}
++    else{const player=auction.players.find((item)=>M.keyOf(item)===nomination.playerKey),remaining=Math.max(0,Math.ceil(numeric(nomination.secondsRemaining,0)));$('lotPlayer').textContent=`${player.name} · ${player.position}`;$('lotMeta').textContent=`Nominated by ${auction.teams[nomination.nominatorTeamId].name} · open bidding for every team`;$('lotBid').textContent=money(nomination.currentBid);$('lotLeader').textContent=`${auction.teams[nomination.leaderTeamId]?.name||'Room'} leads`;$('lotClock').textContent=`0:${String(remaining).padStart(2,'0')}`;$('lotClock').parentElement.classList.toggle('urgent',remaining<=numeric(auction.auctionClock?.bidResetSeconds,10));$('bidHistory').innerHTML=(nomination.bidHistory||[]).slice(-8).map((bid)=>`<span>${esc(auction.teams[bid.teamId]?.name||bid.teamId)} ${money(bid.amount)}</span>`).join('');if(state.selectedKey!==nomination.playerKey)state.selectedKey=nomination.playerKey;$('customBid').min=String(nomination.currentBid+1);if(document.activeElement!==$('customBid'))$('customBid').value=String(nomination.currentBid+1);}
++    const awaitingNomination=auction?.status==='AWAITING_NOMINATION',bidding=Boolean(nomination)&&auction?.status==='BIDDING',userPassed=nomination?.passedTeamIds?.includes(auction?.userTeamId),userLeading=nomination?.leaderTeamId===auction?.userTeamId,userLimit=nomination?M.teamBidLimit(auction,auction.userTeamId,auction.players.find((item)=>M.keyOf(item)===nomination.playerKey)):0,canBid=bidding&&!userPassed&&!userLeading&&userLimit>nomination.currentBid;$('nominateSelected').disabled=!awaitingNomination||!selectedPlayer();$('bidLot').disabled=!canBid;$('passLot').disabled=!bidding||userPassed||userLeading;$('advanceMock').disabled=!auction||['AWAITING_NOMINATION','BIDDING','COMPLETE'].includes(auction.status);
++    $('bidLot').textContent=canBid?`Bid ${money(nomination.currentBid+1)}`:'Bid +$1';
+   }
+ 
+   function renderRosterAndTeams() {
+@@ -194,21 +194,25 @@
+   function renderTendencies(){if(!state.model?.rows){$('tendencies').textContent='Need historical purchases before local price effects can be estimated.';return}const bits=Object.entries(state.model.position).map(([position,value])=>`${position}: ${Math.round((value.median_ratio-1)*100)}% vs baseline · ${value.confidence.toLowerCase()} confidence (${value.n})`),backtest=state.model.backtest,bias=backtest?.overall?.bias||0,biasLabel=`${bias>=0?'+':'-'}${money(Math.abs(bias))}`,validation=backtest?.sufficient?`<br><br><strong>Leave-one-season-out validation</strong><br>MAE ${money(backtest.overall.mae)} · RMSE ${money(backtest.overall.rmse)} · bias ${biasLabel} across ${backtest.overall.n} held-out sales.`:'<br><br><strong>Validation pending</strong><br>At least two seasons with matched baseline prices are required for held-out error.';$('tendencies').innerHTML=`<strong>${state.model.matchedRows} matched purchases · MAE ${money(state.model.overall.mae)}</strong><br>${bits.join('<br>')}${validation}`;}
+   function render(){if(!state.auction)return;clearError();syncCompatibilityFields();$('infl').textContent=`${roomInflation().toFixed(2)}×`;const projectionLabel=state.projectionCoverage?.complete?`projected-points mode (${state.projectionCoverage.directPlayers})`:`format-value fallback (${state.projectionCoverage?.directPlayers||0}/${state.projectionCoverage?.poolPlayers||state.players.length} projections)`;$('source').textContent=`${state.sourceHealth&&SourceHealth?`${SourceHealth.label(state.sourceHealth)} · `:''}${state.profile?.id||'profile'} · ${state.players.length} players · ${projectionLabel} · ${formatLabel(state.auction.league)}`;renderLot();renderBoard();renderValuation();renderRosterAndTeams();renderTendencies();save();}
+ 
+-  function advanceToDecision(maxSales=1){if(!state.auction)return;let before=state.auction.purchases.length,guard=0;while(state.auction.status!=='COMPLETE'&&guard<500){state.auction=M.step(state.auction,{autoUser:false});guard+=1;if(['AWAITING_USER','AWAITING_NOMINATION'].includes(state.auction.status))break;if(state.auction.purchases.length-before>=maxSales)break;}refreshExpectedPrices();render();}
++  function openNextNomination(){if(!state.auction||state.auction.nomination||state.auction.status==='COMPLETE')return;const next=M.nextNominator(state.auction);if(!next){state.auction={...state.auction,status:'COMPLETE'};render();return}if(next.id===state.auction.userTeamId){state.auction={...state.auction,status:'AWAITING_NOMINATION'};}else{state.auction=M.startNomination(state.auction,{teamId:next.id});}render();}
++  function clockTick(){if(!state.auction)return;if(state.auction.nomination&&state.auction.status==='BIDDING'){const sales=state.auction.purchases.length;state.auction=M.advanceClock(state.auction,{seconds:1,allowCpuBid:true});if(state.auction.purchases.length>sales){state.selectedKey=null;refreshExpectedPrices();}render();if(!state.auction.nomination&&state.auction.status!=='COMPLETE')setTimeout(openNextNomination,700);}else if(state.auction.status==='RUNNING')openNextNomination();}
++  function startClock(){if(state.clockTimer)clearInterval(state.clockTimer);state.clockTimer=setInterval(clockTick,1000);}
++  function advanceToDecision(){if(!state.auction)return;openNextNomination();}
+   function autoSales(count){if(!state.auction)return;let target=state.auction.purchases.length+count,guard=0;while(state.auction.status!=='COMPLETE'&&state.auction.purchases.length<target&&guard<1000){state.auction=M.step(state.auction,{autoUser:true});guard+=1;}refreshExpectedPrices();render();}
+-  function decide(decision){try{state.auction=M.userDecision(state.auction,decision);refreshExpectedPrices();advanceToDecision();}catch(error){showError(error.message)}}
+-  function nominate(){const player=selectedPlayer();if(!player)return;try{state.auction=M.step(state.auction,{autoUser:false,playerKey:M.keyOf(player)});refreshExpectedPrices();render();}catch(error){showError(error.message)}}
++  function bid(){try{state.auction=M.placeBid(state.auction,{teamId:state.auction.userTeamId,amount:inputNumber('customBid',state.auction.nomination.currentBid+1),kind:'USER_BID'});render();}catch(error){showError(error.message)}}
++  function pass(){try{state.auction=M.passBid(state.auction,state.auction.userTeamId);render();}catch(error){showError(error.message)}}
++  function nominate(){const player=selectedPlayer();if(!player)return;try{state.auction=M.startNomination(state.auction,{teamId:state.auction.userTeamId,playerKey:M.keyOf(player)});refreshExpectedPrices();render();}catch(error){showError(error.message)}}
+   function recordManual(){const player=selectedPlayer();if(!player)return;try{let teamId=state.auction.userTeamId;if($('winner').value==='room'){const cpu=M.bidderLimits(state.auction,player).find((entry)=>entry.teamId!==state.auction.userTeamId);if(!cpu)throw new Error('No opponent can legally roster this player.');teamId=cpu.teamId}state.auction=M.recordPurchase(state.auction,{teamId,playerKey:M.keyOf(player),price:Math.max(state.auction.config.minBid,inputNumber('currentPrice',state.auction.config.minBid))});state.selectedKey=null;delete $('currentPrice').dataset.manual;refreshExpectedPrices();render();}catch(error){showError(error.message)}}
+ 
+   function applyPreset(value){const preset={standard:{QB:1,RB:2,WR:2,TE:1,FLEX:2,SF:0,K:1,DST:1,BENCH:6,ppr:.5,tep:0},threewr:{QB:1,RB:2,WR:3,TE:1,FLEX:2,SF:0,K:1,DST:1,BENCH:6,ppr:.5,tep:0},superflex:{QB:1,RB:2,WR:2,TE:1,FLEX:2,SF:1,K:1,DST:1,BENCH:5,ppr:.5,tep:0},tep:{QB:1,RB:2,WR:2,TE:1,FLEX:2,SF:0,K:1,DST:1,BENCH:6,ppr:1,tep:.5}}[value];if(!preset)return;['QB','RB','WR','TE','FLEX','K','DST'].forEach((pos)=>$(`roster${pos}`).value=preset[pos]);$('rosterSF').value=preset.SF;$('rosterBench').value=preset.BENCH;$('scoringPpr').value=preset.ppr;$('tePremium').value=preset.tep;}
+   function applyHistory(){try{const history=JSON.parse($('history').value);state.history=history;state.model=A.leagueModel(history,{budget:inputNumber('budget',200)});state.model.backtest=A.calibrationBacktest(history,{budget:inputNumber('budget',200)});localStorage.setItem(HISTORY_KEY,JSON.stringify(history));$('history-status').textContent=`Loaded ${state.model.rows} purchases · ${state.model.backtest.sufficient?`held-out MAE ${money(state.model.backtest.overall.mae)}`:`in-sample MAE ${money(state.model.overall.mae)}`}.`;refreshExpectedPrices();render();}catch(error){$('history-status').textContent='Invalid history JSON.'}}
+ 
+   function bind(){
+-    $('startMock').onclick=()=>{try{localStorage.removeItem(SESSION_KEY);newAuction();advanceToDecision();}catch(error){showError(error.message)}};$('advanceMock').onclick=()=>advanceToDecision();$('autoTen').onclick=()=>autoSales(10);$('finishMock').onclick=()=>{if(confirm('Finish the remaining auction with CPU control for every team?'))autoSales(10000)};$('nominateSelected').onclick=nominate;$('bidLot').onclick=()=>decide('BID');$('passLot').onclick=()=>decide('PASS');$('record').onclick=recordManual;$('resetCurrent').onclick=()=>{const player=selectedPlayer();if(!player)return;delete $('currentPrice').dataset.manual;$('currentPrice').value=Math.round(userAnalysis(player).expected);renderValuation()};$('currentPrice').oninput=()=>{$('currentPrice').dataset.manual='1'};$('pos').onchange=renderBoard;$('search').oninput=renderBoard;$('formatPreset').onchange=(event)=>applyPreset(event.target.value);$('teamCount').onchange=()=>{$('userTeam').max=$('teamCount').value;$('userTeam').value=Math.min(inputNumber('userTeam',1),inputNumber('teamCount',12))};$('apply').onclick=applyHistory;$('clear').onclick=()=>{localStorage.removeItem(HISTORY_KEY);state.history=state.model=null;$('history').value='';$('history-status').textContent='No league history loaded.';refreshExpectedPrices();render()};$('retryData').onclick=boot;$('resetSession').onclick=()=>{localStorage.removeItem(SESSION_KEY);newAuction();render()};$('exportSession').onclick=()=>{const blob=new Blob([JSON.stringify(sessionPayload(),null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=url;anchor.download='fantasy-front-office-auction-session.json';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
++    $('startMock').onclick=()=>{try{localStorage.removeItem(SESSION_KEY);newAuction();openNextNomination();startClock();}catch(error){showError(error.message)}};$('advanceMock').onclick=()=>advanceToDecision();$('autoTen').onclick=()=>autoSales(10);$('finishMock').onclick=()=>{if(confirm('Finish the remaining auction with CPU control for every team?'))autoSales(10000)};$('nominateSelected').onclick=nominate;$('bidLot').onclick=bid;$('passLot').onclick=pass;$('record').onclick=recordManual;$('resetCurrent').onclick=()=>{const player=selectedPlayer();if(!player)return;delete $('currentPrice').dataset.manual;$('currentPrice').value=Math.round(userAnalysis(player).expected);renderValuation()};$('currentPrice').oninput=()=>{$('currentPrice').dataset.manual='1'};$('pos').onchange=renderBoard;$('search').oninput=renderBoard;$('formatPreset').onchange=(event)=>applyPreset(event.target.value);$('teamCount').onchange=()=>{$('userTeam').max=$('teamCount').value;$('userTeam').value=Math.min(inputNumber('userTeam',1),inputNumber('teamCount',12))};$('apply').onclick=applyHistory;$('clear').onclick=()=>{localStorage.removeItem(HISTORY_KEY);state.history=state.model=null;$('history').value='';$('history-status').textContent='No league history loaded.';refreshExpectedPrices();render()};$('retryData').onclick=boot;$('resetSession').onclick=()=>{localStorage.removeItem(SESSION_KEY);newAuction();render()};$('exportSession').onclick=()=>{const blob=new Blob([JSON.stringify(sessionPayload(),null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=url;anchor.download='fantasy-front-office-auction-session.json';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+     document.addEventListener('ffo:league-changed',(event)=>{if(state.auction?.purchases?.length)return;state.league=event.detail||defaultLeague();applyLeagueInputs(state.league);if(state.intelligence)newAuction({preserveSelection:true})});
+   }
+ 
+   async function boot(){try{state.intelligence=await fetch('data/draft_intelligence.json',{cache:'no-store'}).then((response)=>{if(!response.ok)throw new Error(response.status);return response.json()});state.sourceHealth=SourceHealth?SourceHealth.assessRuntime({intelligence:state.intelligence,marketOk:true,scoutingOk:true,newsOk:true}):null;try{const savedHistory=JSON.parse(localStorage.getItem(HISTORY_KEY)||'null');if(savedHistory){state.history=savedHistory;state.model=A.leagueModel(savedHistory,{budget:inputNumber('budget',200)});state.model.backtest=A.calibrationBacktest(savedHistory,{budget:inputNumber('budget',200)});$('history').value=JSON.stringify(savedHistory,null,2);$('history-status').textContent=`Loaded ${state.model.rows} historical purchases from this browser.`}}catch{}const payload=loadSaved();if(!restoreSaved(payload)){state.league=window.FFO_ACTIVE_LEAGUE||defaultLeague();applyLeagueInputs(state.league);newAuction()}render();}catch(error){showError(`Auction data could not load: ${error.message}`)}}
+ 
+-  bind();boot();
++  bind();boot();startClock();
+ }());
+diff --git a/tests/auction-mock-e2e.mjs b/tests/auction-mock-e2e.mjs
+index c8fbe2b..4004b51 100644
+--- a/tests/auction-mock-e2e.mjs
++++ b/tests/auction-mock-e2e.mjs
+@@ -47,16 +47,27 @@ try {
+ 
+     await page.locator('#board [data-k]').first().click();
+     if ((await page.locator('#intrinsic').textContent() || '').trim() === '—') throw new Error(`${profile.name}: live valuation did not render`);
++    await page.locator('#userTeam').fill('1');
++    await page.locator('#biddingSeconds').fill('10');
++    await page.locator('#bidResetSeconds').fill('5');
+     await page.locator('#startMock').click();
+-    await page.waitForFunction(() => ['AWAITING_USER','AWAITING_NOMINATION'].includes(document.querySelector('#mockStatus')?.textContent), null, { timeout: 30000 });
+-    if (await page.locator('#passLot').isEnabled()) await page.locator('#passLot').click();
+-    else {
+-      await page.locator('#board [data-k]').first().click();
+-      await page.locator('#nominateSelected').click();
+-      await page.waitForFunction(() => document.querySelector('#mockStatus')?.textContent === 'AWAITING_USER');
+-      await page.locator('#passLot').click();
+-    }
+-    await page.waitForFunction(() => JSON.parse(localStorage.getItem('ffo_auction_session_v4') || 'null')?.payload?.sold?.length >= 1, null, { timeout: 30000 });
++    await page.waitForFunction(() => document.querySelector('#mockStatus')?.textContent === 'AWAITING_NOMINATION', null, { timeout: 30000 });
++    await page.locator('#search').fill('Bijan');
++    const bijan = page.locator('#board [data-k]').first();
++    if (!(await bijan.count())) throw new Error(`${profile.name}: Bijan Robinson was not available for the first nomination`);
++    await bijan.click();
++    await page.locator('#nominateSelected').click();
++    await page.waitForFunction(() => document.querySelector('#mockStatus')?.textContent === 'BIDDING');
++    if (!/^\$1$/.test((await page.locator('#lotBid').textContent() || '').trim())) throw new Error(`${profile.name}: nomination did not open at $1`);
++    await page.waitForFunction(() => Number((document.querySelector('#lotBid')?.textContent || '').replace(/\D/g,'')) >= 2, null, { timeout:15000 });
++    if (await page.locator('#bidLot').isEnabled()) await page.locator('#bidLot').click();
++    await page.waitForFunction(() => JSON.parse(localStorage.getItem('ffo_auction_session_v4') || 'null')?.payload?.sold?.length >= 1, null, { timeout: 60000 });
++    const firstSale = await page.evaluate(() => {
++      const payload = JSON.parse(localStorage.getItem('ffo_auction_session_v4')).payload;
++      const sale = payload.mockState.purchases[0], team = payload.mockState.teams[sale.teamId];
++      return { name:sale.player.name, price:sale.price, rostered:team.roster.some(player => player.key === sale.player.key), remaining:team.remainingBudget };
++    });
++    if (!/Bijan/i.test(firstSale.name) || firstSale.price < 1 || !firstSale.rostered || firstSale.remaining !== 200-firstSale.price) throw new Error(`${profile.name}: first timed auction sale did not reconcile`);
+ 
+     const beforeTen = await page.evaluate(() => JSON.parse(localStorage.getItem('ffo_auction_session_v4')).payload.sold.length);
+     await page.locator('#autoTen').click();
+diff --git a/tests/auction-mock-engine.test.js b/tests/auction-mock-engine.test.js
+index da7c799..95ed040 100644
+--- a/tests/auction-mock-engine.test.js
++++ b/tests/auction-mock-engine.test.js
+@@ -61,4 +61,28 @@ interactive = M.userDecision(interactive, 'PASS');
+ assert.equal(interactive.purchases.length, 1);
+ assert.equal(interactive.nomination, null);
+ 
++let live = stateFor(l);
++const livePlayer = M.chooseNomination(live, '1');
++live = M.startNomination(live, { teamId:'1', playerKey:livePlayer.key });
++assert.equal(live.status, 'BIDDING');
++assert.equal(live.nomination.currentBid, 1, 'nomination opens at the league minimum');
++assert.equal(live.nomination.secondsRemaining, 20, 'opening clock uses the configured live-auction window');
++const firstOpponent = M.bidderLimits(live, livePlayer).find(entry => entry.teamId !== '1' && entry.maxBid >= 2);
++assert.ok(firstOpponent, 'at least one opponent must be able to bid');
++live = M.placeBid(live, { teamId:firstOpponent.teamId, amount:2 });
++assert.equal(live.nomination.currentBid, 2);
++assert.equal(live.nomination.leaderTeamId, firstOpponent.teamId);
++live = { ...live, nomination:{ ...live.nomination, secondsRemaining:4 } };
++const counterBidder = M.bidderLimits(live, livePlayer).find(entry => entry.teamId !== firstOpponent.teamId && entry.maxBid >= 3);
++assert.ok(counterBidder, 'a second solvent team must be able to counter');
++live = M.placeBid(live, { teamId:counterBidder.teamId, amount:3 });
++assert.equal(live.nomination.secondsRemaining, 10, 'a late bid resets the wrap-up clock to ten seconds');
++const winningTeam = live.nomination.leaderTeamId;
++const budgetBefore = live.teams[winningTeam].remainingBudget;
++live = M.advanceClock(live, { seconds:10, allowCpuBid:false });
++assert.equal(live.purchases.length, 1, 'the high bidder wins when the clock reaches zero');
++assert.equal(live.teams[winningTeam].roster.length, 1, 'the sold player is rostered to the winner');
++assert.equal(live.teams[winningTeam].remainingBudget, budgetBefore - 3, 'the winning price is deducted atomically');
++assert.equal(live.nomination, null);
++
+ console.log('auction mock engine tests passed');

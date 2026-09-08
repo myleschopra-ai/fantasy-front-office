@@ -6,5 +6,10 @@ __pycache__/
 data/vegas/*.json
 !data/vegas/consensus.json
 !data/vegas/weekly-projections.json
+!data/vegas/game-lines.json
 data/raw/
 artifacts/
+node_modules/
+.codex-live-artifact/
+.codex-validation-output/
+pytest-cache-files-*/

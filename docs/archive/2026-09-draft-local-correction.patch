@@ -1,0 +1,27 @@
+diff --git a/js/draft-intelligence.js b/js/draft-intelligence.js
+index 79dd032..1dae7f6 100644
+--- a/js/draft-intelligence.js
++++ b/js/draft-intelligence.js
+@@ -2106,7 +2106,10 @@
+         ),
+       ),
+     );
+-    let value = consensus * 0.60 + grade * 0.20 + vbd * 0.20;
++    // Keep the broad multi-source board as the strongest signal, especially at
++    // the early-round boundary where small model deltas should not manufacture
++    // false certainty. League-specific grade and VBD still retain 35% influence.
++    let value = consensus * 0.65 + grade * 0.175 + vbd * 0.175;
+     // TE premium is a league rule, not an intrinsic player-grade change.
+     // Apply it only in League Value and scale it toward the scarce top of
+     // the position so replacement-level tight ends do not receive the same
+@@ -2289,7 +2292,9 @@
+       pickUtility,
+       playerGrade: Math.round(grade),
+       marketValue: Math.round(market_value),
+-      leagueValue: Math.round(league_value),
++      // Preserve one decimal so real league-format differences are not erased
++      // when two strong early players otherwise round to the same integer.
++      leagueValue: Math.round(league_value * 10) / 10,
+       confidence: Math.round(confidence),
+       lateRound,
+       evidence,

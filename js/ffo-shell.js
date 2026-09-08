@@ -23,7 +23,7 @@
   const routes = [
     { key: 'home', label: 'Home', href: 'index.html', icon: 'home', matches: ['index.html', 'hub.html'] },
     { key: 'team', label: 'My Team', href: 'index.html#roster', icon: 'team', matches: [] },
-    { key: 'matchup', label: 'Matchup', href: 'index.html#lineup', icon: 'matchup', matches: [] },
+    { key: 'matchup', label: 'Matchup', href: 'matchup.html', icon: 'matchup', matches: ['matchup.html'] },
     { key: 'players', label: 'Players', href: 'vegas-intelligence.html', icon: 'players', matches: ['vegas-intelligence.html'] },
     { key: 'trade', label: 'Trade', href: 'trade-intelligence.html', icon: 'trade', matches: ['trade-intelligence.html', 'trade.html'] },
     { key: 'draft', label: 'Draft', href: 'draft.html', icon: 'draft', matches: ['draft.html', 'draft-room-v5.html', 'mock-draft-v4.html', 'draft-review.html', 'draft-slot-blueprints.html', 'auction.html', 'auction-review.html'] },
