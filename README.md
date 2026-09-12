@@ -12,6 +12,7 @@ Season estimates can be built without paid API keys using the auditable [Open Pr
 
 ## Pages
 
+- [League Decisions](https://myleschopra-ai.github.io/fantasy-front-office/league-decisions.html) — automatically discovered Partender leagues; power, trades, waivers, lineup, playoffs and draft capital. This complete HTML has all CSS and JavaScript inline and needs no runtime build step. [Audit, methodology and limits](docs/FORMAT_AWARE_WORKSPACE.md) · [Module changelog and live examples](docs/LEAGUE_DECISIONS_CHANGELOG.md).
 - [Dashboard](https://myleschopra-ai.github.io/fantasy-front-office/) — team, lineup, waivers, targets, and trade analyzer
 - [Trade Intelligence](https://myleschopra-ai.github.io/fantasy-front-office/trade-intelligence.html) — market and weekly forecast board with a package sandbox
 - [Matchup](https://myleschopra-ai.github.io/fantasy-front-office/matchup.html) — opponent and suggested lineups

@@ -1,0 +1,1161 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>League Decisions · Fantasy Front Office</title>
+<meta name="description" content="Format-aware Sleeper league decisions with sourced values, real ownership and explicit evidence limits.">
+<base href="https://myleschopra-ai.github.io/fantasy-front-office/">
+<style data-ffo2="true">/* css/ffo-2.css */
+:root {
+  --ffo-canvas: #070a12;
+  --ffo-surface: #0e1421;
+  --ffo-surface-2: #151d2d;
+  --ffo-surface-3: #1b2639;
+  --ffo-border: #263247;
+  --ffo-border-strong: #3a4962;
+  --ffo-text: #f5f7fb;
+  --ffo-muted: #9aa7ba;
+  --ffo-dim: #69778d;
+  --ffo-accent: #7c5cfc;
+  --ffo-accent-hover: #9279ff;
+  --ffo-positive: #35c78a;
+  --ffo-warning: #f4b740;
+  --ffo-negative: #f06a6a;
+  --ffo-info: #4ca6ff;
+  --ffo-qb: #ef4444;
+  --ffo-rb: #22c55e;
+  --ffo-wr: #3b82f6;
+  --ffo-te: #f59e0b;
+  --ffo-k: #a855f7;
+  --ffo-dst: #64748b;
+  --ffo-radius-sm: 8px;
+  --ffo-radius: 12px;
+  --ffo-radius-lg: 16px;
+  --ffo-sidebar: 244px;
+  --ffo-topbar: 64px;
+  --ffo-bottom-nav: 66px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--ffo-canvas); scroll-behavior: smooth; }
+body.ffo2-page {
+  min-height: 100dvh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 80% -10%, rgba(124,92,252,.12), transparent 32rem),
+    var(--ffo-canvas) !important;
+  color: var(--ffo-text) !important;
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body.ffo2-page:not(.ffo2-immersive) { padding-left: var(--ffo-sidebar); padding-top: var(--ffo-topbar); }
+body.ffo2-immersive { --accent: var(--ffo-accent); --gold: var(--ffo-warning); --green: var(--ffo-positive); --red: var(--ffo-negative); }
+body.ffo2-page :focus-visible { outline: 3px solid rgba(124,92,252,.9) !important; outline-offset: 2px; }
+body.ffo2-page button,
+body.ffo2-page a,
+body.ffo2-page input,
+body.ffo2-page select,
+body.ffo2-page textarea { touch-action: manipulation; }
+
+.ffo2-skip {
+  position: fixed; z-index: 10000; left: 12px; top: -60px;
+  border-radius: var(--ffo-radius-sm); padding: 11px 14px;
+  background: var(--ffo-accent); color: #fff; font-weight: 800; text-decoration: none;
+}
+.ffo2-skip:focus { top: 12px; }
+
+.ffo2-sidebar {
+  position: fixed; z-index: 900; inset: 0 auto 0 0; width: var(--ffo-sidebar);
+  display: flex; flex-direction: column; padding: 16px 12px;
+  background: rgba(10,14,24,.96); border-right: 1px solid var(--ffo-border);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+}
+.ffo2-brand { display: flex; align-items: center; gap: 11px; min-height: 46px; padding: 5px 8px 17px; text-decoration: none; color: var(--ffo-text); }
+.ffo2-mark {
+  width: 38px; height: 38px; flex: 0 0 38px; display: grid; place-items: center;
+  border-radius: 12px; background: linear-gradient(135deg, #9d8aff, var(--ffo-accent));
+  box-shadow: 0 8px 28px rgba(124,92,252,.28); color: white; font-size: 12px; font-weight: 950; letter-spacing: -.02em;
+}
+.ffo2-brand-copy strong { display: block; font-size: 13px; letter-spacing: -.01em; }
+.ffo2-brand-copy span { display: block; margin-top: 2px; color: var(--ffo-muted); font-size: 10px; }
+.ffo2-nav-label { padding: 14px 10px 6px; color: var(--ffo-dim); font-size: 9px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+.ffo2-nav { display: grid; gap: 3px; }
+.ffo2-nav a {
+  min-height: 42px; display: flex; align-items: center; gap: 11px; position: relative;
+  padding: 9px 11px; border-radius: 10px; color: var(--ffo-muted); text-decoration: none;
+  font-size: 13px; font-weight: 680; transition: background .16s ease, color .16s ease, transform .16s ease;
+}
+.ffo2-nav a:hover { background: var(--ffo-surface-2); color: var(--ffo-text); transform: translateX(1px); }
+.ffo2-nav a[aria-current="page"] { background: rgba(124,92,252,.16); color: #ddd6ff; }
+.ffo2-nav a[aria-current="page"]::before { content: ""; position: absolute; left: 0; width: 3px; height: 22px; border-radius: 3px; background: var(--ffo-accent); }
+.ffo2-nav svg { width: 19px; height: 19px; flex: 0 0 19px; stroke-width: 1.8; }
+.ffo2-sidebar-foot { margin-top: auto; padding: 10px 8px 2px; border-top: 1px solid var(--ffo-border); }
+.ffo2-sidebar-foot a { display: flex; align-items: center; gap: 8px; padding: 9px 4px; color: var(--ffo-muted); font-size: 11px; text-decoration: none; }
+.ffo2-sidebar-foot svg { width: 18px; height: 18px; flex: 0 0 18px; }
+.ffo2-readonly { display: flex; align-items: center; gap: 7px; color: var(--ffo-dim); font-size: 9px; }
+.ffo2-readonly::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ffo-positive); box-shadow: 0 0 0 4px rgba(53,199,138,.08); }
+
+.ffo2-topbar {
+  position: fixed; z-index: 850; top: 0; right: 0; left: var(--ffo-sidebar); height: var(--ffo-topbar);
+  display: flex; align-items: center; gap: 12px; padding: 9px 22px;
+  background: rgba(7,10,18,.88); border-bottom: 1px solid var(--ffo-border);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+}
+.ffo2-context { min-width: 0; display: flex; align-items: center; gap: 10px; }
+.ffo2-league-logo { width: 34px; height: 34px; flex: 0 0 34px; display: grid; place-items: center; border-radius: 10px; background: var(--ffo-surface-2); color: #c7bdff; font-size: 11px; font-weight: 900; }
+.ffo2-context-copy { min-width: 0; }
+.ffo2-context-copy strong { display: block; max-width: min(42vw,420px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.ffo2-context-copy span { display: block; margin-top: 2px; color: var(--ffo-muted); font-size: 10px; }
+.ffo2-context-switch { border: 0; background: transparent; color: var(--ffo-muted); padding: 8px; border-radius: 8px; cursor: pointer; }
+.ffo2-context-switch:hover { background: var(--ffo-surface-2); color: var(--ffo-text); }
+.ffo2-top-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.ffo2-search {
+  width: 210px; height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 11px;
+  border: 1px solid var(--ffo-border); border-radius: 10px; background: var(--ffo-surface); color: var(--ffo-muted);
+  font-size: 11px; cursor: pointer;
+}
+.ffo2-search svg { width: 17px; height: 17px; flex: 0 0 17px; }
+.ffo2-search kbd { margin-left: auto; border: 1px solid var(--ffo-border); border-radius: 5px; padding: 2px 5px; background: var(--ffo-surface-2); color: var(--ffo-dim); font: 9px inherit; }
+.ffo2-health { min-height: 34px; display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid var(--ffo-border); border-radius: 10px; background: var(--ffo-surface); color: var(--ffo-muted); font-size: 10px; text-decoration: none; }
+.ffo2-health-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ffo-positive); box-shadow: 0 0 0 4px rgba(53,199,138,.09); }
+
+.ffo2-mobilebar, .ffo2-bottom-nav, .ffo2-menu-sheet { display: none; }
+body.ffo2-immersive .ffo2-mobilebar,
+body.ffo2-immersive .ffo2-bottom-nav { display: none !important; }
+
+body.ffo2-page:not(.ffo2-immersive) > header:not(.ffo2-mobilebar):not(.ffo2-topbar),
+body.ffo2-page:not(.ffo2-immersive) > nav:not(.ffo2-bottom-nav) { position: relative !important; top: auto !important; z-index: 4 !important; }
+body.ffo2-page:not(.ffo2-immersive) > header:not(.ffo2-mobilebar):not(.ffo2-topbar) {
+  max-width: 1440px; margin: 0 auto; padding: 25px 28px 10px !important; border: 0 !important; background: transparent !important; backdrop-filter: none !important;
+}
+body.ffo2-page:not(.ffo2-immersive) > main { max-width: 1440px !important; margin: 0 auto !important; padding: 18px 28px 48px !important; }
+body.ffo2-page:not(.ffo2-immersive) > nav:not(.ffo2-bottom-nav) { max-width: 1384px; margin: 0 auto; padding: 0 28px !important; border-bottom-color: var(--ffo-border) !important; }
+body.ffo2-page:not(.ffo2-immersive) > .ffo-league-switcher,
+body.ffo2-page:not(.ffo2-immersive) > .ffo-provider-strip { max-width: 1080px !important; }
+body.ffo2-page:not(.ffo2-immersive) > .ffo-league-switcher { margin-top: 16px !important; }
+body.ffo2-page:not(.ffo2-immersive) > .ffo-provider-strip { margin-top: 8px !important; }
+
+body.ffo2-page .panel,
+body.ffo2-page .card,
+body.ffo2-page .trade-side,
+body.ffo2-page .scale-box,
+body.ffo2-page .draft-embed-shell,
+body.ffo2-page .connect-box,
+body.ffo2-page .metric {
+  border-color: var(--ffo-border) !important;
+  background-color: var(--ffo-surface) !important;
+  border-radius: var(--ffo-radius) !important;
+}
+body.ffo2-page .panel, body.ffo2-page .card { box-shadow: 0 1px 0 rgba(255,255,255,.025); }
+body.ffo2-page h1, body.ffo2-page h2, body.ffo2-page h3, body.ffo2-page .display { letter-spacing: -.02em !important; text-transform: none !important; }
+body.ffo2-page h1, body.ffo2-page h2 { text-wrap: balance; }
+
+body.ffo2-landing-mode > .legacy-header,
+body.ffo2-landing-mode > .legacy-shortcut,
+body.ffo2-landing-mode > .ffo-league-switcher,
+body.ffo2-landing-mode > .ffo-provider-strip,
+body.ffo2-landing-mode > #tabs,
+body.ffo2-landing-mode #view-command { display: none !important; }
+body.ffo2-landing-mode > main { max-width: 1340px !important; padding-top: 44px !important; }
+.ffo2-landing { display: grid; grid-template-columns: minmax(0,1.15fr) minmax(360px,.72fr); align-items: center; gap: clamp(36px,7vw,100px); min-height: 520px; }
+.ffo2-landing-copy { padding: 28px 0; }
+.ffo2-eyebrow { display: inline-flex; align-items: center; gap: 9px; color: #c8bfff; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.ffo2-eyebrow i { width: 8px; height: 8px; border-radius: 50%; background: var(--ffo-positive); box-shadow: 0 0 0 5px rgba(53,199,138,.1); }
+.ffo2-landing-copy h1 { max-width: 760px; margin: 20px 0 18px; font-size: clamp(42px,5vw,72px); line-height: .98; letter-spacing: -.055em !important; }
+.ffo2-landing-copy > p { max-width: 650px; margin: 0; color: var(--ffo-muted); font-size: clamp(16px,1.5vw,20px); line-height: 1.55; }
+.ffo2-proof-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-top: 32px; }
+.ffo2-proof-grid div { min-height: 112px; padding: 15px; border: 1px solid var(--ffo-border); border-radius: var(--ffo-radius); background: rgba(14,20,33,.62); }
+.ffo2-proof-grid strong, .ffo2-proof-grid span { display: block; }
+.ffo2-proof-grid strong { margin-bottom: 7px; font-size: 12px; color: var(--ffo-text); }
+.ffo2-proof-grid span { color: var(--ffo-muted); font-size: 11px; line-height: 1.5; }
+.ffo2-landing-links { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 25px; }
+.ffo2-landing-links a { color: var(--ffo-text); text-decoration: none; font-size: 12px; font-weight: 800; }
+.ffo2-landing-links a span { margin-left: 5px; color: #b8abff; }
+.ffo2-connect-card { max-width: none !important; margin: 0 !important; padding: 24px !important; border: 1px solid var(--ffo-border-strong) !important; background: linear-gradient(150deg,rgba(28,38,59,.92),rgba(14,20,33,.98)) !important; box-shadow: 0 30px 90px rgba(0,0,0,.28) !important; }
+.ffo2-connect-icon { width: 44px; height: 44px; display: grid; place-items: center; margin-bottom: 19px; border-radius: 13px; background: linear-gradient(135deg,#5c48d7,#8b72ff); color: white; font-size: 18px; font-weight: 950; }
+.ffo2-card-kicker { color: #b9acff; font-size: 9px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+.ffo2-connect-card h2 { margin: 7px 0 8px !important; font-size: 25px !important; }
+.ffo2-connect-card p.desc { margin-bottom: 20px !important; line-height: 1.55; }
+.ffo2-field-label { display: block; margin-bottom: 7px; color: var(--ffo-muted); font-size: 10px; font-weight: 750; }
+.ffo2-connect-card .input-row { display: grid; grid-template-columns: minmax(0,1fr) auto; }
+.ffo2-connect-card .input-row input { min-width: 0; }
+.ffo2-security-note { display: flex; align-items: center; gap: 7px; margin-top: 12px; color: var(--ffo-muted); font-size: 10px; }
+.ffo2-security-note span { color: var(--ffo-positive); }
+.ffo2-feature-preview { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-top: 30px; padding-top: 24px; border-top: 1px solid var(--ffo-border); }
+.ffo2-feature-preview article { display: flex; gap: 13px; padding: 16px; }
+.ffo2-feature-icon { width: 34px; height: 34px; flex: 0 0 34px; display: grid; place-items: center; border-radius: 10px; background: rgba(124,92,252,.13); color: #b9acff; font-size: 9px; font-weight: 900; }
+.ffo2-feature-preview strong { display: block; font-size: 13px; }
+.ffo2-feature-preview p { margin: 6px 0 0; color: var(--ffo-muted); font-size: 11px; line-height: 1.5; }
+
+.ffo2-roster-summary { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin: 16px 0; }
+.ffo2-roster-summary div { padding: 13px; border: 1px solid var(--ffo-border); border-radius: 11px; background: var(--ffo-surface); }
+.ffo2-roster-summary span, .ffo2-roster-summary strong { display: block; }
+.ffo2-roster-summary span { color: var(--ffo-dim); font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.ffo2-roster-summary strong { margin-top: 5px; font-size: 17px; font-variant-numeric: tabular-nums; }
+.ffo2-lineup-board { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.ffo2-lineup-card { position: relative; min-height: 76px; display: grid; grid-template-columns: 50px minmax(0,1fr) auto; align-items: center; gap: 12px; padding: 12px; overflow: hidden; border: 1px solid var(--ffo-border); border-radius: 12px; background: var(--ffo-surface); }
+.ffo2-lineup-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--slot-color,var(--ffo-border-strong)); }
+.ffo2-lineup-card.empty { border-style: dashed; opacity: .74; }
+.ffo2-slot { display: grid; place-items: center; min-height: 42px; border-radius: 9px; background: color-mix(in srgb,var(--slot-color,var(--ffo-border-strong)) 15%,transparent); color: var(--slot-color,var(--ffo-muted)); font-size: 10px; font-weight: 950; }
+.ffo2-player-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 820; }
+.ffo2-player-meta { margin-top: 4px; color: var(--ffo-muted); font-size: 10px; }
+.ffo2-player-value { text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; }
+.ffo2-player-value strong { display: block; font-size: 13px; color: var(--ffo-positive); }
+.ffo2-bench-section { margin-top: 24px; }
+.ffo2-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.ffo2-section-head strong { font-size: 12px; }
+.ffo2-section-head span { color: var(--ffo-muted); font-size: 10px; }
+.ffo2-bench-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+.ffo2-bench-card { min-width: 0; padding: 11px; border: 1px solid var(--ffo-border); border-radius: 10px; background: rgba(14,20,33,.72); }
+.ffo2-bench-card strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.ffo2-bench-card span { display: block; margin-top: 4px; color: var(--ffo-muted); font-size: 9px; }
+.ffo2-depth-table { margin-top: 24px; }
+body.ffo2-page button.btn,
+body.ffo2-page .btn.primary,
+body.ffo2-page button.primary {
+  min-height: 38px; border-radius: var(--ffo-radius-sm) !important; background: var(--ffo-accent) !important; border-color: var(--ffo-accent) !important; color: white !important;
+}
+body.ffo2-page button.btn:hover,
+body.ffo2-page .btn.primary:hover,
+body.ffo2-page button.primary:hover { background: var(--ffo-accent-hover) !important; border-color: var(--ffo-accent-hover) !important; }
+body.ffo2-page button.btn.secondary,
+body.ffo2-page .btn.secondary,
+body.ffo2-page button.secondary { background: var(--ffo-surface-2) !important; border: 1px solid var(--ffo-border) !important; color: var(--ffo-text) !important; }
+body.ffo2-page input,
+body.ffo2-page select,
+body.ffo2-page textarea {
+  min-height: 38px; border: 1px solid var(--ffo-border) !important; border-radius: var(--ffo-radius-sm) !important;
+  background: var(--ffo-canvas) !important; color: var(--ffo-text) !important;
+}
+body.ffo2-page input::placeholder, body.ffo2-page textarea::placeholder { color: var(--ffo-dim); }
+body.ffo2-page table { font-variant-numeric: tabular-nums; }
+body.ffo2-page th { color: var(--ffo-dim) !important; border-bottom-color: var(--ffo-border) !important; }
+body.ffo2-page td { border-bottom-color: rgba(38,50,71,.55) !important; }
+body.ffo2-page .muted, body.ffo2-page .meta { color: var(--ffo-muted) !important; }
+body.ffo2-page .good { color: var(--ffo-positive) !important; }
+body.ffo2-page .bad, body.ffo2-page .risk { color: var(--ffo-negative) !important; }
+body.ffo2-page .gold { color: var(--ffo-warning) !important; }
+body.ffo2-page .teal { color: #6dd8dd !important; }
+
+.ffo2-menu-sheet {
+  position: fixed; z-index: 1200; inset: 0; background: rgba(3,5,10,.66); backdrop-filter: blur(6px);
+}
+.ffo2-menu-sheet[aria-hidden="false"] { display: block; }
+.ffo2-menu-card {
+  position: absolute; inset: auto 10px calc(var(--ffo-bottom-nav) + env(safe-area-inset-bottom) + 8px);
+  max-height: min(72vh,640px); overflow: auto; padding: 14px; border: 1px solid var(--ffo-border); border-radius: 18px;
+  background: var(--ffo-surface); box-shadow: 0 24px 80px rgba(0,0,0,.5);
+}
+.ffo2-menu-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 4px 12px; }
+.ffo2-menu-head strong { font-size: 15px; }
+.ffo2-menu-close { width: 40px; height: 40px; border: 0; border-radius: 10px; background: var(--ffo-surface-2); color: var(--ffo-text); font-size: 20px; }
+.ffo2-menu-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.ffo2-menu-grid a { min-height: 58px; display: flex; align-items: center; gap: 10px; padding: 11px; border: 1px solid var(--ffo-border); border-radius: 12px; background: var(--ffo-canvas); color: var(--ffo-text); text-decoration: none; font-size: 12px; font-weight: 700; }
+.ffo2-menu-grid svg { width: 19px; height: 19px; color: #b7aaff; }
+
+.ffo2-search-dialog { width: min(620px,calc(100vw - 24px)); border: 1px solid var(--ffo-border); border-radius: 16px; padding: 0; background: var(--ffo-surface); color: var(--ffo-text); box-shadow: 0 30px 90px rgba(0,0,0,.6); }
+.ffo2-search-dialog::backdrop { background: rgba(3,5,10,.72); backdrop-filter: blur(6px); }
+.ffo2-search-head { display: flex; gap: 8px; padding: 12px; border-bottom: 1px solid var(--ffo-border); }
+.ffo2-search-head input { width: 100%; font-size: 16px; }
+.ffo2-search-close { width: 42px; border: 0; border-radius: 9px; background: var(--ffo-surface-2); color: var(--ffo-text); }
+.ffo2-search-results { display: grid; gap: 4px; padding: 10px; }
+.ffo2-search-results a { display: flex; justify-content: space-between; gap: 12px; padding: 11px; border-radius: 9px; color: var(--ffo-text); text-decoration: none; font-size: 13px; }
+.ffo2-search-results a:hover, .ffo2-search-results a:focus { background: var(--ffo-surface-2); }
+.ffo2-search-results small { color: var(--ffo-muted); }
+
+@media (max-width: 1199px) and (min-width: 768px) {
+  :root { --ffo-sidebar: 76px; }
+  .ffo2-brand { justify-content: center; padding-inline: 0; }
+  .ffo2-brand-copy, .ffo2-nav-label, .ffo2-nav a span, .ffo2-sidebar-foot span { display: none; }
+  .ffo2-nav a { justify-content: center; padding-inline: 0; }
+  .ffo2-nav a[aria-current="page"]::before { left: -1px; }
+  .ffo2-sidebar-foot a { justify-content: center; }
+  .ffo2-readonly { justify-content: center; font-size: 0; }
+  .ffo2-search { width: 42px; justify-content: center; padding: 0; }
+  .ffo2-search span, .ffo2-search kbd { display: none; }
+}
+
+@media (max-width: 767px) {
+  :root { --ffo-topbar: calc(54px + env(safe-area-inset-top)); --ffo-bottom-nav: 62px; }
+  body.ffo2-page:not(.ffo2-immersive) { padding: var(--ffo-topbar) 0 calc(var(--ffo-bottom-nav) + env(safe-area-inset-bottom)); }
+  .ffo2-sidebar, .ffo2-topbar { display: none; }
+  .ffo2-mobilebar {
+    position: fixed; z-index: 900; inset: 0 0 auto; height: var(--ffo-topbar); display: flex; align-items: center; gap: 10px;
+    padding: calc(6px + env(safe-area-inset-top)) 14px 6px; background: rgba(7,10,18,.94); border-bottom: 1px solid var(--ffo-border);
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  }
+  .ffo2-mobilebar .ffo2-mark { width: 34px; height: 34px; flex-basis: 34px; border-radius: 10px; }
+  .ffo2-mobile-title { min-width: 0; }
+  .ffo2-mobile-title strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .ffo2-mobile-title span { display: block; margin-top: 1px; color: var(--ffo-muted); font-size: 9px; }
+  .ffo2-mobile-health { margin-left: auto; width: 38px; height: 38px; display: grid; place-items: center; border: 0; border-radius: 10px; background: var(--ffo-surface); }
+  .ffo2-bottom-nav {
+    position: fixed; z-index: 950; inset: auto 0 0; height: calc(var(--ffo-bottom-nav) + env(safe-area-inset-bottom));
+    display: grid; grid-template-columns: repeat(5,1fr); padding: 5px 5px env(safe-area-inset-bottom);
+    background: rgba(10,14,24,.97); border-top: 1px solid var(--ffo-border); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  }
+  .ffo2-bottom-nav a, .ffo2-bottom-nav button { min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 0; border-radius: 9px; background: transparent; color: var(--ffo-muted); text-decoration: none; font: 9px inherit; }
+  .ffo2-bottom-nav svg { width: 20px; height: 20px; }
+  .ffo2-bottom-nav a[aria-current="page"] { background: rgba(124,92,252,.13); color: #cbbfff; }
+  body.ffo2-page:not(.ffo2-immersive) > header:not(.ffo2-mobilebar) { padding: 20px 16px 8px !important; }
+  body.ffo2-page:not(.ffo2-immersive) > main { width: 100%; padding: 12px 14px 32px !important; }
+  body.ffo2-page:not(.ffo2-immersive) > nav:not(.ffo2-bottom-nav) { padding: 0 14px !important; gap: 17px !important; scrollbar-width: none; }
+  body.ffo2-page:not(.ffo2-immersive) > nav:not(.ffo2-bottom-nav)::-webkit-scrollbar { display: none; }
+  body.ffo2-page:not(.ffo2-immersive) > .ffo-league-switcher { margin: 10px 14px 0 !important; padding: 0 !important; grid-template-columns: minmax(0,1fr) auto !important; }
+  body.ffo2-page:not(.ffo2-immersive) > .ffo-league-switcher select { grid-column: 1 / -1; }
+  body.ffo2-page:not(.ffo2-immersive) > .ffo-league-switcher button { min-width: 0; }
+  body.ffo2-page:not(.ffo2-immersive) > .ffo-provider-strip { margin: 8px 14px 0 !important; }
+  body.ffo2-page .panel, body.ffo2-page .card { border-radius: 12px !important; }
+  body.ffo2-page button, body.ffo2-page .btn { min-height: 44px; }
+  body.ffo2-page input, body.ffo2-page select, body.ffo2-page textarea { min-height: 44px; font-size: 16px !important; }
+  .ffo2-search-dialog { margin-top: calc(env(safe-area-inset-top) + 12px); }
+  body.ffo2-landing-mode > main { padding-top: 18px !important; }
+  .ffo2-landing { grid-template-columns: 1fr; gap: 24px; min-height: auto; }
+  .ffo2-landing-copy { padding: 10px 2px 0; }
+  .ffo2-landing-copy h1 { margin-top: 15px; font-size: clamp(39px,12vw,56px); }
+  .ffo2-landing-copy > p { font-size: 15px; }
+  .ffo2-proof-grid { grid-template-columns: 1fr; margin-top: 24px; }
+  .ffo2-proof-grid div { min-height: auto; }
+  .ffo2-connect-card { padding: 19px !important; }
+  .ffo2-connect-card .input-row { grid-template-columns: 1fr; }
+  .ffo2-feature-preview { grid-template-columns: 1fr; margin-top: 24px; }
+  .ffo2-feature-preview article { padding: 12px 3px; }
+  .ffo2-lineup-board { grid-template-columns: 1fr; }
+  .ffo2-bench-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .ffo2-roster-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+
+@media (max-width: 430px) {
+  .ffo2-menu-grid { grid-template-columns: 1fr; }
+  body.ffo2-page:not(.ffo2-immersive) > main { padding-inline: 12px !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .001ms !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
+}
+
+/* css/league-decisions.css */
+.ld-workspace { max-width:1400px; margin:auto; padding:28px; }
+.ld-workspace h1 { font-size:clamp(26px,4vw,40px); letter-spacing:-.04em; margin:8px 0; }
+.ld-workspace h2 { font-size:21px; margin:0 0 10px; }
+.ld-workspace h3 { font-size:16px; margin:0 0 10px; }
+.ld-workspace p { line-height:1.6; color:var(--ffo-muted); }
+.ld-kicker { font-size:11px; text-transform:uppercase; color:var(--ffo-warning); letter-spacing:.12em; font-weight:800; }
+.ld-header { display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:22px; }
+.ld-controls { display:flex; align-items:flex-end; flex-wrap:wrap; gap:10px; min-width:0; }
+.ld-controls label { display:grid; gap:6px; color:var(--ffo-muted); font-size:12px; min-width:0; max-width:100%; }
+.ld-workspace select,.ld-workspace input,.ld-dialog input { font-size:16px; min-height:44px; border:1px solid var(--ffo-border); border-radius:8px; color:var(--ffo-text); background:var(--ffo-surface); padding:8px 10px; max-width:100%; }
+.ld-button,.ld-tabs button { min-height:44px; border:1px solid var(--ffo-border); border-radius:8px; color:var(--ffo-text); background:var(--ffo-surface-2); padding:10px 14px; cursor:pointer; font-weight:700; }
+.ld-primary { background:var(--ffo-accent); color:white; }
+.ld-button:disabled { opacity:.5; cursor:wait; }
+.ld-status { margin:14px 0; color:var(--ffo-muted); line-height:1.5; overflow-wrap:anywhere; }
+.ld-format { display:flex; flex-wrap:wrap; gap:7px; margin:14px 0; }
+.ld-pill { border:1px solid var(--ffo-border); border-radius:6px; padding:6px 9px; font-size:12px; color:var(--ffo-muted); }
+.ld-tabs { display:flex; gap:8px; overflow-x:auto; padding:4px 0 14px; margin-bottom:12px; }
+.ld-tabs button { white-space:nowrap; }
+.ld-tabs button[aria-selected=true] { color:white; background:var(--ffo-accent); border-color:var(--ffo-accent); }
+.ld-panel { min-height:280px; }
+.ld-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); gap:14px; }
+.ld-card { padding:20px; background:var(--ffo-surface); border:1px solid var(--ffo-border); border-radius:var(--ffo-radius); min-width:0; overflow-wrap:anywhere; }
+.ld-card p:last-child { margin-bottom:0; }
+.ld-muted { color:var(--ffo-muted); font-size:13px; line-height:1.6; }
+.ld-positive { color:var(--ffo-positive); }
+.ld-warning { border-left:3px solid var(--ffo-warning); background:var(--ffo-surface); padding:12px 16px; color:var(--ffo-muted); line-height:1.6; margin-bottom:14px; }
+.ld-table-wrap { overflow-x:auto; border:1px solid var(--ffo-border); border-radius:12px; }
+.ld-table { width:100%; border-collapse:collapse; font-size:13px; }
+.ld-table th { text-align:left; font-weight:600; color:var(--ffo-muted); background:var(--ffo-surface-2); }
+.ld-table th,.ld-table td { padding:12px; border-bottom:1px solid var(--ffo-border); vertical-align:top; }
+.ld-number { color:inherit; font:inherit; font-variant-numeric:tabular-nums; background:transparent; border:0; border-bottom:1px dotted var(--ffo-muted); padding:4px 2px; cursor:help; min-height:32px; }
+.ld-details { margin-top:18px; }
+.ld-details summary { cursor:pointer; min-height:44px; padding:12px 0; font-weight:700; }
+.ld-dialog { background:var(--ffo-surface); color:var(--ffo-text); border:1px solid var(--ffo-border); border-radius:16px; padding:24px; width:min(92vw,540px); max-height:85dvh; overflow:auto; }
+.ld-dialog::backdrop { background:rgba(0,0,0,.7); }
+.ld-dialog label { display:flex; align-items:flex-start; gap:12px; margin:20px 0; line-height:1.6; }
+.ld-dialog p { overflow-wrap:anywhere; line-height:1.6; }
+.ld-dialog a { color:var(--ffo-info); }
+.ld-bars { display:flex; gap:3px; align-items:flex-end; height:64px; margin-top:12px; }
+.ld-bars span { flex:1; min-height:2px; background:var(--ffo-accent); border-radius:3px 3px 0 0; }
+.ld-search { width:100%; margin:12px 0; }
+.ld-workspace [hidden] { display:none !important; }
+@media(max-width:767px) {
+  .ld-workspace { padding:20px 14px calc(24px + env(safe-area-inset-bottom)); }
+  .ld-header,.ld-controls { display:grid; grid-template-columns:1fr; width:100%; }
+  .ld-controls select { width:100%; }
+  .ld-card { padding:16px; }
+  .ld-table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+  .ld-table,.ld-table tbody,.ld-table tr,.ld-table td { display:block; width:100%; }
+  .ld-table tr { border-bottom:1px solid var(--ffo-border-strong); padding:8px; }
+  .ld-table td { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:6px; border:0; overflow-wrap:anywhere; }
+  .ld-table td:before { content:attr(data-label); color:var(--ffo-muted); font-size:12px; flex:0 0 40%; }
+  .ld-number { min-height:44px; }
+}
+</style></head><body>
+<main class="ld-workspace" id="main-content">
+<div class="ld-header"><div><span class="ld-kicker">Fantasy Front Office · Partender</span><h1>Your league. Your next move.</h1><p>One format, six views, evidence behind every decision.</p></div>
+<div class="ld-controls"><label for="ld-league">Active Sleeper league<select id="ld-league"><option>Discovering leagues…</option></select></label><label for="ld-team">Your team<select id="ld-team"><option>Waiting for league…</option></select></label><button class="ld-button" id="ld-refresh">Refresh</button><button class="ld-button" id="ld-settings-open">Data settings</button></div></div>
+<div id="ld-status" class="ld-status" role="status" aria-live="polite"></div><div id="ld-format" class="ld-format" aria-label="Detected league format"></div><div id="ld-warnings"></div>
+<nav id="ld-tabs" class="ld-tabs" role="tablist" aria-label="League decisions"></nav><section id="ld-panel" class="ld-panel" role="tabpanel" tabindex="0"></section>
+<details class="ld-details"><summary>Sources, freshness and identity audit</summary><div id="ld-source-list"></div></details>
+<p class="ld-muted">Read-only. Values are a market reference; model outputs are labeled. Refresh updates league data; player and market caches expire after one day. Companion draft and legacy dashboard tools stay in the same GitHub site.</p>
+<noscript>This dashboard requires JavaScript to load public Sleeper league data.</noscript>
+</main>
+<dialog id="ld-settings" class="ld-dialog" aria-labelledby="ld-settings-title"><h2 id="ld-settings-title">Data settings</h2><p>Settings are saved in this browser. These public endpoints require no credentials.</p>
+<label><input type="checkbox" id="ld-market-flag">Use FantasyCalc’s public market endpoint. Its schema is not a versioned API contract. DynastyProcess is the dynasty fallback.</label>
+<label><input type="checkbox" id="ld-projection-flag">Try experimental Sleeper weekly projections. This undocumented endpoint is enabled for new settings and can be turned off here. Missing statistics or unsupported scoring keep the lineup in value-only mode.</label>
+<button id="ld-settings-save" class="ld-button ld-primary">Save and reload league</button><form method="dialog"><button class="ld-button" style="margin-top:12px">Cancel</button></form></dialog>
+<dialog id="ld-evidence" class="ld-dialog" aria-labelledby="ld-evidence-title"><h2 id="ld-evidence-title">Source and calculation</h2><div id="ld-evidence-content"></div><button class="ld-button" id="ld-evidence-close">Close</button></dialog>
+<script>
+/* Embedded unchanged except shell inline-style detection: js/league-decision-engine.js */
+/* Pure, format-aware decisions. Embedded unchanged into league-decisions.html. */
+(function (root) {
+  'use strict';
+  const number = x => x === null || x === undefined || x === '' || !Number.isFinite(Number(x)) ? null : Number(x);
+  const sum = xs => xs.every(x => number(x) !== null) ? xs.reduce((a, b) => a + Number(b), 0) : null;
+  const mean = xs => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+  const normalize = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b/g, '').replace(/[^a-z0-9]/g, '');
+  const IDP = ['DL', 'DE', 'DT', 'LB', 'DB', 'CB', 'SS', 'FS', 'S', 'IDP_FLEX'];
+  const eligibility = { FLEX: ['RB', 'WR', 'TE'], SUPER_FLEX: ['QB', 'RB', 'WR', 'TE'], WRRB_FLEX: ['WR', 'RB'], REC_FLEX: ['WR', 'TE'], IDP_FLEX: IDP.filter(p => p !== 'IDP_FLEX'), DL: ['DL', 'DE', 'DT'], DB: ['DB', 'CB', 'SS', 'FS', 'S'] };
+  function format(league) {
+    const s = league.settings || {}, scoring = { ...(league.scoring_settings || {}) };
+    const positions = [...(league.roster_positions || [])], slots = positions.filter(p => !['BN', 'IR', 'TAXI'].includes(p));
+    const count = p => positions.filter(x => x === p).length;
+    const type = number(s.type), ppr = number(scoring.rec) ?? 0, superFlex = count('SUPER_FLEX');
+    const numQbs = count('QB') + superFlex > 1 ? 2 : 1;
+    const marketPpr = [0, 0.5, 1].reduce((best, p) => Math.abs(p - ppr) < Math.abs(best - ppr) ? p : best, 0);
+    const teams = number(league.total_rosters) ?? number(s.num_teams), playoffTeams = number(s.playoff_teams), playoffStart = number(s.playoff_week_start);
+    const warnings = [];
+    if (ppr !== marketPpr) warnings.push(`Custom ${ppr} PPR: market uses ${marketPpr} PPR base.`);
+    if (number(scoring.bonus_rec_te)) warnings.push('TE premium is detected but the market provider does not price it separately.');
+    if (number(s.best_ball)) warnings.push('Best ball: market values do not price automatic lineup selection or spike-week upside.');
+    if (slots.some(p => IDP.includes(p))) warnings.push('IDP slots are supported; missing IDP market coverage remains unavailable.');
+    if (type === 1) warnings.push('Keeper uses redraft base values; keeper cost and contract benefits are not supplied.');
+    if (count('QB') + superFlex > 2) warnings.push('Market provider supports at most a two-quarterback base.');
+    return Object.freeze({ type, label: ['Redraft', 'Keeper', 'Dynasty'][type] || 'Unknown format', dynasty: type === 2,
+      bestBall: !!number(s.best_ball), superFlex, numQbs, ppr, marketPpr, tePremium: number(scoring.bonus_rec_te) ?? 0,
+      idpSlots: slots.filter(p => IDP.includes(p)), slots: Object.freeze(slots), positions: Object.freeze(positions), rosterSize: positions.length,
+      taxi: number(s.taxi_slots), ir: number(s.reserve_slots), teams, playoffTeams, playoffStart,
+      playoffWeeks: playoffStart > 0 && playoffTeams > 1 && !number(s.playoff_round_type) ? Array.from({ length: Math.ceil(Math.log2(playoffTeams)) }, (_, i) => playoffStart + i) : [],
+      startWeek: number(s.start_week) ?? 1, medianGame: !!number(s.league_average_match), divisions: number(s.divisions) || 0,
+      seedType: number(s.playoff_seed_type) || 0, playoffType: number(s.playoff_type) || 0,
+      budget: number(s.waiver_budget), minBid: number(s.waiver_bid_min) ?? 0, waiverType: number(s.waiver_type),
+      disableAdds: !!number(s.disable_adds), disableTrades: !!number(s.disable_trades), tradeDeadline: number(s.trade_deadline),
+      draftRounds: number(s.draft_rounds), season: String(league.season), scoring: Object.freeze(scoring), warnings: Object.freeze(warnings) });
+  }
+  function marketUrl(f) {
+    if (![0, 1, 2].includes(f.type) || !Number.isInteger(f.teams) || f.teams < 2) throw new Error('League type or team count unavailable');
+    return `https://api.fantasycalc.com/values/current?isDynasty=${f.dynasty}&numQbs=${f.numQbs}&numTeams=${f.teams}&ppr=${f.marketPpr}`;
+  }
+  function csv(text) {
+    const rows = []; let row = [], field = '', quoted = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (c === '"') { if (quoted && text[i + 1] === '"') { field += '"'; i++; } else quoted = !quoted; }
+      else if (c === ',' && !quoted) { row.push(field); field = ''; }
+      else if ((c === '\n' || c === '\r') && !quoted) { if (c === '\r' && text[i + 1] === '\n') i++; row.push(field); if (row.some(Boolean)) rows.push(row); row = []; field = ''; }
+      else field += c;
+    }
+    if (field || row.length) { row.push(field); rows.push(row); }
+    const header = rows.shift() || [];
+    return rows.map(r => Object.fromEntries(header.map((k, i) => [k, r[i]])));
+  }
+  function joinValues(players, rows, source, fetchedAt, f) {
+    const byName = new Map(), values = {}, picks = [], unmatched = [], fuzzy = [];
+    Object.entries(players).forEach(([id, p]) => {
+      const key = `${normalize(p.full_name || `${p.first_name || ''} ${p.last_name || ''}`)}|${p.position}`;
+      byName.set(key, [...(byName.get(key) || []), id]);
+    });
+    for (const row of rows) {
+      const p = row.player && typeof row.player === 'object' ? row.player : { name: row.player, position: row.pos, sleeperId: row.sleeper_id };
+      const value = number(source === 'DynastyProcess' ? row[f.numQbs === 2 ? 'value_2qb' : 'value_1qb'] : row.value);
+      if (value === null || value < 0 || !p.name || !p.position) continue;
+      const item = { name: p.name, position: p.position, value, source, fetchedAt, sourceDate: row.scrape_date || null, fuzzy: false };
+      if (p.position === 'PICK') { picks.push(item); continue; }
+      const explicit = p.sleeperId ?? p.sleeper_id, id = explicit === null || explicit === undefined || explicit === '' ? null : String(explicit);
+      let resolved = id;
+      if (id && (!players[id] || !(players[id].fantasy_positions || [players[id].position]).includes(p.position))) { unmatched.push({ name: p.name, reason: 'Conflicting or absent supplied ID' }); continue; }
+      if (!id) {
+        const matches = byName.get(`${normalize(p.name)}|${p.position}`) || [];
+        if (matches.length !== 1) { unmatched.push({ name: p.name, reason: matches.length ? 'Ambiguous name and position' : 'No name and position match' }); continue; }
+        resolved = matches[0]; item.fuzzy = true;
+      }
+      if (values[resolved]) { unmatched.push({ name: p.name, reason: 'Duplicate market identity' }); continue; }
+      values[resolved] = { ...item, id: resolved };
+      if (item.fuzzy) fuzzy.push({ id: resolved, name: p.name });
+    }
+    return { values, picks, unmatched, fuzzy, source, fetchedAt };
+  }
+  function player(ctx, id) {
+    id = String(id); const p = ctx.players[id] || {}, v = ctx.market.values[id];
+    return { id, name: p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || `Unresolved Sleeper ID ${id}`, position: p.position || 'Unknown',
+      positions: p.fantasy_positions || [p.position], team: p.team, age: number(p.age), injury: p.injury_status,
+      value: v ? v.value : null, evidence: v || null };
+  }
+  function activePlayers(ctx, roster) {
+    const reserve = new Set([...(roster.reserve || []), ...(roster.taxi || [])].map(String));
+    return [...new Set((roster.players || []).map(String))].filter(id => !reserve.has(id)).map(id => player(ctx, id));
+  }
+  function eligible(p, slot) { return (eligibility[slot] || [slot]).some(pos => p.positions.includes(pos)); }
+  // Rectangular Hungarian assignment: exact maximum, flexible and multi-position slots included.
+  function optimize(pool, slots, metric = 'value') {
+    const n = slots.length, m = pool.length + n, u = Array(n + 1).fill(0), v = Array(m + 1).fill(0), p = Array(m + 1).fill(0), way = Array(m + 1).fill(0);
+    const cost = (i, j) => j >= pool.length ? 1e8 : !eligible(pool[j], slots[i]) || number(pool[j][metric]) === null ? 1e9 : -pool[j][metric];
+    for (let i = 1; i <= n; i++) {
+      p[0] = i; let j0 = 0; const minv = Array(m + 1).fill(Infinity), used = Array(m + 1).fill(false);
+      do {
+        used[j0] = true; const i0 = p[j0]; let delta = Infinity, j1 = 0;
+        for (let j = 1; j <= m; j++) if (!used[j]) { const cur = cost(i0 - 1, j - 1) - u[i0] - v[j]; if (cur < minv[j]) { minv[j] = cur; way[j] = j0; } if (minv[j] < delta) { delta = minv[j]; j1 = j; } }
+        for (let j = 0; j <= m; j++) { if (used[j]) { u[p[j]] += delta; v[j] -= delta; } else minv[j] -= delta; }
+        j0 = j1;
+      } while (p[j0]);
+      do { const j1 = way[j0]; p[j0] = p[j1]; j0 = j1; } while (j0);
+    }
+    const rows = slots.map(slot => ({ slot, player: null }));
+    for (let j = 1; j <= m; j++) if (p[j] && j <= pool.length && cost(p[j] - 1, j - 1) < 1e8) rows[p[j] - 1].player = pool[j - 1];
+    return { rows, total: rows.every(r => r.player) ? sum(rows.map(r => r.player[metric])) : null, complete: rows.every(r => r.player) };
+  }
+  function power(ctx) {
+    return ctx.rosters.map(r => {
+      const all = (r.players || []).map(id => player(ctx, id)), line = optimize(activePlayers(ctx, r), ctx.format.slots), ids = new Set(line.rows.flatMap(x => x.player ? [x.player.id] : []));
+      const positional = Object.fromEntries([...new Set(all.map(p => p.position))].map(pos => [pos, sum(all.filter(p => p.position === pos).map(p => p.value))]));
+      const completed = [number(r.settings?.wins), number(r.settings?.losses), number(r.settings?.ties)], games = sum(completed);
+      const points = number(r.settings?.fpts) === null ? null : Number(r.settings.fpts) + (number(r.settings.fpts_decimal) ?? 0) / 100;
+      const total = sum(all.map(p => p.value)), age = total > 0 && all.every(p => p.age !== null) ? all.reduce((a, p) => a + p.value * p.age, 0) / total : null;
+      return { id: r.roster_id, total, starter: line.total, bench: line.complete ? sum(all.filter(p => !ids.has(p.id)).map(p => p.value)) : null,
+        positional, matched: all.filter(p => p.value !== null).length, count: all.length, age,
+        window: ctx.format.dynasty && age !== null ? Math.max(0, Math.min(100, (35 - age) / 15 * 100)) : null,
+        pointsPerGame: games > 0 && points !== null ? points / (games / (ctx.format.medianGame ? 2 : 1)) : null,
+        winRate: games > 0 ? (completed[0] + completed[2] / 2) / games : null };
+    }).sort((a, b) => (b.total ?? -1) - (a.total ?? -1));
+  }
+  function fairness(give, receive) {
+    const a = sum(give.map(p => p.value)), b = sum(receive.map(p => p.value));
+    if (a === null || b === null || a <= 0 || b <= 0) return { available: false, flagged: true, give: a, receive: b };
+    const lossA = Math.max(0, (a - b) / a), lossB = Math.max(0, (b - a) / b);
+    return { available: true, give: a, receive: b, lossA, lossB, flagged: lossA > 0.15 || lossB > 0.15 };
+  }
+  function combinations(xs, n, offset = 0, prefix = [], result = []) {
+    if (!n) { result.push(prefix); return result; }
+    for (let i = offset; i <= xs.length - n; i++) combinations(xs, n - 1, i + 1, [...prefix, xs[i]], result);
+    return result;
+  }
+  function tradeFindPartner(ctx, myId, targetId = null) {
+    const f = ctx.format, my = ctx.rosters.find(r => String(r.roster_id) === String(myId));
+    if (!my || f.disableTrades || (f.tradeDeadline > 0 && ctx.week > f.tradeDeadline)) return [];
+    const mine = activePlayers(ctx, my), myBefore = optimize(mine, f.slots);
+    if (!myBefore.complete || mine.some(p => p.value === null)) return [];
+    const packages = [1, 2, 3].flatMap(n => combinations([...mine].sort((a, b) => b.value - a.value).slice(0, 18), n));
+    const offers = [];
+    for (const other of ctx.rosters.filter(r => r !== my)) {
+      const theirs = activePlayers(ctx, other), before = optimize(theirs, f.slots);
+      if (!before.complete || theirs.some(p => p.value === null)) continue;
+      for (const target of theirs.filter(p => !targetId || p.id === String(targetId))) {
+        let best = null;
+        for (const give of packages) {
+          const fair = fairness(give, [target]); if (!fair.available || fair.flagged) continue;
+          const giveIds = new Set(give.map(p => p.id)), afterMine = optimize([...mine.filter(p => !giveIds.has(p.id)), target], f.slots);
+          if (!afterMine.complete || afterMine.total <= myBefore.total) continue;
+          const expanded = [...theirs.filter(p => p.id !== target.id), ...give], theirsAfter = optimize(expanded, f.slots);
+          if (!theirsAfter.complete || theirsAfter.total < before.total) continue;
+          // Explicitly retain every starter; any roster-limit drops are named and included in asset cost.
+          const keep = new Set(theirsAfter.rows.map(r => r.player.id)), dropCount = Math.max(0, expanded.length - f.rosterSize);
+          const drops = expanded.filter(p => !keep.has(p.id) && !giveIds.has(p.id)).sort((a, b) => a.value - b.value).slice(0, dropCount);
+          if (drops.length !== dropCount) continue;
+          const afterDropFair = fairness([target, ...drops], give); if (!afterDropFair.available || afterDropFair.flagged) continue;
+          const theirGain = theirsAfter.total - before.total;
+          const offer = { owner: other.roster_id, give, receive: [target], drops, fair, counterpartyFair: afterDropFair, myGain: afterMine.total - myBefore.total, theirGain,
+            reason: `Adds starter value at ${target.position}; ${theirGain > 0 ? 'the other roster also improves its starter allocation' : 'their starter value is unchanged; their incentive is additional depth'}.`, bestBall: f.bestBall };
+          if (!best || offer.myGain > best.myGain || (offer.myGain === best.myGain && fair.give < best.fair.give)) best = offer;
+        }
+        if (best) offers.push(best);
+      }
+    }
+    return offers.sort((a, b) => b.myGain - a.myGain).slice(0, 36);
+  }
+  function tendencies(ctx) {
+    if (!ctx.transactions) return null;
+    const profiles = Object.fromEntries(ctx.rosters.map(r => [r.roster_id, { trades: 0, rbSales: 0, earlyRbSales: 0, waiverMoves: 0, picksAcquired: 0, pickOverpay: null }]));
+    for (const t of ctx.transactions) {
+      if (t.status !== 'complete') continue;
+      if (t.type === 'trade') {
+        for (const id of t.roster_ids || []) if (profiles[id]) profiles[id].trades++;
+        for (const [pid, owner] of Object.entries(t.drops || {})) if (profiles[owner] && ctx.players[pid]?.position === 'RB') { profiles[owner].rbSales++; if (t.week <= 4) profiles[owner].earlyRbSales++; }
+        for (const pick of t.draft_picks || []) if (profiles[pick.owner_id]) profiles[pick.owner_id].picksAcquired++;
+      } else if (['waiver', 'free_agent'].includes(t.type)) for (const id of new Set(Object.values(t.adds || {}))) if (profiles[id]) profiles[id].waiverMoves++;
+    }
+    return profiles;
+  }
+  function waivers(ctx, myId) {
+    const f = ctx.format, my = ctx.rosters.find(r => String(r.roster_id) === String(myId));
+    if (!my) return { rows: [], remaining: null, bids: [], disabled: false };
+    const used = number(my.settings?.waiver_budget_used), remaining = f.budget !== null && used !== null ? Math.max(0, f.budget - used) : null;
+    const bids = (ctx.transactions || []).filter(t => t.type === 'waiver' && t.status === 'complete' && number(t.settings?.waiver_bid) !== null).map(t => Number(t.settings.waiver_bid)).sort((a, b) => a - b);
+    const median = bids.length ? bids[Math.floor(bids.length / 2)] : null;
+    const owned = new Set(ctx.rosters.flatMap(r => (r.players || []).map(String)));
+    const adds = new Map((ctx.trendingAdd || []).map(p => [String(p.player_id), number(p.count)])), drops = new Map((ctx.trendingDrop || []).map(p => [String(p.player_id), number(p.count)]));
+    const ids = new Set([...Object.keys(ctx.market.values), ...adds.keys(), ...drops.keys()]);
+    const rows = [...ids].filter(id => !owned.has(id) && ctx.players[id]).map(id => {
+      const p = player(ctx, id); if (!f.slots.some(slot => eligible(p, slot))) return null;
+      const add = adds.get(id) ?? null, drop = drops.get(id) ?? null;
+      const base = median !== null && f.budget > 0 && remaining !== null && f.waiverType === 2 ? Math.round(median / f.budget * remaining) : null;
+      return { ...p, add, drop, bid: base !== null && remaining >= f.minBid ? Math.min(remaining, Math.max(f.minBid, base)) : null };
+    }).filter(Boolean).sort((a, b) => (b.add ?? -1) - (a.add ?? -1) || (b.value ?? -1) - (a.value ?? -1));
+    return { rows, remaining, bids, median, disabled: f.disableAdds };
+  }
+  const supportedStats = new Set(['pass_yd', 'pass_td', 'pass_int', 'pass_2pt', 'rush_yd', 'rush_td', 'rush_2pt', 'rec', 'rec_yd', 'rec_td', 'rec_2pt', 'fum', 'fum_lost', 'fum_rec_td', 'bonus_rec_te']);
+  function projectionScores(raw, f, players) {
+    const unknown = Object.entries(f.scoring).filter(([k, v]) => Number(v) !== 0 && !supportedStats.has(k) && !/^(fg|xp|pts_allow|def_|st_|sack$|int$|ff$|fum_rec$|safe$|blk_kick$)/.test(k)).map(([k]) => k);
+    if (unknown.length || f.slots.some(s => ['K', 'DEF', ...IDP].includes(s))) return { scores: {}, reason: `Unsupported projection scoring: ${unknown.join(', ') || 'kicker or defense/IDP'}` };
+    const rows = Array.isArray(raw) ? raw : [], scores = {};
+    for (const r of rows) {
+      const id = String(r.player_id), p = players[id]; if (!p || !r.stats || r.week === undefined) continue;
+      let total = 0, valid = true;
+      const applicable = p.position === 'QB' ? ['pass_', 'rush_', 'fum'] : ['rush_', 'rec', 'fum'];
+      for (const [stat, weight] of Object.entries(f.scoring)) {
+        if (!Number(weight) || !supportedStats.has(stat)) continue;
+        if (stat === 'bonus_rec_te') { if (p.position === 'TE') { if (number(r.stats.rec) === null) valid = false; else total += r.stats.rec * weight; } continue; }
+        if (!applicable.some(prefix => stat.startsWith(prefix))) continue;
+        if (number(r.stats[stat]) === null) { valid = false; break; }
+        total += Number(r.stats[stat]) * Number(weight);
+      }
+      if (valid) scores[id] = total;
+    }
+    return { scores, reason: Object.keys(scores).length ? null : 'No complete supported weekly projection statistics returned' };
+  }
+  function lineup(ctx, myId) {
+    const my = ctx.rosters.find(r => String(r.roster_id) === String(myId)); if (!my) return null;
+    const pool = activePlayers(ctx, my), scores = ctx.projections?.scores || {}, complete = pool.length > 0 && pool.every(p => number(scores[p.id]) !== null);
+    const metric = complete ? 'projection' : 'value', candidates = pool.map(p => ({ ...p, projection: number(scores[p.id]) }));
+    return { ...optimize(candidates, ctx.format.slots, metric), metric, pool: candidates, bestBall: ctx.format.bestBall,
+      reason: complete ? 'Weekly projection statistics scored with this league’s supported rules.' : ctx.projections?.reason || 'No projections available. Value-ranked reference only; market value is not a weekly forecast.' };
+  }
+  function pickValue(pick, market) {
+    const ordinal = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th', 5: '5th' }[pick.round];
+    const exact = market.picks.filter(p => p.name === `${pick.season} ${ordinal}` || p.name === `${pick.season} Round ${pick.round}` || p.name === `${pick.season} ${ordinal} Round`);
+    return exact.length === 1 ? exact[0] : null;
+  }
+  function capital(ctx) {
+    if (!ctx.tradedPicks || !ctx.drafts) return null;
+    const f = ctx.format, years = new Set(ctx.tradedPicks.filter(p => Number(p.season) >= Number(f.season)).map(p => String(p.season)));
+    for (const d of ctx.drafts) if (d.status !== 'complete') years.add(String(d.season));
+    if (f.dynasty && f.draftRounds > 0) years.add(String(Number(f.season) + 1));
+    const picks = new Map();
+    for (const season of [...years].sort()) {
+      const draft = ctx.drafts.find(d => String(d.season) === season && d.status !== 'complete');
+      const rounds = number(draft?.settings?.rounds) ?? (f.dynasty && Number(season) > Number(f.season) ? f.draftRounds : null);
+      if (!Number.isInteger(rounds) || rounds < 1) continue;
+      for (const r of ctx.rosters) for (let round = 1; round <= rounds; round++) { const p = { season, round, roster_id: r.roster_id, owner_id: r.roster_id, entitlement: !draft }; picks.set(`${season}:${round}:${r.roster_id}`, p); }
+    }
+    for (const p of ctx.tradedPicks) {
+      if (Number(p.season) < Number(f.season) || ctx.drafts.some(d => String(d.season) === String(p.season) && d.status === 'complete')) continue;
+      picks.set(`${p.season}:${p.round}:${p.roster_id}`, { ...p, season: String(p.season), entitlement: false });
+    }
+    const rows = [...picks.values()].map(p => ({ ...p, market: pickValue(p, ctx.market) }));
+    return { picks: rows, teams: ctx.rosters.map(r => {
+      const owned = rows.filter(p => String(p.owner_id) === String(r.roster_id)), baseline = rows.filter(p => String(p.roster_id) === String(r.roster_id));
+      const value = sum(owned.map(p => p.market?.value ?? null)), original = sum(baseline.map(p => p.market?.value ?? null));
+      return { id: r.roster_id, count: owned.length, value, net: value !== null && original !== null ? value - original : null };
+    }) };
+  }
+  function playoffs(ctx, myId, sims = 5000, seed = 20260908) {
+    const f = ctx.format, fail = reason => ({ available: false, reason });
+    if (!Number.isInteger(f.playoffStart) || f.playoffStart <= ctx.week || !Number.isInteger(f.playoffTeams) || f.playoffTeams < 2 || f.playoffTeams > ctx.rosters.length) return fail('An upcoming playoff field and regular-season schedule are required.');
+    if (f.divisions || f.seedType || f.playoffType) return fail('This league’s custom/division playoff seeding is not supported by the simulation.');
+    const ids = ctx.rosters.map(r => String(r.roster_id)), current = ids.indexOf(String(myId)), games = [];
+    for (let week = ctx.week; week < f.playoffStart; week++) {
+      const rows = ctx.matchups?.[week], seen = new Set(), groups = new Map();
+      if (!Array.isArray(rows) || rows.length !== ids.length) return fail(`Actual schedule unavailable for week ${week}.`);
+      for (const r of rows) { const id = String(r.roster_id); if (!ids.includes(id) || seen.has(id) || r.matchup_id === null || r.matchup_id === undefined) return fail(`Incomplete schedule for week ${week}.`); seen.add(id); groups.set(r.matchup_id, [...(groups.get(r.matchup_id) || []), ids.indexOf(id)]); }
+      if ([...groups.values()].some(g => g.length !== 2)) return fail(`Non-head-to-head schedule in week ${week}.`);
+      games.push({ week, pairs: [...groups.values()] });
+    }
+    const histories = ids.map(id => Object.entries(ctx.matchups || {}).filter(([w]) => Number(w) >= f.startWeek && Number(w) < ctx.week).map(([, rows]) => rows?.find(r => String(r.roster_id) === id)).filter(Boolean).map(r => number(r.custom_points) ?? number(r.points)));
+    if (histories.some(h => h.length < 3 || h.length !== ctx.week - f.startWeek || h.some(x => x === null))) return fail('At least three completed scoring weeks per team, with no missing completed weeks, are required to estimate results-based strength and variation.');
+    const records = ctx.rosters.map(r => [number(r.settings?.wins), number(r.settings?.losses), number(r.settings?.ties)]);
+    if (records.some(r => r.includes(null) || sum(r) !== (ctx.week - f.startWeek) * (f.medianGame ? 2 : 1))) return fail('Standings do not align with completed weeks; refresh after the current week settles.');
+    if (records.reduce((a, r) => a + r[0] - r[1], 0) !== 0) return fail('League wins and losses do not reconcile; refresh settled standings.');
+    const points = ctx.rosters.map(r => number(r.settings?.fpts) === null ? null : Number(r.settings.fpts) + (number(r.settings.fpts_decimal) ?? 0) / 100);
+    if (points.includes(null)) return fail('Standings points are unavailable.');
+    const leagueMean = mean(histories.flat()), strengths = histories.map(h => (h.reduce((a, b) => a + b, 0) + 2 * leagueMean) / (h.length + 2));
+    const residuals = histories.flatMap(h => h.map(x => x - mean(h)));
+    if (!residuals.some(x => Math.abs(x) > 0.01)) return fail('Completed scores do not contain enough variation to estimate outcomes.');
+    sims = Math.max(5000, Math.floor(sims));
+    const random = () => { seed = (Math.imul(1664525, seed) + 1013904223) >>> 0; return seed / 4294967296; };
+    const seeds = ids.map(() => Array(ids.length).fill(0)), leverage = games.map(g => ({ week: g.week, wins: 0, losses: 0, qualifiedWin: 0, qualifiedLoss: 0 }));
+    for (let sim = 0; sim < sims; sim++) {
+      const wins = records.map(r => r[0] + r[2] / 2), pf = [...points], outcomes = [];
+      for (let w = 0; w < games.length; w++) {
+        const scores = strengths.map(mu => Math.max(0, mu + residuals[Math.floor(random() * residuals.length)]));
+        scores.forEach((s, i) => { pf[i] += s; });
+        for (const [a, b] of games[w].pairs) { const winner = scores[a] > scores[b] ? a : scores[a] < scores[b] ? b : random() < 0.5 ? a : b; wins[winner]++; if (a === current || b === current) outcomes[w] = winner === current; }
+        if (f.medianGame) { const sorted = [...scores].sort((a, b) => a - b), median = (sorted[Math.floor((sorted.length - 1) / 2)] + sorted[Math.ceil((sorted.length - 1) / 2)]) / 2; scores.forEach((s, i) => { wins[i] += s > median ? 1 : s === median ? 0.5 : 0; }); }
+      }
+      const tie = ids.map(() => random()), order = ids.map((_, i) => i).sort((a, b) => wins[b] - wins[a] || pf[b] - pf[a] || tie[b] - tie[a]);
+      order.forEach((id, i) => seeds[id][i]++);
+      if (current >= 0) leverage.forEach((l, i) => { if (outcomes[i]) { l.wins++; if (order.indexOf(current) < f.playoffTeams) l.qualifiedWin++; } else { l.losses++; if (order.indexOf(current) < f.playoffTeams) l.qualifiedLoss++; } });
+    }
+    return { available: true, sims, teams: ids.map((id, i) => ({ id, odds: seeds[i].slice(0, f.playoffTeams).reduce((a, b) => a + b, 0) / sims, seeds: seeds[i].map(n => n / sims), strength: strengths[i] })),
+      leverage: leverage.map(l => ({ week: l.week, win: l.wins ? l.qualifiedWin / l.wins : null, loss: l.losses ? l.qualifiedLoss / l.losses : null })).sort((a, b) => ((b.win ?? 0) - (b.loss ?? 0)) - ((a.win ?? 0) - (a.loss ?? 0))) };
+  }
+  const api = { number, sum, mean, normalize, format, marketUrl, csv, joinValues, player, activePlayers, eligible, optimize, power, fairness, tradeFindPartner, tendencies, waivers, projectionScores, lineup, pickValue, capital, playoffs };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  root.FFOLeagueDecision = api;
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+
+</script>
+<script>
+/* Embedded unchanged except shell inline-style detection: js/league-decision-data.js */
+/* Read-only API service; the same code is embedded in the standalone workspace. */
+(function (root) {
+  'use strict';
+  const E = root.FFOLeagueDecision || require('./league-decision-engine.js');
+  const BASE = 'https://api.sleeper.app/v1', DP = 'https://raw.githubusercontent.com/dynastyprocess/data/master/files/values.csv';
+  class DataService {
+    constructor({ fetcher = (...args) => fetch(...args), storage = null, interval = 210, now = () => Date.now() } = {}) {
+      this.fetcher = fetcher; this.storage = storage; this.interval = interval; this.now = now;
+      this.cache = new Map(); this.inflight = new Map(); this.queue = []; this.running = 0; this.lastStart = 0; this.timer = null; this.version = 0;
+    }
+    pump() {
+      if (this.timer || this.running >= 4 || !this.queue.length) return;
+      const delay = Math.max(0, this.interval - (this.now() - this.lastStart));
+      this.timer = setTimeout(() => {
+        this.timer = null; if (!this.queue.length || this.running >= 4) return;
+        const { job, resolve, reject } = this.queue.shift(); this.running++; this.lastStart = this.now();
+        Promise.resolve().then(job).then(resolve, reject).finally(() => { this.running--; this.pump(); }); this.pump();
+      }, delay);
+    }
+    schedule(job) { return new Promise((resolve, reject) => { this.queue.push({ job, resolve, reject }); this.pump(); }); }
+    read(key, ttl) {
+      let hit = this.cache.get(key);
+      if (!hit) { try { hit = JSON.parse(this.storage?.getItem(`ffo-decision-v1:${key}`) || 'null'); } catch (_) { /* Storage can be disabled on iOS. */ } }
+      return hit && this.now() - hit.time >= 0 && this.now() - hit.time < ttl ? hit : null;
+    }
+    async get(url, { ttl = 300000, text = false, compact = false } = {}) {
+      const key = `${text ? 'text:' : ''}${url}`, hit = this.read(key, ttl);
+      if (hit) return { ...hit, cached: true };
+      if (this.inflight.has(key)) return this.inflight.get(key);
+      const request = (async () => {
+        let error;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const response = await this.schedule(async () => {
+              const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 18000);
+              try {
+                const r = await this.fetcher(url, { signal: controller.signal, headers: { Accept: text ? 'text/plain' : 'application/json' } });
+                if (!r.ok) { const e = new Error(`Source returned HTTP ${r.status}`); e.retryable = r.status === 429 || r.status >= 500; e.retryAfter = Math.min(30, Number(r.headers?.get('retry-after')) || 0) * 1000; throw e; }
+                let data = text ? await r.text() : await r.json();
+                if (data === null || data === undefined) throw new Error('Source returned no data');
+                if (compact) data = Object.fromEntries(Object.entries(data).map(([id, p]) => [id, { full_name: p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim(), position: p.position, fantasy_positions: p.fantasy_positions, team: p.team, age: p.age, injury_status: p.injury_status, active: p.active }]));
+                return data;
+              } finally { clearTimeout(timeout); }
+            });
+            const record = { data: response, time: this.now(), fetchedAt: new Date(this.now()).toISOString(), url };
+            this.cache.set(key, record);
+            // Only large, slowly changing public datasets persist; league snapshots remain in memory.
+            if (ttl >= 86400000) { try { this.storage?.setItem(`ffo-decision-v1:${key}`, JSON.stringify(record)); } catch (_) { /* Memory cache remains available when quota is exceeded. */ } }
+            return record;
+          } catch (e) { error = e; if (e.retryable === false || attempt === 2) break; await new Promise(resolve => setTimeout(resolve, Math.max(e.retryAfter || 0, 350 * 2 ** attempt))); }
+        }
+        throw error;
+      })();
+      this.inflight.set(key, request);
+      try { return await request; } finally { this.inflight.delete(key); }
+    }
+    async discover(username = 'Partender') {
+      const [state, user] = await Promise.all([this.get(`${BASE}/state/nfl`), this.get(`${BASE}/user/${encodeURIComponent(username)}`)]);
+      if (!user.data.user_id || !state.data.season || !Number.isInteger(Number(state.data.week))) throw new Error('NFL state or Sleeper user unavailable');
+      const leagues = await this.get(`${BASE}/user/${user.data.user_id}/leagues/nfl/${state.data.season}`);
+      if (!Array.isArray(leagues.data)) throw new Error('League discovery returned an invalid response');
+      return { user: user.data, state: state.data, leagues: leagues.data, fetchedAt: leagues.fetchedAt };
+    }
+    async load(leagueId, discovery, flags = {}) {
+      const version = ++this.version, sources = {};
+      const capture = async (name, url, options) => {
+        try { const r = await this.get(url, options); sources[name] = { url, fetchedAt: r.fetchedAt, status: r.cached ? 'Cached' : 'Fetched' }; return r.data; }
+        catch (error) { sources[name] = { url, fetchedAt: null, status: 'Unavailable', error: error.message }; return null; }
+      };
+      const league = await capture('league', `${BASE}/league/${encodeURIComponent(leagueId)}`);
+      if (!league?.league_id) throw new Error('League unavailable. Retry to reconnect.');
+      const f = E.format(league), week = Number(discovery.state.week);
+      if (String(league.season) !== String(discovery.state.season)) throw new Error('Selected league does not match the current NFL season.');
+      const [rosters, users, players, tradedPicks, drafts, trendingAdd, trendingDrop] = await Promise.all([
+        capture('rosters', `${BASE}/league/${leagueId}/rosters`), capture('users', `${BASE}/league/${leagueId}/users`),
+        capture('players', `${BASE}/players/nfl`, { ttl: 86400000, compact: true }), capture('tradedPicks', `${BASE}/league/${leagueId}/traded_picks`),
+        capture('drafts', `${BASE}/league/${leagueId}/drafts`), capture('trendingAdd', `${BASE}/players/nfl/trending/add?lookback_hours=24&limit=100`), capture('trendingDrop', `${BASE}/players/nfl/trending/drop?lookback_hours=24&limit=100`)
+      ]);
+      if (!Array.isArray(rosters) || !players || Array.isArray(players)) throw new Error('Rosters or player database unavailable. No stale league data is displayed.');
+      if (version !== this.version) return null;
+      let market = { values: {}, picks: [], fuzzy: [], unmatched: [], source: 'Unavailable', fetchedAt: null };
+      if (flags.market !== false) {
+        let rows = null;
+        try { rows = await capture('market', E.marketUrl(f), { ttl: 86400000 }); } catch (e) { sources.market = { status: 'Unavailable', error: e.message }; }
+        if (Array.isArray(rows) && rows.some(r => E.number(r.value) !== null)) market = E.joinValues(players, rows, 'FantasyCalc', sources.market.fetchedAt, f);
+      } else sources.market = { status: 'Disabled', error: 'FantasyCalc public API feature flag is off.' };
+      if (!Object.keys(market.values).length && f.dynasty) {
+        const csv = await capture('fallbackMarket', DP, { ttl: 86400000, text: true });
+        if (csv) market = E.joinValues(players, E.csv(csv), 'DynastyProcess', sources.fallbackMarket.fetchedAt, f);
+      }
+      if (version !== this.version) return null;
+      const end = f.playoffStart > 1 && f.playoffStart <= 19 ? f.playoffStart - 1 : Math.min(18, Math.max(1, week));
+      const matchups = {}, transactionParts = [];
+      const tasks = [];
+      for (let w = f.startWeek; w <= end; w++) tasks.push(capture(`matchups:${w}`, `${BASE}/league/${leagueId}/matchups/${w}`).then(rows => { matchups[w] = Array.isArray(rows) ? rows : null; }));
+      for (let w = 1; w <= Math.min(18, Math.max(1, week)); w++) tasks.push(capture(`transactions:${w}`, `${BASE}/league/${leagueId}/transactions/${w}`).then(rows => { transactionParts.push(Array.isArray(rows) ? rows.map(t => ({ ...t, week: w })) : null); }));
+      let projections = { scores: {}, reason: 'No projections available. Experimental Sleeper projections are disabled in settings.' };
+      if (flags.projections && discovery.state.season_type === 'regular') tasks.push((async () => {
+        const url = `https://api.sleeper.com/projections/nfl/${f.season}/${week}?season_type=regular`;
+        const raw = await capture('projections', url);
+        const filtered = Array.isArray(raw) ? raw.filter(r => Number(r.week) === week && String(r.season) === f.season && r.season_type === 'regular') : [];
+        projections = raw ? E.projectionScores(filtered, f, players) : { scores: {}, reason: 'No projections available. Experimental source unavailable.' };
+      })());
+      await Promise.all(tasks);
+      if (version !== this.version) return null;
+      const transactions = transactionParts.some(p => p === null) ? null : [...new Map(transactionParts.flat().map(t => [t.transaction_id || JSON.stringify(t), t])).values()];
+      return { league, format: f, week, nflState: discovery.state, user: discovery.user, rosters, users: Array.isArray(users) ? users : [], players, market,
+        tradedPicks: Array.isArray(tradedPicks) ? tradedPicks : null, drafts: Array.isArray(drafts) ? drafts : null, trendingAdd, trendingDrop, transactions, matchups, projections, sources,
+        fetchedAt: new Date(this.now()).toISOString() };
+    }
+  }
+  root.FFOLeagueData = { DataService };
+  if (typeof module !== 'undefined' && module.exports) module.exports = { DataService };
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+
+</script>
+<script>
+/* Embedded unchanged except shell inline-style detection: js/ffo-shell.js */
+(function () {
+  'use strict';
+
+  const path = location.pathname.split('/').pop() || 'index.html';
+  const isImmersive = /^draft-room-v\d+\.html$/.test(path) || /^mock-draft-v\d+\.html$/.test(path);
+  const $ = (selector, root = document) => root.querySelector(selector);
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+
+  const icons = {
+    home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 10.8 12 3l9 7.8v9.1a1.1 1.1 0 0 1-1.1 1.1H4.1A1.1 1.1 0 0 1 3 19.9z"/><path d="M9 21v-7h6v7"/></svg>',
+    team: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3"/><path d="M3.5 20v-2.2A4.8 4.8 0 0 1 8.3 13h1.4a4.8 4.8 0 0 1 4.8 4.8V20"/><path d="M15 5.5a3 3 0 0 1 0 5.5M17 13.2a4.8 4.8 0 0 1 3.5 4.6V20"/></svg>',
+    matchup: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m7 3 10 18M17 3 7 21"/><path d="M5 7h4M15 7h4M5 17h4M15 17h4"/></svg>',
+    players: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>',
+    trade: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h13M14 4l3 3-3 3M20 17H7M10 14l-3 3 3 3"/></svg>',
+    draft: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M3 9h18M8 13h2M14 13h2M8 17h2"/></svg>',
+    league: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v2a4 4 0 0 0 4 4M17 6h3v2a4 4 0 0 1-4 4"/></svg>',
+    settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/></svg>',
+    health: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 14h3l2-7 4 12 2-5h5"/></svg>',
+    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>',
+    more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>'
+  };
+
+  const routes = [
+    { key: 'home', label: 'Home', href: 'index.html', icon: 'home', matches: ['index.html', 'hub.html'] },
+    { key: 'team', label: 'My Team', href: 'index.html#roster', icon: 'team', matches: [] },
+    { key: 'matchup', label: 'Matchup', href: 'matchup.html', icon: 'matchup', matches: ['matchup.html'] },
+    { key: 'players', label: 'Players', href: 'vegas-intelligence.html', icon: 'players', matches: ['vegas-intelligence.html'] },
+    { key: 'trade', label: 'Trade', href: 'trade-intelligence.html', icon: 'trade', matches: ['trade-intelligence.html', 'trade.html'] },
+    { key: 'draft', label: 'Draft', href: 'draft.html', icon: 'draft', matches: ['draft.html', 'draft-room-v5.html', 'mock-draft-v4.html', 'draft-review.html', 'draft-slot-blueprints.html', 'auction.html', 'auction-review.html'] },
+    { key: 'league', label: 'League', href: 'league-config.html', icon: 'league', matches: ['league-config.html', 'yahoo-connect.html'] },
+    { key: 'decisions', label: 'League Decisions', href: 'league-decisions.html', icon: 'health', matches: ['league-decisions.html'] }
+  ];
+
+  function currentRoute() {
+    if (['index.html', 'hub.html'].includes(path)) {
+      if (location.hash === '#roster') return routes.find((route) => route.key === 'team');
+      if (location.hash === '#lineup' || location.hash === '#matchup') return routes.find((route) => route.key === 'matchup');
+      if (location.hash === '#targets') return routes.find((route) => route.key === 'players');
+      if (location.hash === '#trade') return routes.find((route) => route.key === 'trade');
+    }
+    return routes.find((route) => route.matches.includes(path)) || routes[0];
+  }
+
+  function applyDashboardHash() {
+    if (path !== 'index.html') return;
+    const tab = ({ '#matchup': 'lineup', '#lineup': 'lineup', '#roster': 'roster', '#targets': 'targets', '#trade': 'trade', '#validation': 'validation', '#draft': 'draft' })[location.hash];
+    if (!tab) return;
+    const activate = () => document.querySelector(`#tabs [data-tab="${tab}"]`)?.click();
+    window.setTimeout(activate, 0);
+    window.setTimeout(activate, 350);
+  }
+
+  function observeDashboardMode() {
+    if (path !== 'index.html') return;
+    const connectView = document.getElementById('view-connect');
+    if (!connectView) return;
+    const sync = () => document.body.classList.toggle('ffo2-landing-mode', connectView.classList.contains('active'));
+    new MutationObserver(sync).observe(connectView, { attributes: true, attributeFilter: ['class'] });
+    sync();
+  }
+
+  function activeLeague() {
+    let savedName = null;
+    try { savedName = localStorage.getItem('ffo_active_league_name'); } catch (_) { /* Storage can be disabled; navigation remains usable. */ }
+    const rawName = window.FFO_ACTIVE_LEAGUE?.name || savedName;
+    return {
+      name: rawName || 'Fantasy Front Office',
+      detail: window.FFO_ACTIVE_LEAGUE ? `${window.FFO_ACTIVE_LEAGUE.provider || 'Manual'} · ${window.FFO_ACTIVE_LEAGUE.league_type || window.FFO_ACTIVE_LEAGUE.type || 'League'}` : 'Local intelligence workspace'
+    };
+  }
+
+  function addStyles() {
+    if ( $('[data-ffo2]')) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'css/ffo-2.css';
+    link.dataset.ffo2 = 'true';
+    document.head.appendChild(link);
+  }
+
+  function navLink(route) {
+    const current = currentRoute().key === route.key ? ' aria-current="page"' : '';
+    return `<a href="${route.href}"${current}>${icons[route.icon]}<span>${route.label}</span></a>`;
+  }
+
+  function sidebar() {
+    const primary = routes.slice(0, 7).map(navLink).join('');
+    return `<aside class="ffo2-sidebar" aria-label="Primary navigation">
+      <a class="ffo2-brand" href="index.html"><span class="ffo2-mark">FFO</span><span class="ffo2-brand-copy"><strong>Fantasy Front Office</strong><span>Decision intelligence</span></span></a>
+      <div class="ffo2-nav-label">League</div><nav class="ffo2-nav">${primary}</nav>
+      <div class="ffo2-nav-label">Tools</div><nav class="ffo2-nav">
+        <a href="league-decisions.html"${currentRoute().key === 'decisions' ? ' aria-current="page"' : ''}>${icons.health}<span>League Decisions</span></a>
+        <a href="draft-slot-blueprints.html">${icons.draft}<span>Draft Blueprints</span></a>
+        <a href="decision-intelligence.html">${icons.health}<span>Intelligence Lab</span></a>
+        <a href="league-config.html">${icons.settings}<span>Settings</span></a>
+      </nav>
+      <div class="ffo2-sidebar-foot"><a href="docs/FANTASY_FRONT_OFFICE_2_0_DESIGN_SPEC.md">${icons.settings}<span>2.0 product contract</span></a><div class="ffo2-readonly">Provider actions remain read-only</div></div>
+    </aside>`;
+  }
+
+  function topbar() {
+    const league = activeLeague();
+    return `<header class="ffo2-topbar">
+      <div class="ffo2-context"><span class="ffo2-league-logo">FF</span><span class="ffo2-context-copy"><strong data-ffo2-league>${esc(league.name)}</strong><span data-ffo2-league-detail>${esc(league.detail)}</span></span><button class="ffo2-context-switch" type="button" aria-label="Open league settings" data-ffo2-league-switch>⌄</button></div>
+      <div class="ffo2-top-actions"><button class="ffo2-search" type="button" data-ffo2-search>${icons.search}<span>Search tools</span><kbd>⌘K</kbd></button><a class="ffo2-health" href="league-config.html" aria-label="Data health: local sources ready"><span class="ffo2-health-dot"></span><span>Data ready</span></a></div>
+    </header>`;
+  }
+
+  function mobileBars() {
+    const league = activeLeague();
+    const route = currentRoute();
+    const core = routes.filter((item) => ['home', 'team', 'players', 'draft'].includes(item.key));
+    return `<header class="ffo2-mobilebar"><a class="ffo2-mark" href="index.html">FFO</a><span class="ffo2-mobile-title"><strong>${esc(route.label)}</strong><span data-ffo2-mobile-league>${esc(league.name)}</span></span><a class="ffo2-mobile-health" href="league-config.html" aria-label="Open league and data settings"><span class="ffo2-health-dot"></span></a></header>
+      <nav class="ffo2-bottom-nav" aria-label="Mobile navigation">${core.map(navLink).join('')}<button type="button" data-ffo2-more>${icons.more}<span>More</span></button></nav>`;
+  }
+
+  function moreSheet() {
+    const extra = [
+      { label: 'League Decisions', href: 'league-decisions.html', icon: 'health' },
+      routes.find((item) => item.key === 'matchup'), routes.find((item) => item.key === 'trade'), routes.find((item) => item.key === 'league'),
+      { label: 'Auction Room', href: 'auction.html', icon: 'draft' }, { label: 'Draft Reviews', href: 'draft-review.html', icon: 'health' },
+      { label: 'Data & Evidence', href: 'decision-intelligence.html', icon: 'health' }, { label: 'Yahoo Connection', href: 'yahoo-connect.html', icon: 'settings' },
+      { label: 'Draft Blueprints', href: 'draft-slot-blueprints.html', icon: 'draft' }
+    ];
+    return `<div class="ffo2-menu-sheet" aria-hidden="true" data-ffo2-sheet><section class="ffo2-menu-card" role="dialog" aria-modal="true" aria-labelledby="ffo2-menu-title"><div class="ffo2-menu-head"><strong id="ffo2-menu-title">More tools</strong><button class="ffo2-menu-close" type="button" aria-label="Close menu" data-ffo2-menu-close>×</button></div><div class="ffo2-menu-grid">${extra.map((item) => `<a href="${item.href}">${icons[item.icon]}<span>${item.label}</span></a>`).join('')}</div></section></div>`;
+  }
+
+  function searchDialog() {
+    return `<dialog class="ffo2-search-dialog" data-ffo2-search-dialog><div class="ffo2-search-head"><input type="search" aria-label="Search tools" placeholder="Search pages and tools…" data-ffo2-search-input><button type="button" class="ffo2-search-close" aria-label="Close search" data-ffo2-search-close>×</button></div><div class="ffo2-search-results" data-ffo2-search-results></div></dialog>`;
+  }
+
+  function searchItems() {
+    return [
+      ...routes, { label: 'Auction Room', href: 'auction.html', detail: 'Live auction simulation and pricing' },
+      { label: 'Draft Blueprints', href: 'draft-slot-blueprints.html', detail: 'Simulate every draft slot' },
+      { label: 'Draft Review', href: 'draft-review.html', detail: 'Audit a completed draft' },
+      { label: 'Intelligence Lab', href: 'decision-intelligence.html', detail: 'Bounded evidence adjustments' },
+      { label: 'Yahoo Connection', href: 'yahoo-connect.html', detail: 'Secure read-only adapter setup' }
+    ].map((item) => ({ label: item.label, href: item.href, detail: item.detail || 'Fantasy Front Office' }));
+  }
+
+  function bind() {
+    const sheet = $('[data-ffo2-sheet]');
+    const more = $('[data-ffo2-more]');
+    const close = $('[data-ffo2-menu-close]');
+    const openSheet = () => { sheet.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden'; close.focus(); };
+    const closeSheet = () => { sheet.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; more?.focus(); };
+    more?.addEventListener('click', openSheet);
+    close?.addEventListener('click', closeSheet);
+    sheet?.addEventListener('click', (event) => { if (event.target === sheet) closeSheet(); });
+
+    const dialog = $('[data-ffo2-search-dialog]');
+    const input = $('[data-ffo2-search-input]');
+    const results = $('[data-ffo2-search-results]');
+    const renderResults = () => {
+      const query = input.value.trim().toLowerCase();
+      const items = searchItems().filter((item) => !query || `${item.label} ${item.detail}`.toLowerCase().includes(query));
+      results.innerHTML = items.map((item) => `<a href="${item.href}"><span>${esc(item.label)}</span><small>${esc(item.detail)}</small></a>`).join('') || '<small>No matching tools.</small>';
+    };
+    const openSearch = () => { renderResults(); dialog.showModal(); requestAnimationFrame(() => input.focus()); };
+    $('[data-ffo2-search]')?.addEventListener('click', openSearch);
+    $('[data-ffo2-search-close]')?.addEventListener('click', () => dialog.close());
+    input?.addEventListener('input', renderResults);
+    document.addEventListener('keydown', (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); openSearch(); }
+      if (event.key === 'Escape' && sheet?.getAttribute('aria-hidden') === 'false') closeSheet();
+    });
+
+    $('[data-ffo2-league-switch]')?.addEventListener('click', () => { location.href = 'league-config.html'; });
+    document.addEventListener('ffo:league-changed', (event) => {
+      const league = event.detail?.league || event.detail || window.FFO_ACTIVE_LEAGUE || {};
+      const name = league.name || 'Fantasy Front Office';
+      document.querySelectorAll('[data-ffo2-league],[data-ffo2-mobile-league]').forEach((node) => { node.textContent = name; });
+      const detail = $('[data-ffo2-league-detail]');
+      if (detail) detail.textContent = `${league.provider || 'Manual'} · ${league.league_type || league.type || 'League'}`;
+    });
+    window.addEventListener('hashchange', applyDashboardHash);
+    applyDashboardHash();
+    observeDashboardMode();
+  }
+
+  function mount() {
+    addStyles();
+    document.body.classList.add('ffo2-page');
+    if (isImmersive) document.body.classList.add('ffo2-immersive');
+    const skip = document.createElement('a');
+    skip.className = 'ffo2-skip'; skip.href = `${location.href.split('#')[0]}#main-content`; skip.textContent = 'Skip to content';
+    document.body.prepend(skip);
+    const main = $('main') || $('.main') || $('.app');
+    if (main && !main.id) main.id = 'main-content';
+    if (!isImmersive) document.body.insertAdjacentHTML('afterbegin', sidebar() + topbar());
+    document.body.insertAdjacentHTML('beforeend', mobileBars() + moreSheet() + searchDialog());
+    bind();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount, { once: true });
+  else mount();
+})();
+
+</script>
+<script>
+/* Embedded unchanged except shell inline-style detection: js/league-decision-ui.js */
+(function () {
+  'use strict';
+  const E = window.FFOLeagueDecision, $ = id => document.getElementById(id);
+  const esc = x => String(x ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  let storage; try { storage = window.localStorage; } catch (_) { storage = null; }
+  const read = (key, fallback) => { try { return JSON.parse(storage?.getItem(key) || 'null') ?? fallback; } catch (_) { return fallback; } };
+  const write = (key, value) => { try { storage?.setItem(key, JSON.stringify(value)); } catch (_) { /* Private browsing remains usable. */ } };
+  const service = new window.FFOLeagueData.DataService({ storage }), flags = read('ffo-decision-flags', { market: true, projections: true });
+  let discovery = null, ctx = null, myId = null, active = 'power', generation = 0, evidence = [], computed = {};
+  const tabs = { power: 'Power rankings', trades: 'Trades', waivers: 'Waivers', lineup: 'Lineup', playoffs: 'Playoffs', capital: 'Draft capital' };
+  const source = (key, formula = '') => ({ ...(ctx?.sources[key] || { status: 'Unavailable', fetchedAt: null }), formula });
+  const marketSource = formula => ({ source: ctx.market.source, url: ctx.market.source === 'DynastyProcess' ? ctx.sources.fallbackMarket?.url : ctx.sources.market?.url, fetchedAt: ctx.market.fetchedAt, formula, status: ctx.market.fetchedAt ? 'Available' : 'Unavailable' });
+  function numeric(value, provenance, { digits = 0, suffix = '', prefix = '', grouping = true } = {}) {
+    if (value === null || value === undefined || !Number.isFinite(Number(value))) return '<span class="ld-muted">Unavailable</span>';
+    const id = evidence.push(provenance) - 1, label = `${prefix}${Number(value).toLocaleString(undefined, { useGrouping: grouping, maximumFractionDigits: digits, minimumFractionDigits: digits })}${suffix}`;
+    const title = `${provenance.source || provenance.url || provenance.status || 'Derived'} · fetched ${provenance.fetchedAt || 'unavailable'}${provenance.formula ? ` · ${provenance.formula}` : ''}`;
+    return `<button class="ld-number" data-evidence="${id}" title="${esc(title)}" aria-label="${esc(label)}; show source and calculation">${esc(label)}</button>`;
+  }
+  const pct = (x, s) => numeric(x === null ? null : x * 100, s, { digits: 1, suffix: '%' });
+  function name(id) { const r = ctx.rosters.find(x => String(x.roster_id) === String(id)), u = ctx.users.find(x => x.user_id === r?.owner_id); return u?.metadata?.team_name || u?.display_name || `Roster ${id}`; }
+  function pLabel(p) { return `${esc(p.name)} <span class="ld-muted">${esc(p.position)}</span>${p.evidence?.fuzzy ? ' <span class="ld-pill">Fuzzy match</span>' : ''}`; }
+  const playerValue = p => numeric(p.value, { ...p.evidence, url: ctx.market.source === 'DynastyProcess' ? ctx.sources.fallbackMarket?.url : ctx.sources.market?.url, formula: p.evidence?.fuzzy ? 'Unique normalized name + position join; manually verify identity.' : 'Exact Sleeper player ID join.' });
+  const empty = text => `<div class="ld-card"><p>${esc(text)}</p></div>`;
+  function table(headers, rows) { return `<div class="ld-table-wrap"><table class="ld-table"><thead><tr>${headers.map(h => `<th scope="col">${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(cells => `<tr>${cells.map((cell, i) => `<td data-label="${esc(headers[i])}">${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`; }
+  function powerView() {
+    const rows = E.power(ctx), src = marketSource('Complete roster sum; no missing values replaced by zero. Starter assignment maximizes value across configured slots; bench includes reserves.');
+    const positions = [...new Set(ctx.format.slots.flatMap(s => ({ FLEX: ['RB', 'WR', 'TE'], SUPER_FLEX: ['QB', 'RB', 'WR', 'TE'], WRRB_FLEX: ['WR', 'RB'], REC_FLEX: ['WR', 'TE'] })[s] || [s]))];
+    return `<h2>Where your roster stands</h2><p>Market strength and actual results are separate measures. Incomplete coverage stays unranked. Tap any underlined number for its source.</p>` + table(['Team', 'Total value', 'Starter value', 'Bench / reserves', 'Coverage', 'Results points / week', ...(ctx.format.dynasty ? ['Age-weighted window'] : [])], rows.map(r => [
+      `<strong>${esc(name(r.id))}${String(r.id) === String(myId) ? ' · you' : ''}</strong>`, numeric(r.total, src), numeric(r.starter, src), numeric(r.bench, src),
+      `${numeric(r.matched, src)} / ${numeric(r.count, source('rosters'))}`, numeric(r.pointsPerGame, source('rosters', 'Sleeper points for / completed scoring weeks; median games removed from the week denominator.'), { digits: 1 }),
+      ...(ctx.format.dynasty ? [numeric(r.window, { ...src, formula: 'Descriptive age proxy: clamp((35 − market-value-weighted age) / 15 × 100). Uses Sleeper ages. Not a forecast of wins or career length.' }, { digits: 1, suffix: ' / 100' })] : [])
+    ])) + `<details class="ld-details"><summary>Positional strength grid</summary>${table(['Team', ...positions], rows.map(r => [esc(name(r.id)), ...positions.map(pos => numeric(r.positional[pos] ?? null, src))]))}</details>`;
+  }
+  function offerCard(o) {
+    const src = marketSource('Market value sums. Both sides retain at least 85% of sent value, including any named counterparty drops. Starter-value gains are allocation metrics, not projected points.');
+    return `<article class="ld-card" data-offer><span class="ld-kicker">${esc(name(o.owner))}</span><h3>${o.give.length}-for-${o.receive.length} ${o.give.length > 1 ? 'consolidation' : 'exchange'}</h3><p>${esc(o.reason)}</p><p><strong>You give</strong><br>${o.give.map(p => `${pLabel(p)} · ${playerValue(p)}`).join('<br>')}</p><p><strong>You receive</strong><br>${o.receive.map(p => `${pLabel(p)} · ${playerValue(p)}`).join('<br>')}</p><p>Market: ${numeric(o.fair.give, src)} sent / ${numeric(o.fair.receive, src)} received.<br>Your starter-value change: ${numeric(o.myGain, src, { prefix: '+' })}. Their change: ${numeric(o.theirGain, src, { prefix: '+' })}.</p>${o.drops.length ? `<p>They must release: ${o.drops.map(p => `${pLabel(p)} (${playerValue(p)})`).join(', ')}. Included in the fairness check.</p>` : ''}<p class="ld-muted">${o.bestBall ? 'Best-ball depth and volatility can outweigh this market allocation gain. ' : ''}Review injuries, bye weeks and roster rules in Sleeper. Acceptance probability unavailable.</p></article>`;
+  }
+  function tradesView() {
+    const offers = computed.trades ??= E.tradeFindPartner(ctx, myId), profiles = E.tendencies(ctx);
+    const players = ctx.rosters.filter(r => String(r.roster_id) !== String(myId)).flatMap(r => E.activePlayers(ctx, r).filter(p => p.value !== null).map(p => ({ ...p, owner: r.roster_id })));
+    return `<h2>Find a useful exchange</h2><p>Searches real owners for exchanges that improve your starter market value and preserve theirs. Two- and three-player offers include required counterparty drops. No offer is submitted.</p><label class="ld-muted" for="ld-target">Counteroffer finder: select a player you want</label><select class="ld-search" id="ld-target"><option value="">Choose an owned target</option>${players.map(p => `<option value="${esc(p.id)}">${esc(p.name)} · ${esc(name(p.owner))}</option>`).join('')}</select><div id="ld-counteroffers"></div><div class="ld-grid">${offers.slice(0, 12).map(offerCard).join('') || empty('No offer clears the coverage, roster-fit and 15% fairness checks. Keeping your roster is a valid choice. Unknown values cannot fund an offer.')}</div><details class="ld-details"><summary>Manager tendencies and evidence limits</summary><p>Current-season completed transactions only. “Early” means weeks one through four. Pick overpayment is unavailable because historical asset prices are not supplied.</p>${profiles ? table(['Manager', 'Trades', 'RBs sold', 'Early RB sales', 'Waiver / free-agent moves', 'Picks acquired'], Object.entries(profiles).map(([id, p]) => [esc(name(id)), ...['trades', 'rbSales', 'earlyRbSales', 'waiverMoves', 'picksAcquired'].map(k => numeric(p[k], { ...source('transactions:1'), fetchedAt: ctx.fetchedAt, formula: 'Count of observed completed current-season transactions; full history source list below.' }))])) : empty('Transaction history unavailable or incomplete. No manager tendencies inferred.')}</details>`;
+  }
+  function waiverRows(rows) { return table(['Free agent', 'Market value', 'Global adds', 'Global drops', 'FAAB reference bid'], rows.map(p => [pLabel(p), playerValue(p), numeric(p.add, source('trendingAdd', 'Global Sleeper add count in the requested 24-hour top-100 feed. Absence does not imply zero.')), numeric(p.drop, source('trendingDrop', 'Global Sleeper drop count in the requested 24-hour top-100 feed.')), numeric(p.bid, { ...source('rosters'), formula: 'Budget-scaled median successful current-season waiver bid: median bid / league starting budget × remaining budget, rounded and capped at remaining budget. A reference bid, not a player-specific price forecast.' }, { prefix: '$' })])); }
+  function waiversView() {
+    const w = E.waivers(ctx, myId); computed.waivers = w;
+    return `<h2>The actual free-agent pool</h2><p>Cross-checked against every roster. Global add/drop activity measures interest; it is not a projection or an endorsement.</p>${w.disabled ? '<div class="ld-warning">Adds are disabled by this league. These players are for reference only.</div>' : ''}<div class="ld-card">Remaining FAAB: ${numeric(w.remaining, source('rosters', 'League waiver budget minus this roster’s waiver_budget_used; league settings source below.'), { prefix: '$' })}. Observed winning bids: ${ctx.transactions ? numeric(w.bids.length, { ...source('transactions:1'), fetchedAt: ctx.fetchedAt }) : 'Unavailable'}.<p>The bid column uses your budget and the league’s median completed bid. With no bid history, it stays unavailable. Non-FAAB leagues have no dollar suggestion.</p></div><label class="ld-muted" for="ld-waiver-search">Search free agents by name or position</label><input id="ld-waiver-search" class="ld-search" type="search" placeholder="Player or position"><div id="ld-waiver-results">${waiverRows(w.rows.slice(0, 60))}</div>${ctx.trendingAdd === null || ctx.trendingDrop === null ? '<p>Trending source unavailable. Available market players are still checked against league ownership.</p>' : ''}<p>${numeric(w.rows.length, source('players', 'Union of resolved market players and returned trending IDs, minus every rostered ID, restricted to eligible positions.'))} free agents in the available source universe; search includes the entire list.</p>`;
+  }
+  function lineupView() {
+    const l = E.lineup(ctx, myId); if (!l) return empty('Choose your team to view its lineup.');
+    const src = l.metric === 'projection' ? source('projections', 'Weekly returned stat projections × this league’s scoring weights. All active candidates must have complete supported scoring statistics.') : marketSource('Exact maximum-value slot assignment; this is not a projected weekly score.');
+    const used = new Set(l.rows.flatMap(r => r.player ? [r.player.id] : []));
+    return `<h2>${l.bestBall ? 'Best-ball roster reference' : 'Lineup optimizer'}</h2><div class="ld-warning">${esc(l.reason)}${l.bestBall ? ' Sleeper selects best-ball scorers automatically; there is no manual start/sit action.' : ' Read-only reference: game locks and commissioner substitutions must be checked in Sleeper.'}</div><p>Week ${numeric(ctx.week, { source: 'Sleeper NFL state', fetchedAt: discovery.fetchedAt, url: 'https://api.sleeper.app/v1/state/nfl' })} · ${l.metric === 'projection' ? 'Projected points' : 'VALUE ONLY · NO PROJECTIONS'} total: ${numeric(l.total, src, { digits: l.metric === 'projection' ? 1 : 0 })}</p>${table(['Slot', 'Player', l.metric === 'projection' ? 'Projected points' : 'Market value'], l.rows.map(r => [esc(r.slot), r.player ? pLabel(r.player) : 'Unfilled · evidence or eligible player unavailable', r.player ? numeric(r.player[l.metric], r.player.evidence?.fuzzy ? { ...src, formula: `${src.formula} Fuzzy market identity: verify name and position.` } : src, { digits: l.metric === 'projection' ? 1 : 0 }) : 'Unavailable']))}<details class="ld-details"><summary>Active bench candidates</summary>${table(['Player', 'Market value', 'Injury status'], l.pool.filter(p => !used.has(p.id)).map(p => [pLabel(p), playerValue(p), esc(p.injury || 'No injury designation returned')]))}</details><p>IR and taxi players are excluded. Missing values remain unfilled rather than being assigned an invented zero. This view never uses season totals as weekly projections.</p>`;
+  }
+  function playoffView() {
+    const model = computed.playoffs ??= E.playoffs(ctx, myId);
+    if (!model.available) return `<h2>Playoff outlook</h2>${empty(model.reason)}<p>The model requires a complete actual remaining schedule, settled standings and observed weekly score variation. No replacement odds are generated.</p>${scheduleView()}`;
+    const src = { source: 'Bootstrap Monte Carlo over Sleeper results and actual schedule', fetchedAt: ctx.fetchedAt, formula: `${model.sims} seeded simulations. Team mean shrunk toward league mean with two prior weeks; resample observed league residuals. Record then modeled total points seed teams; exact remaining ties use a random draw. Conditional win/loss odds are descriptive leverage, not mathematical elimination or calibrated forecasts.` };
+    return `<h2>Playoff outlook</h2><p>${numeric(model.sims, src)} simulations of the actual remaining schedule. Modeled odds; not a validated forecast.</p><div class="ld-grid">${model.teams.sort((a, b) => b.odds - a.odds).map(t => `<article class="ld-card"><h3>${esc(name(t.id))}</h3><p>Make playoffs: ${pct(t.odds, src)}<br>Results strength: ${numeric(t.strength, src, { digits: 1 })} points / week</p><details><summary>Seed distribution</summary>${t.seeds.map((p, i) => `<p>Seed ${i + 1}: ${pct(p, src)}</p>`).join('')}</details></article>`).join('')}</div><h3 style="margin-top:24px">Your highest-leverage weeks</h3><p>“Must-win” here means the largest conditional odds swing; it does not assert elimination after a loss.</p>${table(['Week', 'Playoffs if win', 'Playoffs if lose', 'Swing'], model.leverage.slice(0, 5).map(w => [numeric(w.week, src), pct(w.win, src), pct(w.loss, src), pct(w.win !== null && w.loss !== null ? w.win - w.loss : null, src)]))}${scheduleView()}`;
+  }
+  function scheduleView() {
+    const rows = Object.entries(ctx.matchups).filter(([w]) => Number(w) >= ctx.week).map(([w, matches]) => {
+      const mine = matches?.find(r => String(r.roster_id) === String(myId)), other = mine && matches.find(r => r.matchup_id === mine.matchup_id && String(r.roster_id) !== String(myId));
+      return [numeric(Number(w), source(`matchups:${w}`)), other ? esc(name(other.roster_id)) : 'Schedule unavailable'];
+    });
+    return `<details class="ld-details"><summary>Your actual remaining schedule</summary>${table(['Week', 'Opponent'], rows)}</details>`;
+  }
+  function capitalView() {
+    const c = E.capital(ctx); if (!c) return empty('Drafts or traded-pick ownership unavailable. No pick totals inferred.');
+    const src = marketSource('Generic year/round pick price from the same value board. Net = owned value minus original allotment value over the displayed years. Unknown rounds invalidate the total; no invented slots or discounts.');
+    return `<h2>Draft capital and net equity</h2><p>Completed drafts are excluded. Future original allotments follow explicit league draft-round settings; they are labeled rule-derived. Transferred ownership uses Sleeper traded picks.</p>${c.picks.length ? table(['Team', 'Owned picks', 'Pick value', 'Net equity'], c.teams.map(t => [esc(name(t.id)), numeric(t.count, source('tradedPicks', 'Count of observed transfers and rule-derived original allotments in displayed years.')), numeric(t.value, src), numeric(t.net, src)])) : empty('No upcoming draft or priced future entitlement is available for this league.')}<details class="ld-details" open><summary>Your pick inventory</summary>${table(['Pick', 'Originally', 'Evidence', 'Value'], c.picks.filter(p => String(p.owner_id) === String(myId)).map(p => [
+      `${numeric(Number(p.season), source(p.entitlement ? 'league' : 'tradedPicks'), { grouping: false })} round ${numeric(Number(p.round), source(p.entitlement ? 'league' : 'tradedPicks'))}`, esc(name(p.roster_id)), p.entitlement ? 'Rule-derived allotment' : 'Sleeper draft / transfer', numeric(p.market?.value, { ...src, formula: `${src.formula} ${p.market?.name || 'No matching year/round price.'}` })]))}</details>`;
+  }
+  function render() {
+    evidence = [];
+    document.querySelectorAll('[data-ld-tab]').forEach(b => { const selected = b.dataset.ldTab === active; b.setAttribute('aria-selected', String(selected)); b.tabIndex = selected ? 0 : -1; });
+    $('ld-panel').setAttribute('aria-labelledby', `ld-tab-${active}`);
+    if (!ctx) { $('ld-panel').innerHTML = empty('Choose a discovered league. Its data will appear here when loading completes.'); return; }
+    $('ld-panel').innerHTML = ({ power: powerView, trades: tradesView, waivers: waiversView, lineup: lineupView, playoffs: playoffView, capital: capitalView })[active]();
+    $('ld-target')?.addEventListener('change', e => { const offers = e.target.value ? E.tradeFindPartner(ctx, myId, e.target.value) : []; $('ld-counteroffers').innerHTML = e.target.value ? `<h3>Fair counteroffers for this target</h3><div class="ld-grid">${offers.slice(0, 3).map(offerCard).join('') || empty('No legal, beneficial counteroffer within the fairness limit. Do not pay more just to complete a deal.')}</div><hr>` : ''; });
+    $('ld-waiver-search')?.addEventListener('input', e => { const q = e.target.value.toLowerCase(); $('ld-waiver-results').innerHTML = waiverRows(computed.waivers.rows.filter(p => `${p.name} ${p.position}`.toLowerCase().includes(q)).slice(0, 60)); });
+    // Read-only snapshot for reproducible diagnostics and browser verification; never submitted to a provider.
+    window.FFO_DECISION_STATE = { context: ctx, myId, active, computed };
+  }
+  function evidenceView() {
+    $('ld-source-list').innerHTML = table(['Source', 'State', 'Fetched'], Object.entries(ctx.sources).map(([key, s]) => [esc(key), esc(s.status), esc(s.fetchedAt || 'Unavailable')])) + `<h3>Identity audit</h3><p>${ctx.market.fuzzy.length} fuzzy joins; ${ctx.market.unmatched.length} unresolved market rows. No ambiguous match is accepted.</p><details><summary>Every fuzzy match</summary>${ctx.market.fuzzy.map(p => `<p>${esc(p.name)} · Sleeper ${esc(p.id)}</p>`).join('') || '<p>None.</p>'}</details><details><summary>Unresolved source rows</summary>${ctx.market.unmatched.map(p => `<p>${esc(p.name)} · ${esc(p.reason)}</p>`).join('') || '<p>None.</p>'}</details>`;
+  }
+  async function chooseLeague(id) {
+    const token = ++generation; ctx = null; computed = {}; window.FFO_DECISION_STATE = null;
+    $('ld-status').textContent = 'Loading settings, rosters, values and the actual schedule…'; $('ld-panel').setAttribute('aria-busy', 'true'); $('ld-format').innerHTML = ''; $('ld-warnings').innerHTML = ''; $('ld-source-list').innerHTML = ''; $('ld-team').innerHTML = '<option>Loading teams…</option>'; render();
+    try {
+      const next = await service.load(id, discovery, flags); if (token !== generation || !next) return;
+      ctx = next; const remembered = read('ffo-decision-teams', {}), owned = ctx.rosters.find(r => r.owner_id === ctx.user.user_id || (r.co_owners || []).includes(ctx.user.user_id));
+      myId = ctx.rosters.find(r => String(r.roster_id) === String(remembered[id]))?.roster_id ?? owned?.roster_id ?? null;
+      $('ld-team').innerHTML = `${myId === null ? '<option value="">Choose your team</option>' : ''}${ctx.rosters.map(r => `<option value="${r.roster_id}">${esc(name(r.roster_id))}</option>`).join('')}`; $('ld-team').value = String(myId ?? '');
+      write('ffo-decision-league', id); const f = ctx.format;
+      $('ld-format').innerHTML = [f.label, `${f.teams} teams`, `${f.ppr} PPR`, `${f.superFlex} Superflex`, `TE +${f.tePremium}`, `${f.slots.length} starters`, `${f.rosterSize} roster slots`, `${f.ir ?? 'unknown'} IR`, `${f.taxi ?? 'unknown'} taxi`, `${f.idpSlots.length} IDP`, f.bestBall ? 'Best ball' : 'Set lineup', `Playoffs: ${f.playoffTeams ?? 'unknown'} teams · weeks ${f.playoffWeeks.join(', ') || 'unavailable'}`].map(label => `<span class="ld-pill" title="Sleeper league settings · fetched ${esc(ctx.sources.league.fetchedAt)}">${esc(label)}</span>`).join('');
+      $('ld-warnings').innerHTML = f.warnings.map(w => `<div class="ld-warning">${esc(w)}</div>`).join('');
+      const failures = Object.values(ctx.sources).filter(s => s.status === 'Unavailable').length;
+      $('ld-status').textContent = `${ctx.league.name} · ${ctx.market.source} market · ${failures ? `${failures} sources unavailable; inspect source details.` : 'Sources loaded.'} ${myId === null ? 'Choose your roster before using team decisions.' : ''}`;
+      window.FFO_ACTIVE_LEAGUE = { name: ctx.league.name, provider: 'Sleeper', league_type: f.label };
+      document.dispatchEvent(new CustomEvent('ffo:league-changed', { detail: window.FFO_ACTIVE_LEAGUE }));
+      evidenceView(); render();
+    } catch (error) { if (token === generation) { $('ld-status').textContent = `${error.message} Use Refresh to retry.`; $('ld-panel').innerHTML = empty('This league could not be loaded. Previous league data has been cleared.'); } }
+    finally { if (token === generation) $('ld-panel').setAttribute('aria-busy', 'false'); }
+  }
+  async function discover() {
+    ++generation; ++service.version; ctx = null; computed = {}; window.FFO_DECISION_STATE = null;
+    $('ld-format').innerHTML = ''; $('ld-warnings').innerHTML = ''; $('ld-source-list').innerHTML = ''; render();
+    $('ld-league').disabled = true; $('ld-refresh').disabled = true; $('ld-status').textContent = 'Discovering Partender’s current NFL leagues…';
+    try {
+      discovery = await service.discover('Partender'); $('ld-league').innerHTML = discovery.leagues.map(l => `<option value="${esc(l.league_id)}">${esc(l.name)}</option>`).join('');
+      if (!discovery.leagues.length) { $('ld-status').textContent = 'No leagues returned for Partender in the current NFL season.'; return; }
+      const remembered = read('ffo-decision-league', null), selected = discovery.leagues.find(l => l.league_id === remembered) || discovery.leagues[0]; $('ld-league').value = selected.league_id; await chooseLeague(selected.league_id);
+    } catch (error) { $('ld-status').textContent = `Discovery unavailable: ${error.message}. Use Refresh to retry.`; }
+    finally { $('ld-refresh').disabled = false; $('ld-league').disabled = false; }
+  }
+  function mount() {
+    $('ld-tabs').innerHTML = Object.entries(tabs).map(([id, label]) => `<button id="ld-tab-${id}" role="tab" aria-controls="ld-panel" aria-selected="${id === active}" tabindex="${id === active ? 0 : -1}" data-ld-tab="${id}">${label}</button>`).join('');
+    $('ld-tabs').addEventListener('click', e => { const button = e.target.closest('[data-ld-tab]'); if (button) { active = button.dataset.ldTab; render(); } });
+    $('ld-tabs').addEventListener('keydown', e => { const keys = Object.keys(tabs), i = keys.indexOf(active); let next; if (e.key === 'ArrowRight') next = (i + 1) % keys.length; if (e.key === 'ArrowLeft') next = (i + keys.length - 1) % keys.length; if (e.key === 'Home') next = 0; if (e.key === 'End') next = keys.length - 1; if (next !== undefined) { e.preventDefault(); active = keys[next]; render(); $(`ld-tab-${active}`).focus(); } });
+    $('ld-league').addEventListener('change', e => chooseLeague(e.target.value));
+    $('ld-team').addEventListener('change', e => { myId = e.target.value || null; const map = read('ffo-decision-teams', {}); map[ctx.league.league_id] = myId; write('ffo-decision-teams', map); computed = {}; render(); });
+    $('ld-refresh').addEventListener('click', () => { service.cache.clear(); discover(); });
+    $('ld-settings-open').addEventListener('click', () => { $('ld-market-flag').checked = flags.market !== false; $('ld-projection-flag').checked = !!flags.projections; $('ld-settings').showModal(); });
+    $('ld-settings-save').addEventListener('click', () => { flags.market = $('ld-market-flag').checked; flags.projections = $('ld-projection-flag').checked; write('ffo-decision-flags', flags); $('ld-settings').close(); if (discovery) chooseLeague($('ld-league').value); });
+    $('ld-evidence-close').addEventListener('click', () => $('ld-evidence').close());
+    document.addEventListener('click', e => { const button = e.target.closest('[data-evidence]'); if (!button) return; const p = evidence[Number(button.dataset.evidence)]; if (!p) return; $('ld-evidence-content').innerHTML = `<p><strong>${esc(p.source || p.status || 'Calculated from source')}</strong></p><p>Fetched: ${esc(p.fetchedAt || 'Unavailable')}</p>${p.sourceDate ? `<p>Source publication date: ${esc(p.sourceDate)}</p>` : ''}<p>${esc(p.formula || 'Direct value returned by the source.')}</p>${p.url && /^https:\/\//.test(p.url) ? `<p><a href="${esc(p.url)}" target="_blank" rel="noopener">Open source response</a></p>` : ''}`; $('ld-evidence').showModal(); });
+    render(); discover();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount, { once: true }); else mount();
+})();
+
+</script>
+</body></html>
