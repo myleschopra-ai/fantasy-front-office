@@ -31,6 +31,12 @@ Local raw downloads, validation caches, and browser artifacts are not applicatio
 5. After merge, verify the GitHub Pages deployment and open Dashboard, Trade Intelligence, Matchup, Draft, and Auction on desktop and mobile. Compare deployed assets with the merged source. A pushed branch alone is not a published release.
 6. Deliver the live URL and a precise account of passed checks and remaining limitations.
 
+## Format-aware standalone workspace
+
+`league-decisions.html` is the complete six-module Sleeper workspace, linked from the dashboard and shared navigation. Its CSS and JavaScript are inline. The source modules remain in this repository for testing; `node scripts/build_league_workspace.cjs` embeds those exact modules and the existing navigation/design styles. `--check` verifies that the complete HTML matches its tested sources. No build step or laptop server is needed to use the published file. Its base URL points companion-tool links to the canonical GitHub Pages site so a downloaded copy still links to maintained draft tools.
+
+Player and market caches persist for one day; league data stays in memory. Settings and selected league/team remain browser preferences. Sources, formulas, fetch times and every fuzzy match are available inside the workspace. See `FORMAT_AWARE_WORKSPACE.md` and `LEAGUE_DECISIONS_CHANGELOG.md` for methods and evidence limits.
+
 ## Browser state
 
 League selections and draft/session preferences are saved per browser origin. State from an older file preview is not automatically available at the published HTTPS address. Reconnect the league or use an existing supported session import/export when moving browsers. Never publish personal browser state as repository data.
