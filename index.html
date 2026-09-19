@@ -324,6 +324,12 @@
 
 <main>
 
+  <section style="margin:0 0 20px;padding:18px;border:1px solid var(--border);border-radius:12px;background:var(--surface)">
+    <h2 style="margin:0 0 8px">Your format-aware league workspace</h2>
+    <p style="color:var(--text-muted);line-height:1.6">Automatically discover Partender’s Sleeper leagues. Explore power rankings, fair trades, real free agents, lineups, playoff outlooks and draft capital with source details.</p>
+    <a href="league-decisions.html" class="btn" style="display:inline-block;text-decoration:none">Open League Decisions →</a>
+  </section>
+
   <!-- CONNECT VIEW -->
   <div id="view-connect" class="view active">
     <section class="ffo2-landing" aria-labelledby="connect-title">
@@ -501,6 +507,7 @@
 
 </main>
 
+<script src="js/league-decision-engine.js"></script>
 <script src="js/dashboard-intelligence.js"></script>
 <script src="js/dashboard-observability.js"></script>
 <script src="js/roster-improvement-engine.js"></script>
@@ -508,7 +515,6 @@
 (function () {
   "use strict";
 
-  const FC_URL = "https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=2&numTeams=12&ppr=0.5";
   const STORAGE_KEY = "ffo_league_id";
   const PROVIDER_IDS_KEY = "ffo_provider_league_ids_v1";
   const ACTIVE_LEAGUE_KEY = "ffo_active_league_id_v1";
@@ -927,12 +933,16 @@
     connectBtn.innerHTML = '<span class="loading-spinner"></span>Loading…';
     try {
       const optionalFetch = url => fetch(url).catch(() => null);
+      const leagueRequest = fetch(`https://api.sleeper.app/v1/league/${leagueId}`);
+      const marketRequest = leagueRequest.then(response => response.clone().json())
+        .then(league => optionalFetch(window.FFOLeagueDecision.marketUrl(window.FFOLeagueDecision.format(league))))
+        .catch(() => null);
       const [leagueRes, rostersRes, usersRes, picksRes, fcRes] = await Promise.all([
-        fetch(`https://api.sleeper.app/v1/league/${leagueId}`),
+        leagueRequest,
         fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`),
         fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`),
         optionalFetch(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`),
-        optionalFetch(FC_URL),
+        marketRequest,
       ]);
       if (!leagueRes.ok) throw new Error("League not found — check the League ID");
       if (!rostersRes.ok) throw new Error("Sleeper returned the league, but its rosters could not be loaded. Try Connect again.");
