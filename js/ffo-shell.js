@@ -27,7 +27,8 @@
     { key: 'players', label: 'Players', href: 'vegas-intelligence.html', icon: 'players', matches: ['vegas-intelligence.html'] },
     { key: 'trade', label: 'Trade', href: 'trade-intelligence.html', icon: 'trade', matches: ['trade-intelligence.html', 'trade.html'] },
     { key: 'draft', label: 'Draft', href: 'draft.html', icon: 'draft', matches: ['draft.html', 'draft-room-v5.html', 'mock-draft-v4.html', 'draft-review.html', 'draft-slot-blueprints.html', 'auction.html', 'auction-review.html'] },
-    { key: 'league', label: 'League', href: 'league-config.html', icon: 'league', matches: ['league-config.html', 'yahoo-connect.html'] }
+    { key: 'league', label: 'League', href: 'league-config.html', icon: 'league', matches: ['league-config.html', 'yahoo-connect.html'] },
+    { key: 'decisions', label: 'League Decisions', href: 'league-decisions.html', icon: 'health', matches: ['league-decisions.html'] }
   ];
 
   function currentRoute() {
@@ -59,7 +60,9 @@
   }
 
   function activeLeague() {
-    const rawName = window.FFO_ACTIVE_LEAGUE?.name || localStorage.getItem('ffo_active_league_name');
+    let savedName = null;
+    try { savedName = localStorage.getItem('ffo_active_league_name'); } catch (_) { /* Storage can be disabled; navigation remains usable. */ }
+    const rawName = window.FFO_ACTIVE_LEAGUE?.name || savedName;
     return {
       name: rawName || 'Fantasy Front Office',
       detail: window.FFO_ACTIVE_LEAGUE ? `${window.FFO_ACTIVE_LEAGUE.provider || 'Manual'} · ${window.FFO_ACTIVE_LEAGUE.league_type || window.FFO_ACTIVE_LEAGUE.type || 'League'}` : 'Local intelligence workspace'
@@ -86,6 +89,7 @@
       <a class="ffo2-brand" href="index.html"><span class="ffo2-mark">FFO</span><span class="ffo2-brand-copy"><strong>Fantasy Front Office</strong><span>Decision intelligence</span></span></a>
       <div class="ffo2-nav-label">League</div><nav class="ffo2-nav">${primary}</nav>
       <div class="ffo2-nav-label">Tools</div><nav class="ffo2-nav">
+        <a href="league-decisions.html"${currentRoute().key === 'decisions' ? ' aria-current="page"' : ''}>${icons.health}<span>League Decisions</span></a>
         <a href="draft-slot-blueprints.html">${icons.draft}<span>Draft Blueprints</span></a>
         <a href="decision-intelligence.html">${icons.health}<span>Intelligence Lab</span></a>
         <a href="league-config.html">${icons.settings}<span>Settings</span></a>
@@ -112,6 +116,7 @@
 
   function moreSheet() {
     const extra = [
+      { label: 'League Decisions', href: 'league-decisions.html', icon: 'health' },
       routes.find((item) => item.key === 'matchup'), routes.find((item) => item.key === 'trade'), routes.find((item) => item.key === 'league'),
       { label: 'Auction Room', href: 'auction.html', icon: 'draft' }, { label: 'Draft Reviews', href: 'draft-review.html', icon: 'health' },
       { label: 'Data & Evidence', href: 'decision-intelligence.html', icon: 'health' }, { label: 'Yahoo Connection', href: 'yahoo-connect.html', icon: 'settings' },
@@ -179,7 +184,7 @@
     document.body.classList.add('ffo2-page');
     if (isImmersive) document.body.classList.add('ffo2-immersive');
     const skip = document.createElement('a');
-    skip.className = 'ffo2-skip'; skip.href = '#main-content'; skip.textContent = 'Skip to content';
+    skip.className = 'ffo2-skip'; skip.href = `${location.href.split('#')[0]}#main-content`; skip.textContent = 'Skip to content';
     document.body.prepend(skip);
     const main = $('main') || $('.main') || $('.app');
     if (main && !main.id) main.id = 'main-content';
