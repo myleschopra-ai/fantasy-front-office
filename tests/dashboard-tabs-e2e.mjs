@@ -24,7 +24,7 @@ try {
   const fc = Object.values(players).map((player, index) => ({ player:{ sleeperId:player.player_id,name:`${player.first_name} ${player.last_name}`,position:player.position,maybeTeam:player.team },value:5000-index*500,overallRank:index+1,trend30Day:70-index*10 }));
   const snapshot = {
     fetched_at:new Date().toISOString(),
-    league:{league_id:'test',name:'Quality League',season:'2026',total_rosters:1,scoring_settings:{rec:1},settings:{type:0,waiver_budget:100},roster_positions:['QB','RB','WR','TE','BN']},
+    league:{league_id:'test',name:'Quality League',season:'2026',total_rosters:12,scoring_settings:{rec:1},settings:{type:0,waiver_budget:100},roster_positions:['QB','RB','WR','TE','BN']},
     rosters:[{roster_id:1,owner_id:'u1',players:['p1','p2','p3','p4'],settings:{waiver_budget_used:10}}],
     users:[{user_id:'u1',display_name:'Quality Team'}],traded_picks:[],all_players:players,fc_data:fc,
   };
