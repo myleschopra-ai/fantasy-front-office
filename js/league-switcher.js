@@ -28,6 +28,9 @@
       provider_league_id: ids[league.league_id]
         ?? overrides[league.league_id]?.provider_league_id
         ?? league.provider_league_id
+        // The dashboard's own connect form stores the Sleeper league here; treat
+        // that as this registry league's ID instead of reporting it missing.
+        ?? (league.provider === 'sleeper' ? (localStorage.getItem('ffo_league_id') || null) : null)
         ?? ''
     }));
     return registry;

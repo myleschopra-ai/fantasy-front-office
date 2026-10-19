@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 import statistics
 from collections import defaultdict
@@ -36,6 +37,12 @@ def spearman(left: list[float], right: list[float]) -> float:
     numerator = sum((x - mean_a) * (y - mean_b) for x, y in zip(a, b))
     denominator = (sum((x - mean_a) ** 2 for x in a) * sum((y - mean_b) ** 2 for y in b)) ** 0.5
     return numerator / denominator if denominator else 0
+
+
+def completed_seasons(seasons: list[int], current_season: int | None = None) -> list[int]:
+    """Seasons whose results are final. An in-progress season has too few games to score."""
+    current = current_season if current_season is not None else datetime.now(timezone.utc).year
+    return [season for season in seasons if season < current]
 
 
 def season_rows(rows: list[dict], season: int) -> list[dict]:
@@ -96,6 +103,7 @@ def main() -> int:
     parser.add_argument("--nflverse-dir", type=Path, default=Path("data/raw/nflverse"))
     parser.add_argument("--output", type=Path, default=Path("reports/open_projection_backtest.json"))
     parser.add_argument("--strict", action="store_true")
+    parser.add_argument("--season", type=int, default=None, help="Current NFL season; it and later seasons are excluded because they are not complete.")
     args = parser.parse_args()
     rows = load_parquet_rows(args.input)
     seasons = sorted({int(value(row, "season")) for row in rows if finite(value(row, "season"), None) is not None})
@@ -107,7 +115,8 @@ def main() -> int:
         path = args.nflverse_dir / filename
         if path.exists():
             signals[name] = load_parquet_rows(path)
-    results = [evaluate(rows, season, signals) for season in seasons[-2:] if season - 1 in seasons]
+    completed = completed_seasons(seasons, args.season)
+    results = [evaluate(rows, season, signals) for season in completed[-2:] if season - 1 in seasons]
     passed = bool(results) and all(
         result["players"] >= 100
         and result["mae"] <= result["baseline_mae"] * 1.05

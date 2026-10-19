@@ -24,6 +24,8 @@ jobs:
       - run: node tests/decision-confidence.test.js
       - run: node tests/decision-ledger.test.js
       - run: node tests/draft-source-health.test.js
+      - run: node tests/season-model.test.js
+      - run: node tests/weekly-scorecard.test.js
 
   all-tabs-browser:
     runs-on: ubuntu-latest
@@ -38,3 +40,4 @@ jobs:
       - run: node tests/dashboard-tabs-e2e.mjs
       - run: node tests/roster-engine-browser-e2e.cjs
       - run: node tests/decision-pages-e2e.mjs
+      - run: node tests/dashboard-season-e2e.mjs

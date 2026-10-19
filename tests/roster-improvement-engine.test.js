@@ -20,7 +20,7 @@ const leagueRosters = Array.from({ length: 12 }, (_, team) => ({
   ],
 }));
 
-assert.equal(R.VERSION, '1.3.0');
+assert.equal(R.VERSION, '1.4.0');
 assert.equal(R.eligible('QB', 'SUPER_FLEX'), true);
 assert.equal(R.eligible('QB', 'FLEX'), false);
 
