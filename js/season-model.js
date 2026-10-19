@@ -214,13 +214,17 @@
     return result;
   }
 
+  // What a weak slot asks a buyer to add. A weak Superflex means a second QB;
+  // a weak FLEX can be any of its positions.
+  const NEED_POSITIONS = { ...SLOT_POSITIONS, SUPER_FLEX: ["QB"] };
+
   function contenderDemand({ teams = [], lineups = {}, policy = {} } = {}) {
     const rules = policyFrom(policy).sell_window;
     const ranks = slotRanks(lineups);
     return teams.filter(team => finite(team.playoff) >= rules.contender_playoff).map(team => {
       const slots = (ranks[String(team.id)] || []).slice().sort((a, b) => b.rank - a.rank || a.value - b.value);
       const weakest = slots.slice(0, 2);
-      const needs = [...new Set(weakest.flatMap(slot => SLOT_POSITIONS[slot.slot] || [slot.slot]))];
+      const needs = [...new Set(weakest.flatMap(slot => NEED_POSITIONS[slot.slot] || [slot.slot]))];
       return {
         id: String(team.id), name: team.name, playoff: finite(team.playoff), title: finite(team.title),
         faabRemaining: team.faabRemaining ?? null, picks: team.picks ?? null, weakest, needs,
@@ -236,7 +240,7 @@
       .filter(player => finite(player.age, 0) >= rules.age_cutoff && finite(player.marketValue) >= rules.min_market_value)
       .map(player => {
         const buyers = demand.filter(team => team.needs.includes(String(player.position || "").toUpperCase()))
-          .map(team => ({ id: team.id, name: team.name, playoff: team.playoff, title: team.title, slot: team.weakest.find(slot => (SLOT_POSITIONS[slot.slot] || []).includes(String(player.position || "").toUpperCase()))?.slot || null }));
+          .map(team => ({ id: team.id, name: team.name, playoff: team.playoff, title: team.title, slot: team.weakest.find(slot => (NEED_POSITIONS[slot.slot] || []).includes(String(player.position || "").toUpperCase()))?.slot || null }));
         return {
           id: player.id, name: player.name, position: player.position, age: finite(player.age), team: player.team || null,
           marketValue: finite(player.marketValue), projection: player.projection ?? null, buyers,

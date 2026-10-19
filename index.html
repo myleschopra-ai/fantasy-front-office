@@ -1510,7 +1510,7 @@
       : `<div class="quality-note"><strong>Production forecasts unavailable</strong><div class="rie-caveat" style="margin-top:4px">The lineup is temporarily ordered by dynasty market value, but market value is not presented as weekly production.</div><button id="retry-production-data" class="target-action" style="margin-top:8px">Retry production data</button></div>`;
     const closeMoves = window.FFODashboardIntel ? window.FFODashboardIntel.lineupMoves(assigned, bench) : [];
     const decisionHTML = closeMoves.length ? `<div class="quality-note"><strong>Closest lineup decisions</strong><br>${closeMoves.slice(0, 3).map(move =>
-      `${escapeHTML(move.starter.name)} over ${escapeHTML(move.alternative.name)} by ${move.delta.toFixed(1)} projected points · ${window.FFODashboardIntel.confidenceLabel(move.confidence)} confidence`
+      `${escapeHTML(move.starter.name)} over ${escapeHTML(move.alternative.name)} by ${move.delta.toFixed(1)} projected points · ${window.FFODashboardIntel.confidenceLabel(projectionFreshness().stale ? Math.min(0.4, move.confidence) : move.confidence)} confidence`
     ).join("<br>")}</div>` : `<div class="quality-note">The optimizer found no bench alternative within three projected points of a current starter. Injury designations still require confirmation before lock.</div>`;
 
     const metricHTML = (p) => {
