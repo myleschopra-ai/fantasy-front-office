@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const VERSION = "1.3.0";
+  const VERSION = "1.4.0";
   const NON_STARTERS = new Set(["BN", "IR", "TAXI"]);
   const FLEX = {
     FLEX: ["RB", "WR", "TE"],
@@ -126,10 +126,90 @@
     return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
   }
 
+  // Fixed bracket used by Sleeper for six teams and two byes: 3v6 and 4v5, then
+  // 1 meets the 4/5 winner and 2 meets the 3/6 winner. Other sizes reseed
+  // highest-versus-lowest each round after the byes.
+  function playBracket(seeds, byes, play) {
+    if (seeds.length === 6 && byes === 2) {
+      const lowA = play(seeds[3], seeds[4]);
+      const lowB = play(seeds[2], seeds[5]);
+      const semiA = play(seeds[0], lowA);
+      const semiB = play(seeds[1], lowB);
+      return { champion: play(semiA, semiB), finalists: [semiA, semiB] };
+    }
+    let resting = seeds.slice(0, Math.max(0, Math.min(byes, seeds.length - 1)));
+    let field = seeds.slice(resting.length);
+    let finalists = seeds.slice(0, 2);
+    while (field.length + resting.length > 1) {
+      const next = [];
+      for (let index = 0; index < Math.floor(field.length / 2); index += 1) next.push(play(field[index], field[field.length - 1 - index]));
+      if (field.length % 2) next.push(field[Math.floor(field.length / 2)]);
+      field = resting.concat(next);
+      resting = [];
+      if (field.length === 2) finalists = field.slice();
+      if (field.length === 1) break;
+    }
+    return { champion: field[0], finalists };
+  }
+
+  // Season simulation over the league's real remaining schedule. Each entry of
+  // `schedule` is one week: an array of [teamIdA, teamIdB] pairs.
+  function scheduledChampionship({ clean, targetId, schedule, playoffTeams, playoffByes, simulations, seed, allTeams }) {
+    const random = seededRandom(seed);
+    const index = new Map(clean.map((team, position) => [team.id, position]));
+    const counts = clean.map(() => ({ playoff: 0, bye: 0, title: 0, finals: 0, wins: 0 }));
+    const iterations = Math.max(100, Math.trunc(simulations));
+    const draw = team => Math.max(0, team.projection + gaussian(random) * team.weeklySd);
+    for (let simulation = 0; simulation < iterations; simulation += 1) {
+      const table = clean.map(team => ({ ...team, simWins: team.wins, simPoints: team.pointsFor }));
+      schedule.forEach(pairs => (pairs || []).forEach(pair => {
+        const a = index.get(String(pair?.[0])), b = index.get(String(pair?.[1]));
+        if (a === undefined || b === undefined || a === b) return;
+        const scoreA = draw(table[a]), scoreB = draw(table[b]);
+        table[a].simPoints += scoreA; table[b].simPoints += scoreB;
+        if (scoreA >= scoreB) table[a].simWins += 1; else table[b].simWins += 1;
+      }));
+      table.forEach((team, position) => { counts[position].wins += team.simWins; });
+      const seeds = [...table].sort((a, b) => b.simWins - a.simWins || b.simPoints - a.simPoints).slice(0, Math.min(playoffTeams, table.length));
+      seeds.forEach((team, position) => {
+        const slot = index.get(team.id);
+        counts[slot].playoff += 1;
+        if (position < playoffByes) counts[slot].bye += 1;
+      });
+      const bracket = playBracket(seeds, playoffByes, (a, b) => (draw(a) >= draw(b) ? a : b));
+      bracket.finalists.forEach(team => { if (team) counts[index.get(team.id)].finals += 1; });
+      if (bracket.champion) counts[index.get(bracket.champion.id)].title += 1;
+    }
+    const share = count => round(count / iterations, 4);
+    const perTeam = Object.fromEntries(clean.map((team, position) => [team.id, {
+      playoffProbability: share(counts[position].playoff), byeProbability: share(counts[position].bye),
+      finalsProbability: share(counts[position].finals), probability: share(counts[position].title),
+      expectedWins: round(counts[position].wins / iterations, 2),
+    }]));
+    const mine = perTeam[targetId];
+    return {
+      probability: mine.probability, playoffProbability: mine.playoffProbability, byeProbability: mine.byeProbability,
+      finalsProbability: mine.finalsProbability, expectedWins: mine.expectedWins, simulations: iterations, seed,
+      remainingWeeks: schedule.length, scheduleSource: "LEAGUE", ...(allTeams ? { teams: perTeam } : {}),
+    };
+  }
+
   function championshipProbability({
     teams = [], teamId, remainingWeeks = 6, playoffTeams = 6, simulations = 2000, seed = 2026,
+    schedule = null, playoffByes = 0, sdFloor = 6, allTeams = false,
   } = {}) {
     if (!teamId || teams.length < 2) return { probability: 0, playoffProbability: 0, simulations: 0, reason: "INSUFFICIENT_LEAGUE_STATE" };
+    if (Array.isArray(schedule)) {
+      const scheduled = teams.map((team, index) => ({
+        id: String(team.id ?? index + 1), projection: finite(team.projection), wins: finite(team.wins), pointsFor: finite(team.pointsFor),
+        weeklySd: Math.max(finite(sdFloor, 6), finite(team.weeklySd, Math.max(10, finite(team.projection) * 0.12))),
+      }));
+      if (!scheduled.some(team => team.id === String(teamId))) return { probability: 0, playoffProbability: 0, simulations: 0, reason: "TEAM_NOT_FOUND" };
+      return scheduledChampionship({
+        clean: scheduled, targetId: String(teamId), schedule, playoffTeams: Math.max(1, Math.trunc(finite(playoffTeams, 6))),
+        playoffByes: Math.max(0, Math.trunc(finite(playoffByes, 0))), simulations, seed, allTeams,
+      });
+    }
     const clean = teams.map((team, index) => ({
       id: String(team.id ?? index + 1),
       projection: finite(team.projection),
@@ -518,28 +598,35 @@
     candidates = [], roster = [], rosterPositions = [], opponentProjections = [], remainingWeeks = 6,
     leagueTeams = [], teamId = null, playoffTeams = 6, simulations = 300, seed = 2026,
     budgetRemaining = 100, teamValuePerEwa = 2500, teamValuePerTitlePoint = 120,
+    schedule = null, playoffByes = 0, sdFloor = 6, weeklySd = null, eligibility = null,
   } = {}) {
     const beforeLineup = optimizeLineup(roster, rosterPositions);
     const opponents = opponentProjections.length ? opponentProjections : leagueTeams
       .filter(team => String(team.id) !== String(teamId)).map(team => finite(team.projection));
-    const weeks = Array.from({ length: Math.max(1, remainingWeeks) }, (_, index) => finite(opponents[index % Math.max(1, opponents.length)], beforeLineup.projected));
-    const beforeProbabilities = weeks.map((opponent, index) => ({ week: index + 1, winProbability: matchupWinProbability(beforeLineup.projected, opponent) }));
+    const myTeam = leagueTeams.find(team => String(team.id) === String(teamId));
+    // With a league schedule, team strengths are on the scored-points scale, so
+    // win odds compare that strength plus the lineup gain against each opponent.
+    const baseStrength = Array.isArray(schedule) && myTeam ? finite(myTeam.projection, beforeLineup.projected) : beforeLineup.projected;
+    const weeks = Array.from({ length: Math.max(1, remainingWeeks) }, (_, index) => finite(opponents[index % Math.max(1, opponents.length)], baseStrength));
+    const winOdds = (strength, opponent) => matchupWinProbability(strength, opponent, weeklySd, weeklySd);
+    const beforeProbabilities = weeks.map((opponent, index) => ({ week: index + 1, winProbability: winOdds(baseStrength, opponent) }));
     const baseChampionship = leagueTeams.length > 1 && teamId !== null ? championshipProbability({
-      teams: leagueTeams, teamId, remainingWeeks, playoffTeams, simulations, seed,
+      teams: leagueTeams, teamId, remainingWeeks, playoffTeams, simulations, seed, schedule, playoffByes, sdFloor,
     }) : { probability: 0, playoffProbability: 0, simulations: 0 };
 
     const evaluated = candidates.map((candidate, index) => {
       const path = targetPath(candidate, budgetRemaining);
       const afterLineup = optimizeLineup(roster.concat([{ ...candidate, id: candidate.id || `candidate-${index}` }]), rosterPositions);
       const weeklyPointGain = round(Math.max(0, afterLineup.projected - beforeLineup.projected));
-      const afterProbabilities = weeks.map((opponent, week) => ({ week: week + 1, winProbability: matchupWinProbability(afterLineup.projected, opponent) }));
+      const afterProbabilities = weeks.map((opponent, week) => ({ week: week + 1, winProbability: winOdds(baseStrength + weeklyPointGain, opponent) }));
       const ewa = expectedWinsAdded(beforeProbabilities, afterProbabilities).expectedWins;
       let championship = baseChampionship;
       let championshipProbabilityAdded = 0;
       let playoffProbabilityAdded = 0;
       if (weeklyPointGain > 0 && baseChampionship.simulations) {
-        const adjustedTeams = leagueTeams.map(team => String(team.id) === String(teamId) ? { ...team, projection: afterLineup.projected } : team);
-        championship = championshipProbability({ teams: adjustedTeams, teamId, remainingWeeks, playoffTeams, simulations, seed });
+        const adjustedTeams = leagueTeams.map(team => String(team.id) === String(teamId)
+          ? { ...team, projection: Array.isArray(schedule) ? finite(team.projection) + weeklyPointGain : afterLineup.projected } : team);
+        championship = championshipProbability({ teams: adjustedTeams, teamId, remainingWeeks, playoffTeams, simulations, seed, schedule, playoffByes, sdFloor });
         championshipProbabilityAdded = round(championship.probability - baseChampionship.probability, 4);
         playoffProbabilityAdded = round(championship.playoffProbability - baseChampionship.playoffProbability, 4);
       }
@@ -554,13 +641,15 @@
       const championshipReturnPer1000 = path.permanentAssetCost > 0
         ? round(championshipProbabilityAdded * 100 / (path.permanentAssetCost / 1000), 3)
         : null;
-      const actionable = projection(candidate) !== null && weeklyPointGain > 0;
+      const gate = typeof eligibility === "function" ? eligibility(candidate) : null;
+      const actionable = projection(candidate) !== null && weeklyPointGain > 0 && !(gate && gate.eligible === false);
       return {
         ...candidate, path, beforeLineup, afterLineup, weeklyPointGain, ewa,
         championshipBefore: baseChampionship.probability, championshipAfter: championship.probability,
         championshipProbabilityAdded, playoffProbabilityAdded, teamValue: round(teamValue), mispricing,
         permanentAssetCost: path.permanentAssetCost, faabCost, cpa, championshipReturnPer1000, actionable,
-        dataStatus: projection(candidate) === null ? "NO_PROJECTION" : actionable ? "ACTIONABLE" : "NO_LINEUP_GAIN",
+        dataStatus: projection(candidate) === null ? "NO_PROJECTION" : gate && gate.eligible === false ? "INELIGIBLE" : actionable ? "ACTIONABLE" : "NO_LINEUP_GAIN",
+        eligibility: gate,
       };
     });
 
@@ -606,7 +695,7 @@
     };
   }
 
-  function analyzeRoster({ roster = [], leagueRosters = [], rosterPositions = [], teams = 12, teamId = null, standings = [], remainingWeeks = 6, playoffTeams = 6, simulations = 2000, seed = 2026 } = {}) {
+  function analyzeRoster({ roster = [], leagueRosters = [], rosterPositions = [], teams = 12, teamId = null, standings = [], remainingWeeks = 6, playoffTeams = 6, simulations = 2000, seed = 2026, schedule = null, playoffByes = 0, sdFloor = 6 } = {}) {
     const allPlayers = leagueRosters.flatMap(team => team.players || []);
     const replacement = replacementLevels(allPlayers.length ? allPlayers : roster, rosterPositions, teams);
     const diagnostics = positionDiagnostics({ roster, leagueRosters, rosterPositions, teams, replacement });
@@ -616,14 +705,14 @@
       const optimized = optimizeLineup(team.players || [], rosterPositions);
       return { id: String(team.id ?? index + 1), projection: optimized.projected, wins: finite(team.wins), pointsFor: finite(team.pointsFor) };
     });
-    const championship = championshipProbability({ teams: leagueTeams, teamId, remainingWeeks, playoffTeams, simulations, seed });
+    const championship = championshipProbability({ teams: leagueTeams, teamId, remainingWeeks, playoffTeams, simulations, seed, schedule, playoffByes, sdFloor, allTeams: Array.isArray(schedule) });
     const primary = bottlenecks.find(item => item.covered > 0) || null;
     return { version: VERSION, lineup, replacement, diagnostics, bottlenecks, primaryBottleneck: primary, championship, confidence: round(lineup.covered / Math.max(1, lineup.assigned.length), 3) };
   }
 
   return {
     VERSION, finite, clamp, mean, stdev, eligible, starterSlots, optimizeLineup, slotDemand,
-    replacementLevels, matchupWinProbability, expectedWinsAdded, championshipProbability,
+    replacementLevels, matchupWinProbability, playBracket, expectedWinsAdded, championshipProbability,
     positionDiagnostics, detectBottlenecks, marginalLineupValue, transactionImpact, analyzeRoster,
     tradeAssetMetrics, rosterVorpProfile, tradeRosterImpact, computeAcceptProbability, computeTradeActivity, buildTradePackages,
     marketMispricing, rankAcquisitionTargets, compareWaiverTrade, targetPath, evaluateAcquisitionUniverse,

@@ -504,6 +504,7 @@
 <script src="js/dashboard-intelligence.js"></script>
 <script src="js/dashboard-observability.js"></script>
 <script src="js/roster-improvement-engine.js"></script>
+<script src="js/season-model.js"></script>
 <script>
 (function () {
   "use strict";
@@ -523,6 +524,7 @@
     transactions: [], tradeActivity: {}, marketSource: "unavailable", tradeHistoryStatus: "unavailable",
     tradeRecommendations: [], preferredTradeTargetId: null,
     connectedLeagueId: null, leagueLoadId: null,
+    nflState: null, matchupsByWeek: {}, policy: null, seasonModel: null, scorecardSummary: null,
   };
 
   function readStoredObject(key) {
@@ -565,16 +567,32 @@
     return projectionEvidenceFor(name, position, sleeperId).points;
   }
 
+  const normalizePlayerName = value => String(value || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b\.?/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+
+  // Indexed once per projection file: the active universe is ~1,000 players and
+  // the target finder looks up every rostered and free-agent candidate.
+  function weeklyProjectionIndex() {
+    const data = state.weeklyProjectionData;
+    if (!data || !Array.isArray(data.players)) return null;
+    if (state.weeklyIndexCache?.source === data) return state.weeklyIndexCache;
+    const bySleeper = new Map();
+    const byName = new Map();
+    data.players.forEach(player => {
+      if (player.projection_scope !== "weekly") return;
+      const position = String(player.position || "").toUpperCase();
+      if (player.source_ids?.sleeper) bySleeper.set(`${player.source_ids.sleeper}|${position}`, player);
+      const key = `${normalizePlayerName(player.name)}|${position}`;
+      if (!byName.has(key)) byName.set(key, player);
+    });
+    state.weeklyIndexCache = { source: data, bySleeper, byName };
+    return state.weeklyIndexCache;
+  }
+
   function weeklyProjectionFor(name, position, sleeperId = null) {
-    const players = state.weeklyProjectionData?.players;
-    if (!Array.isArray(players)) return null;
-    const normalized = String(name || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b\.?/g, "").replace(/[^a-z0-9]+/g, " ").trim();
-    return players.find(player =>
-      player.projection_scope === "weekly" &&
-      String(player.position || "").toUpperCase() === String(position || "").toUpperCase() &&
-      ((sleeperId && String(player.source_ids?.sleeper || "") === String(sleeperId)) ||
-       String(player.name || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b\.?/g, "").replace(/[^a-z0-9]+/g, " ").trim() === normalized)
-    ) || null;
+    const index = weeklyProjectionIndex();
+    if (!index) return null;
+    const pos = String(position || "").toUpperCase();
+    return (sleeperId && index.bySleeper.get(`${sleeperId}|${pos}`)) || index.byName.get(`${normalizePlayerName(name)}|${pos}`) || null;
   }
 
   function weeklyVegasFor(name) {
@@ -584,17 +602,88 @@
     return players.find(player => player.projection_scope === "weekly" && player.player_key === key) || null;
   }
 
+  // ---------- Decision policy, live availability, freshness ----------
+  const AVAILABILITY_DEFAULTS = { out: 0, doubtful: 0.25, questionable: 0.78, healthy: 0.96, unavailable_statuses: ["OUT", "IR", "PUP", "SUS", "NA", "DNR", "COV", "RESERVE", "SUSPENDED", "NFI"] };
+  const LONG_TERM_STATUSES = new Set(["IR", "PUP", "NA", "SUS", "SUSPENDED", "RESERVE", "NFI"]);
+
+  function decisionPolicy() {
+    return state.policy || window.FFOSeasonModel?.DEFAULT_POLICY || {};
+  }
+
+  // Today's Sleeper designation, applied at render time so a player ruled out
+  // after the projection was built never starts.
+  function liveAvailability(sleeperId) {
+    const rules = { ...AVAILABILITY_DEFAULTS, ...(decisionPolicy().availability || {}) };
+    const raw = sleeperId ? state.allPlayers[sleeperId] : null;
+    const label = raw?.injury_status || null;
+    const status = String(label || "").toUpperCase();
+    if (!status) return { factor: rules.healthy, status: null, unavailable: false, longTerm: false };
+    if (rules.unavailable_statuses.map(item => String(item).toUpperCase()).includes(status)) return { factor: rules.out, status: label, unavailable: true, longTerm: LONG_TERM_STATUSES.has(status) };
+    if (status.startsWith("DOUBT")) return { factor: rules.doubtful, status: label, unavailable: false, longTerm: false };
+    if (status.startsWith("QUES")) return { factor: rules.questionable, status: label, unavailable: false, longTerm: false };
+    return { factor: rules.healthy, status: label, unavailable: false, longTerm: false };
+  }
+
+  function weeklyBasePoints(weekly) {
+    if (!weekly) return null;
+    if (weekly.base_points !== null && weekly.base_points !== undefined) return Number(weekly.base_points);
+    const availability = Number(weekly.availability_probability);
+    const projected = Number(weekly.projected_points ?? weekly.distribution?.p50);
+    if (!Number.isFinite(projected)) return null;
+    return Number.isFinite(availability) && availability > 0.05 ? projected / availability : projected;
+  }
+
+  function currentNflWeek() {
+    const nfl = state.nflState;
+    if (nfl && String(nfl.season_type || "regular") === "regular" && Number(nfl.week) > 0) return Number(nfl.week);
+    const leg = Number(state.league?.settings?.leg || 0);
+    return leg > 0 ? leg : null;
+  }
+
+  function projectionFreshness() {
+    const data = state.weeklyProjectionData;
+    if (!data) return { status: "MISSING", stale: true, reason: "Weekly projections did not load." };
+    const week = Number(data.week);
+    const nflWeek = currentNflWeek();
+    const ageHours = (Date.now() - Date.parse(data.generated_at)) / 3600000;
+    const maxAge = Number(decisionPolicy().freshness?.max_projection_age_hours || 192);
+    if (nflWeek && Number.isFinite(week) && week < nflWeek) return { status: "STALE", stale: true, week, nflWeek, ageHours, reason: `Projections are for Week ${week}, but the NFL is in Week ${nflWeek}.` };
+    if (Number.isFinite(ageHours) && ageHours > maxAge) return { status: "STALE", stale: true, week, nflWeek, ageHours, reason: `Projections were built ${Math.round(ageHours / 24)} days ago.` };
+    return { status: "CURRENT", stale: false, week, nflWeek, ageHours, reason: null };
+  }
+
+  function freshnessBannerHTML() {
+    const fresh = projectionFreshness();
+    if (!fresh.stale) return "";
+    return `<div class="quality-note" role="alert" data-freshness="stale" style="border-left:3px solid var(--red);margin-bottom:14px"><strong style="color:var(--red)">Stale projections</strong><div class="rie-caveat" style="margin-top:4px">${escapeHTML(fresh.reason)} Lineup, waiver and trade calls below are LOW confidence. FAAB bids and trade offers stay hidden until the weekly feed refreshes.</div></div>`;
+  }
+
   function projectionEvidenceFor(name, position, sleeperId = null) {
     const weekly = weeklyProjectionFor(name, position, sleeperId);
     const vegas = weeklyVegasFor(name);
     const fantasyPros = fpProjectionForSeasonOnly(name, position);
-    const baseline = weekly ? weekly.projected_points ?? weekly.distribution?.p50 ?? null : fantasyPros;
+    let live = null;
+    let liveNote = null;
+    let ros = null;
+    if (weekly) {
+      const base = weeklyBasePoints(weekly);
+      const availability = liveAvailability(sleeperId);
+      const reason = String(weekly.unavailable_reason || "");
+      if (weekly.bye || reason === "BYE") { live = 0; liveNote = "BYE"; }
+      else if (reason.startsWith("ROSTER_")) { live = 0; liveNote = "RESERVE LIST"; }
+      else if (base !== null && sleeperId && state.allPlayers[sleeperId]) {
+        live = base * availability.factor;
+        liveNote = availability.unavailable ? `${availability.status} (live)` : availability.status;
+      }
+      ros = availability.longTerm || reason.startsWith("ROSTER_") ? 0 : weekly.ros_points ?? base;
+    }
+    const baseline = weekly ? live ?? weekly.projected_points ?? weekly.distribution?.p50 ?? null : fantasyPros;
     const adjusted = vegas?.adjusted_points;
     return {
       points: adjusted !== null && adjusted !== undefined ? Number(adjusted) : baseline === null || baseline === undefined ? null : Number(baseline),
       baseline: baseline === null || baseline === undefined ? null : Number(baseline),
       source: weekly ? "OPEN WEEKLY" : fantasyPros !== null ? "FANTASYPROS" : "NO PROJECTION",
-      vegas,
+      vegas, liveNote, ros: ros === null || ros === undefined ? null : Number(ros), weekly,
     };
   }
 
@@ -652,12 +741,17 @@
       }
       throw lastError;
     }
-    const [fpResult, weeklyResult, vegasResult, gameLinesResult] = await Promise.allSettled([
+    const season = Number(state.league?.season || new Date().getFullYear());
+    const [fpResult, weeklyResult, vegasResult, gameLinesResult, policyResult, scorecardResult] = await Promise.allSettled([
       fetchSnapshot("fantasypros.json", "FantasyPros"),
       fetchSnapshot("data/weekly_projections.json", "weekly projections"),
       fetchSnapshot("data/vegas/weekly-projections.json", "weekly Vegas"),
       fetchSnapshot("data/vegas/game-lines.json", "game lines"),
+      fetchSnapshot("config/decision_policy.json", "decision policy"),
+      fetchSnapshot(`data/scorecards/${season}-summary.json`, "weekly scorecard"),
     ]);
+    if (policyResult.status === "fulfilled" && policyResult.value && typeof policyResult.value === "object") state.policy = policyResult.value;
+    state.scorecardSummary = scorecardResult.status === "fulfilled" ? scorecardResult.value : null;
     if (fpResult.status === "fulfilled") state.fpData = fpResult.value;
     if (weeklyResult.status === "fulfilled" && weeklyResult.value?.projection_scope === "weekly" && Array.isArray(weeklyResult.value.players)) {
       state.weeklyProjectionData = weeklyResult.value;
@@ -691,11 +785,13 @@
   }
 
   function fcBySleeperId() {
+    if (state.fcMapCache && state.fcMapCache.source === state.fcData) return state.fcMapCache.map;
     const m = {};
     state.fcData.forEach(e => {
       const sid = e.player && e.player.sleeperId;
       if (sid) m[String(sid)] = e;
     });
+    state.fcMapCache = { source: state.fcData, map: m };
     return m;
   }
 
@@ -714,17 +810,86 @@
     const raw = state.allPlayers[pid] || { player_id: pid };
     const market = fcBySleeperId()[pid];
     const name = `${raw.first_name || ""} ${raw.last_name || ""}`.trim() || String(pid);
-    const projected = raw.position ? fpProjectionFor(name, raw.position, pid) : null;
+    const evidence = raw.position ? projectionEvidenceFor(name, raw.position, pid) : null;
+    const projected = evidence ? evidence.points : null;
     return {
       id: String(pid), name, position: raw.position, team: raw.team,
-      projection: projected, marketValue: market ? market.value : null,
+      projection: projected, rosProjection: evidence?.ros ?? projected, marketValue: market ? market.value : null,
+      age: raw.age ?? null, weekly: evidence?.weekly || null,
       injury: raw.injury_status || null, availabilityRisk: raw.injury_status ? 0.42 : 0.12,
       weeklySd: projected === null ? null : Math.max(2, Number(projected) * 0.18),
     };
   }
 
+  function playoffByes(playoffTeams) {
+    const teams = Math.max(1, Math.trunc(Number(playoffTeams) || 6));
+    let size = 1;
+    while (size < teams) size *= 2;
+    return size === teams ? 0 : size - teams;
+  }
+
+  // Where the league actually stands: real record, real remaining schedule,
+  // scoring to date, and each team's strength for the rest of the season.
+  function buildSeasonModel(leagueRosters) {
+    const SM = window.FFOSeasonModel;
+    if (!SM || !window.FFORosterEngine || !state.league) return null;
+    const policy = SM.policyFrom(decisionPolicy());
+    const settings = state.league.settings || {};
+    const playoffStart = Number(settings.playoff_week_start || 15);
+    const played = SM.gamesPlayed(state.rosters);
+    const split = SM.splitSeason({ matchupsByWeek: state.matchupsByWeek || {}, played, playoffWeekStart: playoffStart });
+    const ids = leagueRosters.map(team => team.id);
+    const stats = SM.seasonStats(split.past, ids);
+    const slots = state.league.roster_positions || [];
+    const strengthInputs = leagueRosters.map(team => ({
+      id: team.id,
+      projection: window.FFORosterEngine.optimizeLineup(team.players.map(player => ({ ...player, projection: player.rosProjection })), slots).projected,
+      ppg: stats.teams[team.id]?.ppg ?? null, games: stats.teams[team.id]?.games || 0,
+    }));
+    const strengths = SM.teamStrengths({ teams: strengthInputs, leagueMean: stats.leagueMean, policy });
+    const sd = SM.weeklySd({ residualSd: stats.residualSd, games: played, policy });
+    const standings = leagueRosters.map(team => ({ id: team.id, wins: team.wins, pointsFor: team.pointsFor, projection: strengths[team.id].mean, weeklySd: sd.sd }));
+    const playoffTeams = Number(settings.playoff_teams || 6);
+    return {
+      policy, played, split, stats, strengths, sd, standings, playoffTeams, byes: playoffByes(playoffTeams),
+      schedule: split.schedule.length ? split.schedule : null,
+      remainingWeeks: split.schedule.length || Math.max(1, (playoffStart - 1) - played),
+      weeksToDeadline: SM.weeksUntilDeadline({ played, tradeDeadline: settings.trade_deadline }),
+    };
+  }
+
+  function finishSeasonModel(model, leagueRosters, championship) {
+    const SM = window.FFOSeasonModel;
+    const ids = leagueRosters.map(team => team.id);
+    const market = fcBySleeperId();
+    const owners = ownerMap();
+    const odds = championship?.teams || { [String(state.myRosterId)]: championship || {} };
+    const values = Object.fromEntries(state.rosters.map(roster => [String(roster.roster_id), (roster.players || []).reduce((sum, pid) => sum + Number(market[pid]?.value || 0), 0)]));
+    const teamStates = Object.fromEntries(ids.map(id => {
+      const teamOdds = odds[id] || {};
+      return [id, SM.classifyTeamState({
+        playoff: Number(teamOdds.playoffProbability || 0), title: Number(teamOdds.probability || 0),
+        allPlayPct: model.stats.teams[id]?.allPlayPct ?? null, valueRank: SM.valueRank(values, id), teamCount: ids.length,
+      }, model.policy)];
+    }));
+    const slots = state.league.roster_positions || [];
+    const lineups = Object.fromEntries(leagueRosters.map(team => [team.id, window.FFORosterEngine.optimizeLineup(team.players, slots)]));
+    const budget = state.league.settings?.waiver_budget;
+    const demand = SM.contenderDemand({
+      teams: leagueRosters.filter(team => team.id !== String(state.myRosterId)).map(team => {
+        const roster = state.rosters.find(item => String(item.roster_id) === team.id);
+        return { id: team.id, name: owners[team.id] || `Roster ${team.id}`, playoff: odds[team.id]?.playoffProbability || 0, title: odds[team.id]?.probability || 0,
+          faabRemaining: budget === undefined ? null : Math.max(0, Number(budget) - Number(roster?.settings?.waiver_budget_used || 0)) };
+      }),
+      lineups, policy: model.policy,
+    });
+    const mine = leagueRosters.find(team => team.id === String(state.myRosterId));
+    const sellWindow = SM.sellWindow({ roster: mine ? mine.players : [], demand, weeksToDeadline: model.weeksToDeadline, policy: model.policy });
+    return { ...model, odds, values, teamStates, myState: teamStates[String(state.myRosterId)] || null, demand, sellWindow, lineups, championship };
+  }
+
   function updateRosterEngine() {
-    if (!window.FFORosterEngine || !state.league || state.myRosterId === null || state.myRosterId === undefined) { state.rosterEngine = null; state.targetFinder = null; return; }
+    if (!window.FFORosterEngine || !state.league || state.myRosterId === null || state.myRosterId === undefined) { state.rosterEngine = null; state.targetFinder = null; state.seasonModel = null; return; }
     const leagueRosters = state.rosters.map(roster => ({
       id: String(roster.roster_id),
       wins: Number(roster.settings?.wins || 0),
@@ -733,18 +898,42 @@
     }));
     const mine = leagueRosters.find(roster => roster.id === String(state.myRosterId));
     if (!mine) { state.rosterEngine = null; return; }
-    const currentWeek = Number(state.weeklyProjectionData?.week || state.league.settings?.leg || 1);
+    const model = buildSeasonModel(leagueRosters);
     const playoffStart = Number(state.league.settings?.playoff_week_start || 15);
-    const remainingWeeks = Math.max(1, playoffStart - currentWeek);
+    const remainingWeeks = model ? model.remainingWeeks : Math.max(1, playoffStart - Number(currentNflWeek() || 1));
     state.rosterEngine = window.FFORosterEngine.analyzeRoster({
       roster: mine.players, leagueRosters, rosterPositions: state.league.roster_positions || [],
       teams: Number(state.league.total_rosters || leagueRosters.length || 12), teamId: mine.id,
-      remainingWeeks, playoffTeams: Number(state.league.settings?.playoff_teams || 6), simulations: 1500,
+      remainingWeeks, playoffTeams: Number(state.league.settings?.playoff_teams || 6),
+      simulations: model ? Number(model.policy.season_model.simulations || 3000) : 1500,
       seed: Number(state.league.season || 2026) + Number(state.myRosterId || 0),
+      standings: model ? model.standings : [], schedule: model?.schedule || null,
+      playoffByes: model ? model.byes : 0, sdFloor: model ? Number(model.policy.season_model.sd_floor || 6) : 6,
     });
     state.rosterEngine.remainingWeeks = remainingWeeks;
     state.rosterEngine.leagueRosters = leagueRosters;
+    state.seasonModel = model ? finishSeasonModel(model, leagueRosters, state.rosterEngine.championship) : null;
     updateTargetFinder(mine, leagueRosters);
+  }
+
+  function targetEligibility(candidate) {
+    const gates = { min_availability: 0.5, require_recent_game_after_week: 3, role_loss_trend: -0.15, ...(decisionPolicy().target_gates || {}) };
+    const sell = window.FFOSeasonModel?.policyFrom(decisionPolicy()).sell_window || { old_age_min: 29 };
+    const live = liveAvailability(candidate.id);
+    if (live.factor < gates.min_availability) return { eligible: false, reason: `${live.status || "Unavailable"} today` };
+    const features = candidate.weekly?.features || {};
+    const week = Number(state.weeklyProjectionData?.week || 0);
+    if (week > Number(gates.require_recent_game_after_week) && Number(features.games_this_season || 0) > 0 && Number(features.games_last_2) === 0) {
+      return { eligible: false, reason: "No game in the last two weeks" };
+    }
+    if (week > Number(gates.require_recent_game_after_week) && Number(features.role_absent_weeks || 0) >= 2) return { eligible: false, reason: "Healthy but not playing" };
+    if (week > Number(gates.require_recent_game_after_week) && features.games_this_season !== undefined && features.games_this_season !== null && Number(features.games_this_season) === 0) return { eligible: false, reason: "No game this season" };
+    if (state.seasonModel?.myState?.strategy === "SELL" && candidate.acquisitionType === "TRADE" && Number(candidate.age) >= Number(sell.old_age_min)) {
+      return { eligible: false, reason: `Selling team: no age-${candidate.age} veterans` };
+    }
+    if (live.status) return { eligible: true, reason: `INJURY: ${live.status}` };
+    if (Number(features.opportunity_trend) <= Number(gates.role_loss_trend)) return { eligible: true, reason: "ROLE: opportunity falling" };
+    return { eligible: true, reason: candidate.acquisitionType === "WAIVER" ? "EDGE: available and projected to start" : "EDGE: lineup upgrade" };
   }
 
   function updateTargetFinder(mine, leagueRosters) {
@@ -763,9 +952,10 @@
       const position = raw.position || marketEntry?.player?.position;
       const name = `${raw.first_name || ""} ${raw.last_name || ""}`.trim() || marketEntry?.player?.name || pid;
       const ownerRoster = rosterOwner.get(pid);
+      const evidence = position ? projectionEvidenceFor(name, position, pid) : null;
       return {
         id: pid, name, position, team: raw.team || marketEntry?.player?.maybeTeam || null,
-        projection: position ? fpProjectionFor(name, position, pid) : null,
+        projection: evidence ? evidence.points : null, weekly: evidence?.weekly || null, age: raw.age ?? null,
         marketValue: marketEntry ? Number(marketEntry.value || 0) : 0,
         ownerId: ownerRoster ? String(ownerRoster.roster_id) : null,
         ownerName: ownerRoster ? owners[ownerRoster.roster_id] || "Unknown manager" : null,
@@ -774,19 +964,28 @@
         injury: raw.injury_status || null,
       };
     }).filter(candidate => ["QB", "RB", "WR", "TE", "K", "DST", "DEF"].includes(candidate.position));
-    const leagueTeams = leagueRosters.map(team => ({
+    const model = state.seasonModel;
+    const leagueTeams = model ? model.standings : leagueRosters.map(team => ({
       id: team.id, wins: team.wins, pointsFor: team.pointsFor,
       projection: window.FFORosterEngine.optimizeLineup(team.players, state.league.roster_positions || []).projected,
     }));
-    const opponentProjections = leagueTeams.filter(team => team.id !== String(state.myRosterId)).map(team => team.projection);
+    const strengthOf = id => leagueTeams.find(team => team.id === String(id))?.projection;
+    const myId = String(state.myRosterId);
+    const scheduledOpponents = (model?.schedule || []).map(week => {
+      const pair = week.find(match => match.map(String).includes(myId));
+      return pair ? strengthOf(pair.map(String).find(id => id !== myId)) : null;
+    }).filter(value => value !== null && value !== undefined);
+    const opponentProjections = scheduledOpponents.length ? scheduledOpponents : leagueTeams.filter(team => team.id !== myId).map(team => team.projection);
     const myRoster = state.rosters.find(roster => roster.roster_id === state.myRosterId);
     const totalBudget = state.league.settings?.waiver_budget;
     const budgetRemaining = totalBudget === undefined ? 100 : Math.max(0, Number(totalBudget) - Number(myRoster?.settings?.waiver_budget_used || 0));
     state.targetFinder = window.FFORosterEngine.evaluateAcquisitionUniverse({
       candidates, roster: mine.players, rosterPositions: state.league.roster_positions || [],
       opponentProjections, remainingWeeks: state.rosterEngine.remainingWeeks,
-      leagueTeams, teamId: String(state.myRosterId), playoffTeams: Number(state.league.settings?.playoff_teams || 6),
+      leagueTeams, teamId: myId, playoffTeams: Number(state.league.settings?.playoff_teams || 6),
       simulations: 300, seed: Number(state.league.season || 2026) + Number(state.myRosterId || 0), budgetRemaining,
+      schedule: model?.schedule || null, playoffByes: model ? model.byes : 0, weeklySd: model ? model.sd.sd : null,
+      eligibility: targetEligibility,
     });
     state.targetFinder.budgetRemaining = budgetRemaining;
   }
@@ -816,8 +1015,12 @@
     const manifest = state.qualityManifest;
     const confidence = state.rosterAssessment ? `${Math.round(state.rosterAssessment.confidence * 100)}%` : "—";
     const statusClass = manifest.status === "CURRENT" ? "quality-current" : manifest.status === "STALE" ? "quality-stale" : "quality-degraded";
+    const optional = manifest.sources.filter(source => source.required === false);
+    const optionalStale = optional.filter(source => source.status !== "CURRENT").length;
+    const projectionStale = projectionFreshness().stale;
+    const shownClass = projectionStale ? "quality-degraded" : statusClass;
     strip.innerHTML = `
-      <div class="quality-chip"><strong>Source health</strong><span class="${statusClass}">${manifest.status} · ${manifest.currentCount}/${manifest.requiredCount} current</span></div>
+      <div class="quality-chip"><strong>Source health</strong><span class="${shownClass}">${projectionStale ? "PROJECTIONS STALE" : manifest.status} · ${manifest.currentCount}/${manifest.requiredCount} required current${optionalStale ? ` · ${optionalStale}/${optional.length} optional stale or missing` : ""}</span></div>
       <div class="quality-chip"><strong>Decision confidence</strong><span>${confidence} roster evidence</span></div>
       <div class="quality-chip"><strong>League model</strong><span>${state.leagueProfile?.superflex ? "Superflex" : "1QB"} · ${state.leagueProfile?.scoring || "Unknown"}</span></div>`;
     strip.style.display = "grid";
@@ -870,6 +1073,23 @@
       seen.add(key);
       return true;
     });
+  }
+
+  // Every regular-season week's matchups: past weeks give scores and all-play,
+  // future weeks give the real schedule the season model simulates.
+  async function fetchLeagueMatchups(leagueId, playoffWeekStart) {
+    const weeks = Array.from({ length: Math.max(1, playoffWeekStart - 1) }, (_, index) => index + 1);
+    const results = await Promise.allSettled(weeks.map(async week => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 6000);
+      try {
+        const response = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/matchups/${week}`, { signal: controller.signal });
+        return response.ok ? [week, await response.json()] : [week, null];
+      } finally {
+        clearTimeout(timer);
+      }
+    }));
+    return Object.fromEntries(results.filter(result => result.status === "fulfilled" && Array.isArray(result.value[1])).map(result => result.value));
   }
 
   function pickMarketValue(pick) {
@@ -927,12 +1147,13 @@
     connectBtn.innerHTML = '<span class="loading-spinner"></span>Loading…';
     try {
       const optionalFetch = url => fetch(url).catch(() => null);
-      const [leagueRes, rostersRes, usersRes, picksRes, fcRes] = await Promise.all([
+      const [leagueRes, rostersRes, usersRes, picksRes, fcRes, nflStateRes] = await Promise.all([
         fetch(`https://api.sleeper.app/v1/league/${leagueId}`),
         fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`),
         fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`),
         optionalFetch(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`),
         optionalFetch(FC_URL),
+        optionalFetch("https://api.sleeper.app/v1/state/nfl"),
       ]);
       if (!leagueRes.ok) throw new Error("League not found — check the League ID");
       if (!rostersRes.ok) throw new Error("Sleeper returned the league, but its rosters could not be loaded. Try Connect again.");
@@ -945,6 +1166,8 @@
       state.tradedPicks = picksRes?.ok ? await picksRes.json() : [];
       state.fcData = fcRes?.ok ? await fcRes.json() : [];
       state.marketSource = fcRes?.ok ? "live" : "unavailable";
+      state.nflState = nflStateRes?.ok ? await nflStateRes.json().catch(() => null) : null;
+      const matchupsPromise = fetchLeagueMatchups(leagueId, Number(state.league.settings?.playoff_week_start || 15));
       if (!Array.isArray(state.rosters) || !state.rosters.length) throw new Error("Sleeper returned no rosters for this league.");
       if (!Array.isArray(state.users)) state.users = [];
 
@@ -953,6 +1176,7 @@
       state.allPlayers = await pRes.json();
       if (!state.allPlayers || typeof state.allPlayers !== "object" || !Object.keys(state.allPlayers).length) throw new Error("Sleeper returned an empty NFL player directory.");
       state.transactions = await tradeHistoryPromise;
+      state.matchupsByWeek = await matchupsPromise;
 
       // Load all decision snapshots as one lifecycle. Any one optional source may
       // be unavailable, but the roster is recomputed only after their states are known.
@@ -1006,6 +1230,10 @@
       state.marketSource = state.fcData.length ? "snapshot" : "unavailable";
       if (parsed.weekly_projection_data?.projection_scope === "weekly") state.weeklyProjectionData = parsed.weekly_projection_data;
       if (parsed.weekly_vegas_data?.kind === "weekly_vegas_adjusted_projections") state.weeklyVegasData = parsed.weekly_vegas_data;
+      // Optional season context for offline imports: Sleeper /state/nfl and /matchups/{week}.
+      state.nflState = parsed.nfl_state || null;
+      state.matchupsByWeek = parsed.matchups_by_week && typeof parsed.matchups_by_week === "object" ? parsed.matchups_by_week : {};
+      if (parsed.decision_policy && typeof parsed.decision_policy === "object") state.policy = parsed.decision_policy;
       state.decisionDataStatus.projections = state.weeklyProjectionData ? "current" : state.fpData ? "fallback" : "unavailable";
       state.decisionDataStatus.vegas = state.weeklyVegasData?.players?.length ? "current" : "unavailable";
       state.fetchedAt = parsed.fetched_at ? new Date(parsed.fetched_at) : null;
@@ -1055,6 +1283,7 @@
     state.connectedLeagueId = null; state.leagueLoadId = null;
     state.sideA = []; state.sideB = []; state.fetchedAt = null;
     state.qualityManifest = null; state.leagueProfile = null; state.rosterAssessment = null;
+    state.nflState = null; state.matchupsByWeek = {}; state.seasonModel = null; state.scorecardSummary = null;
     tabsNav.classList.remove("visible");
     $("freshness-bar").style.display = "none";
     $("quality-strip").style.display = "none";
@@ -1082,7 +1311,7 @@
     if (state.fpData && state.fpData.generated_at) {
       const genDate = new Date(state.fpData.generated_at);
       const daysOld = Math.floor((Date.now() - genDate) / 86400000);
-      const staleWarn = daysOld > 3 ? ` ⚠ ${daysOld}d old — re-export from Colab` : "";
+      const staleWarn = daysOld > 3 ? ` ⚠ ${daysOld}d old (season-long ranks only; weekly decisions use the open weekly projection)` : "";
       parts.push(`FantasyPros snapshot: ${state.fpData.generated_at}${staleWarn}`);
     } else {
       parts.push("FantasyPros snapshot: not loaded (rankings/injury columns unavailable)");
@@ -1282,13 +1511,13 @@
       : `<div class="quality-note"><strong>Production forecasts unavailable</strong><div class="rie-caveat" style="margin-top:4px">The lineup is temporarily ordered by dynasty market value, but market value is not presented as weekly production.</div><button id="retry-production-data" class="target-action" style="margin-top:8px">Retry production data</button></div>`;
     const closeMoves = window.FFODashboardIntel ? window.FFODashboardIntel.lineupMoves(assigned, bench) : [];
     const decisionHTML = closeMoves.length ? `<div class="quality-note"><strong>Closest lineup decisions</strong><br>${closeMoves.slice(0, 3).map(move =>
-      `${escapeHTML(move.starter.name)} over ${escapeHTML(move.alternative.name)} by ${move.delta.toFixed(1)} projected points · ${window.FFODashboardIntel.confidenceLabel(move.confidence)} confidence`
+      `${escapeHTML(move.starter.name)} over ${escapeHTML(move.alternative.name)} by ${move.delta.toFixed(1)} projected points · ${window.FFODashboardIntel.confidenceLabel(projectionFreshness().stale ? Math.min(0.4, move.confidence) : move.confidence)} confidence`
     ).join("<br>")}</div>` : `<div class="quality-note">The optimizer found no bench alternative within three projected points of a current starter. Injury designations still require confirmation before lock.</div>`;
 
     const metricHTML = (p) => {
       const evidence = projectionEvidenceFor(p.name, p.position, p.id);
       return p.projPoints !== null
-      ? `<span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><span class="mono" style="color:var(--green); font-size:12px;">${Number(p.projPoints).toFixed(2)} pts · ${evidence.source}</span>${vegasEvidenceHTML(p.name, p.team)}</span>`
+      ? `<span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><span class="mono" style="color:${Number(p.projPoints) === 0 ? "var(--red)" : "var(--green)"}; font-size:12px;">${Number(p.projPoints).toFixed(2)} pts · ${evidence.source}${evidence.weekly ? ` W${evidence.weekly.week}` : ""}${evidence.liveNote ? ` · ${escapeHTML(evidence.liveNote)}` : ""}</span>${vegasEvidenceHTML(p.name, p.team)}</span>`
       : `<span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><span class="mono" style="color:var(--text-muted); font-size:12px;">NO PROJECTION · market ${p.value ?? "—"}</span>${vegasEvidenceHTML(p.name, p.team)}</span>`;
     };
 
@@ -1327,7 +1556,7 @@
         </div>`).join("")}</div>
     </div>`;
 
-    $("lineup-content").innerHTML = html;
+    $("lineup-content").innerHTML = freshnessBannerHTML() + html;
     const retry = document.getElementById("retry-production-data");
     if (retry) retry.addEventListener("click", async () => {
       retry.disabled = true;
@@ -1340,12 +1569,24 @@
   function topDecisionActions() {
     if (!window.FFODashboardIntel || !state.myRosterId) return [];
     const actions = [];
+    const stale = projectionFreshness().stale;
+    const projectionConfidence = value => stale ? Math.min(0.4, Number(value || 0)) : value;
+    const model = state.seasonModel;
+    const strategy = model?.myState?.strategy || "HOLD";
+    if (strategy === "SELL" && model.sellWindow.length) {
+      const withBuyers = model.sellWindow.filter(row => row.buyers.length);
+      actions.push({
+        id: "sell-window", label: "TEAM STATE", title: `Sell window: ${model.sellWindow.length} veteran${model.sellWindow.length === 1 ? "" : "s"}`,
+        detail: `${model.myState.state} · ${(Number(model.odds[String(state.myRosterId)]?.playoffProbability || 0) * 100).toFixed(1)}% playoff odds. ${withBuyers.length} have a contender buyer; ${model.weeksToDeadline === null ? "no trade deadline set" : `deadline in ${model.weeksToDeadline} week${model.weeksToDeadline === 1 ? "" : "s"}`}.`,
+        impact: 12, urgency: model.weeksToDeadline !== null && model.weeksToDeadline <= 2 ? 1 : 0.85, confidence: 0.7, reversible: false, tab: "command",
+      });
+    }
     const primary = state.rosterEngine?.primaryBottleneck;
-    if (primary) actions.push({
+    if (primary && strategy !== "SELL") actions.push({
       id: `bottleneck-${primary.slot}`, label: "FRONT OFFICE", title: `Address ${primary.slot} first`,
       detail: `${Math.round(primary.opportunityShare * 100)}% of modeled attainable roster improvement · approximately +${primary.estimatedEwa.toFixed(2)} expected wins.`,
       impact: 8 + primary.estimatedEwa, urgency: primary.severity === "CRITICAL" ? 1 : 0.75,
-      confidence: state.rosterEngine.confidence, reversible: true, tab: "roster",
+      confidence: projectionConfidence(state.rosterEngine.confidence), reversible: true, tab: "roster",
     });
     const { assigned, bench } = computeAssignedLineup();
     assigned.filter(row => row.player?.status).forEach(row => actions.push({
@@ -1356,17 +1597,17 @@
     window.FFODashboardIntel.lineupMoves(assigned, bench).slice(0, 2).forEach(move => actions.push({
       id: `lineup-${move.starter.id}`, label: "LINEUP", title: `${move.starter.name} over ${move.alternative.name}`,
       detail: `${move.delta.toFixed(1)} projected-point edge; this is a close decision worth monitoring.`,
-      impact: Math.max(2, Math.abs(move.delta)), urgency: 0.8, confidence: move.confidence, reversible: true, tab: "lineup",
+      impact: Math.max(2, Math.abs(move.delta)), urgency: 0.8, confidence: projectionConfidence(move.confidence), reversible: true, tab: "lineup",
     }));
     (state.rosterAssessment?.gaps || []).slice(0, 2).forEach(gap => actions.push({
       id: `gap-${gap.position}`, label: "ROSTER", title: `Add ${gap.position} depth`,
       detail: `${gap.count}/${gap.target} preferred depth. Targets include a matching drop and FAAB range.`,
-      impact: 6 + gap.target - gap.count, urgency: 0.65, confidence: state.rosterAssessment.confidence, reversible: true, tab: "targets",
+      impact: 6 + gap.target - gap.count, urgency: 0.65, confidence: projectionConfidence(state.rosterAssessment.confidence), reversible: true, tab: "targets",
     }));
-    const free = computeFreeAgents()[0];
-    if (free) actions.push({ id: "market-target", label: "WAIVER", title: `Review ${free.player.name}`,
-      detail: "Best current projection, roster-fit, market, and bounded-momentum combination.",
-      impact: 5, urgency: 0.55, confidence: 0.58, reversible: true, tab: "targets" });
+    const waiver = state.targetFinder?.targets?.find(target => target.actionable && target.path?.type === "WAIVER");
+    if (waiver) actions.push({ id: "market-target", label: "WAIVER", title: `Claim ${waiver.name}`,
+      detail: `+${waiver.weeklyPointGain.toFixed(1)} starter pts/wk · ${waiver.eligibility?.reason || "eligible"}.`,
+      impact: 5 + Math.min(4, waiver.weeklyPointGain / 2), urgency: 0.6, confidence: projectionConfidence(0.62), reversible: true, tab: "targets" });
     return window.FFODashboardIntel.rankActions(actions).slice(0, 5);
   }
 
@@ -1381,11 +1622,11 @@
     return `<section aria-label="Front Office recommendation">
       <div class="rie-executive">
         <div class="rie-metric"><span>Championship probability</span><strong>${probability}</strong><small>${championship.simulations ? `${championship.simulations.toLocaleString()} seeded simulations` : "Needs league projections"}</small></div>
-        <div class="rie-metric"><span>Playoff probability</span><strong>${playoff}</strong><small>${engine.remainingWeeks} modeled regular-season weeks</small></div>
+        <div class="rie-metric"><span>Playoff probability</span><strong>${playoff}</strong><small>${engine.remainingWeeks} remaining regular-season week${engine.remainingWeeks === 1 ? "" : "s"} · ${championship.scheduleSource === "LEAGUE" ? "league schedule" : "synthetic schedule"}</small></div>
         <div class="rie-metric"><span>Primary bottleneck</span><strong>${escapeHTML(primary?.slot || "—")}</strong><small>${primary ? `${primary.severity} · ${Math.round(primary.opportunityShare * 100)}% of opportunity` : "No covered starter constraint"}</small></div>
         <div class="rie-metric"><span>EWA opportunity</span><strong>${primary ? `+${primary.estimatedEwa.toFixed(2)}` : "—"}</strong><small>expected wins at the primary slot</small></div>
       </div>
-      <p class="rie-caveat">Objective: expected wins and championship probability, with market value kept as a separate acquisition-cost signal. Projection coverage is ${coverage}; estimates are decision support, not backtested guarantees.</p>
+      <p class="rie-caveat">Objective: expected wins and championship probability, with market value kept as a separate acquisition-cost signal. Projection coverage is ${coverage}. ${state.seasonModel ? `Season model: actual record, ${state.seasonModel.played} game${state.seasonModel.played === 1 ? "" : "s"} of scoring, weekly SD ${state.seasonModel.sd.sd} pts (${state.seasonModel.sd.source === "POLICY_PRIOR" ? "policy prior" : "league data, shrunk"}). Odds are UNCALIBRATED estimates, not backtested guarantees.` : "Estimates are decision support, not backtested guarantees."}</p>
     </section>`;
   }
 
@@ -1411,8 +1652,54 @@
       <button class="decision-card" data-jump-tab="${action.tab}" data-priority="${action.priorityScore >= 7 ? "high" : "normal"}" style="color:inherit;text-align:left;cursor:pointer">
         <span class="decision-label">${action.label}</span><div class="decision-title">${escapeHTML(action.title)}</div>
         <div class="decision-copy">${escapeHTML(action.detail)}</div>
-        <div class="decision-meta"><span class="pill">${window.FFODashboardIntel.confidenceLabel(action.confidence)} confidence</span><span class="pill teal">REVERSIBLE</span></div>
+        <div class="decision-meta"><span class="pill">${window.FFODashboardIntel.confidenceLabel(action.confidence)} confidence</span>${action.reversible ? '<span class="pill teal">REVERSIBLE</span>' : '<span class="pill bad">NEEDS YOUR APPROVAL</span>'}</div>
       </button>`).join("")}</div>`;
+  }
+
+  function pct(value, digits = 0) {
+    return value === null || value === undefined || !Number.isFinite(Number(value)) ? "—" : `${(Number(value) * 100).toFixed(digits)}%`;
+  }
+
+  function seasonHeadlineHTML() {
+    const model = state.seasonModel;
+    const mine = model?.myState;
+    if (!model || !mine) return "";
+    const odds = model.odds[String(state.myRosterId)] || {};
+    const deadline = model.weeksToDeadline === null ? "no trade deadline" : model.weeksToDeadline === 0 ? "trade deadline this week" : `deadline in ${model.weeksToDeadline} week${model.weeksToDeadline === 1 ? "" : "s"}`;
+    const tone = mine.strategy === "SELL" ? "var(--red)" : mine.strategy === "BUY" ? "var(--green)" : "var(--gold-light)";
+    const plan = mine.strategy === "SELL" ? "Sell veterans to contenders; do not trade youth or picks for win-now help."
+      : mine.strategy === "BUY" ? "Buy starting-lineup upgrades; future assets are fair currency."
+      : "Hold the core; take only clear lineup upgrades.";
+    return `<section class="quality-note" data-season-headline style="border-left:3px solid ${tone};margin-bottom:14px"><div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><strong style="font-size:15px;color:${tone}">${escapeHTML(mine.state)}</strong><span class="mono" style="font-size:12px">${pct(odds.playoffProbability, 1)} playoff · ${pct(odds.probability, 1)} title · ${deadline}</span></div><div class="rie-caveat" style="margin-top:4px">${plan} ${model.played}-game record, ${model.remainingWeeks} week${model.remainingWeeks === 1 ? "" : "s"} left on the ${model.schedule ? "league" : "synthetic"} schedule.</div></section>`;
+  }
+
+  function warRoomHTML() {
+    const model = state.seasonModel;
+    if (!model) return null;
+    const owners = ownerMap();
+    const rows = state.rosters.map(roster => {
+      const id = String(roster.roster_id);
+      const odds = model.odds[id] || {};
+      const stats = model.stats.teams[id] || {};
+      return {
+        id, name: owners[id] || `Roster ${id}`, wins: Number(roster.settings?.wins || 0), losses: Number(roster.settings?.losses || 0),
+        ppg: stats.ppg, allPlay: stats.allPlayPct, strength: model.strengths[id]?.mean, playoff: odds.playoffProbability, bye: odds.byeProbability,
+        title: odds.probability, expectedWins: odds.expectedWins, state: model.teamStates[id]?.state || "—", isMe: id === String(state.myRosterId),
+      };
+    }).sort((a, b) => Number(b.title || 0) - Number(a.title || 0) || Number(b.playoff || 0) - Number(a.playoff || 0));
+    const cell = "padding:5px 6px;text-align:right;white-space:nowrap";
+    return `<div style="overflow-x:auto"><table class="mono" data-war-room style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="color:var(--text-dim)"><th style="${cell};text-align:left">Team</th><th style="${cell}">W-L</th><th style="${cell}">Pts/wk</th><th style="${cell}">All-play</th><th style="${cell}">Strength</th><th style="${cell}">Exp. W</th><th style="${cell}">Playoff</th><th style="${cell}">Bye</th><th style="${cell}">Title</th><th style="${cell};text-align:left">State</th></tr></thead><tbody>${rows.map(row => `<tr style="border-top:1px solid var(--border);${row.isMe ? "color:var(--gold-light)" : ""}"><td style="${cell};text-align:left">${escapeHTML(row.name)}${row.isMe ? " (you)" : ""}</td><td style="${cell}">${row.wins}-${row.losses}</td><td style="${cell}">${row.ppg === null || row.ppg === undefined ? "—" : Number(row.ppg).toFixed(1)}</td><td style="${cell}">${pct(row.allPlay)}</td><td style="${cell}">${row.strength === undefined ? "—" : Number(row.strength).toFixed(1)}</td><td style="${cell}">${row.expectedWins === undefined ? "—" : Number(row.expectedWins).toFixed(1)}</td><td style="${cell}">${pct(row.playoff)}</td><td style="${cell}">${pct(row.bye)}</td><td style="${cell}">${pct(row.title, 1)}</td><td style="${cell};text-align:left">${escapeHTML(row.state)}</td></tr>`).join("")}</tbody></table></div><p class="rie-caveat" style="margin-top:6px">${model.championship?.simulations ? `${Number(model.championship.simulations).toLocaleString()} simulations` : "Simulation unavailable"} over ${model.schedule ? `Sleeper's real Week ${model.split.scheduleWeeks[0]}–${model.split.scheduleWeeks.at(-1)} pairings` : "a synthetic round robin (league schedule did not load)"}; ${model.playoffTeams}-team bracket, top ${model.byes} seed${model.byes === 1 ? "" : "s"} on bye. Strength blends this week's projected lineup with season scoring, shrunk toward the league mean. UNCALIBRATED.</p>`;
+  }
+
+  function sellWindowHTML() {
+    const model = state.seasonModel;
+    if (!model || model.myState?.strategy !== "SELL") return null;
+    const hidden = projectionFreshness().stale;
+    if (!model.sellWindow.length) return `<div class="rie-caveat">No rostered veteran meets the sell rules (age ${model.policy.sell_window.age_cutoff}+, market ${model.policy.sell_window.min_market_value}+).</div>`;
+    return model.sellWindow.map(row => `<div class="fa-row" data-sell-window-row>
+      <div class="fa-left"><span class="pill teal">${escapeHTML(row.position || "—")}</span><span class="fa-name">${escapeHTML(row.name)}</span><span class="mono" style="color:var(--text-dim);font-size:11px">${escapeHTML(row.reason)}</span></div>
+      <span class="mono" style="font-size:11px;text-align:right">${row.buyers.length ? `Buyers: ${row.buyers.slice(0, 3).map(buyer => `${escapeHTML(buyer.name)} (${pct(buyer.playoff)} playoff${buyer.slot ? `, weak ${escapeHTML(buyer.slot)}` : ""})`).join(" · ")}` : "No contender needs this position"}${hidden ? " · offers hidden until projections refresh" : ""}</span>
+    </div>`).concat([`<p class="rie-caveat" style="margin-top:6px">Contenders = ${pct(model.policy.sell_window.contender_playoff)}+ playoff odds; each buyer's need is its weakest starting slots against the league. Selling is irreversible: every offer needs your approval.</p>`]);
   }
 
   // ---------- Render: Command Center ----------
@@ -1420,6 +1707,11 @@
     const fcMap = fcBySleeperId();
     const myRoster = state.rosters.find(r => r.roster_id === state.myRosterId);
     const sections = [];
+
+    const sellRows = sellWindowHTML();
+    if (sellRows) sections.push({ title: "Sell Window", rows: Array.isArray(sellRows) ? sellRows : [sellRows] });
+    const warRoom = warRoomHTML();
+    if (warRoom) sections.push({ title: "League War Room", rows: [warRoom] });
 
     // Starter injury risk — highest priority, checked first
     const { assigned } = computeAssignedLineup();
@@ -1500,7 +1792,7 @@
     if (tradeDeadlineWeek) {
       sections.push({
         title: "Trade Deadline",
-        rows: [`<div style="color:var(--text-muted); font-size:13px;">Week ${tradeDeadlineWeek}</div>`],
+        rows: [`<div style="color:var(--text-muted); font-size:13px;">Week ${tradeDeadlineWeek}${state.seasonModel?.weeksToDeadline !== null && state.seasonModel?.weeksToDeadline !== undefined ? ` · ${state.seasonModel.weeksToDeadline} week${state.seasonModel.weeksToDeadline === 1 ? "" : "s"} to trade` : ""}</div>`],
       });
     }
 
@@ -1511,14 +1803,17 @@
         const fc = fcMap[pid];
         const name = `${p.first_name || ""} ${p.last_name || ""}`.trim() || pid;
         return { name, trend: fc ? fc.trend30Day : null, value: fc ? fc.value : null };
-      }).filter(p => p.trend !== null && p.trend !== undefined && Math.abs(p.trend) >= 50)
-        .sort((a, b) => Math.abs(b.trend) - Math.abs(a.trend));
+      }).filter(p => {
+        // Same materiality rule as the push watcher: a real share of a real value.
+        const rules = { min_value: 500, trend_share: 0.08, ...(decisionPolicy().alerts || {}) };
+        return p.trend !== null && p.trend !== undefined && Number(p.value) >= rules.min_value && Math.abs(p.trend) >= Math.max(1, rules.trend_share * Number(p.value));
+      }).sort((a, b) => Math.abs(b.trend) / Math.max(1, b.value) - Math.abs(a.trend) / Math.max(1, a.value));
 
       if (flagged.length) {
         sections.push({
           title: "Roster Alerts",
           rows: flagged.map(p => {
-            const isSell = p.trend >= 50;
+            const isSell = p.trend > 0;
             return `<div class="fa-row">
               <div class="fa-left">
                 <span class="pill ${isSell ? 'gold' : 'bad'}">${isSell ? 'SELL HIGH' : 'RISK'}</span>
@@ -1559,30 +1854,14 @@
     }).sort((a, b) => b.total - a.total);
 
     if (powerRanked.length) {
-      const myRank = powerRanked.findIndex(t => t.isMe) + 1;
-      const n = powerRanked.length;
-      let teamState = "Unknown";
-      if (myRank <= Math.ceil(n / 3)) teamState = "Contender";
-      else if (myRank <= Math.ceil((n * 2) / 3)) teamState = "Fringe Contender";
-      else teamState = "Rebuilder";
-
-      // Structural override: a critical positional gap matters more than overall value rank
-      let structuralNote = "";
-      if (myRoster) {
-        const reqMin = { QB: 2, RB: 3, WR: 3, TE: 1 };
-        const counts = computePositionCounts(myRoster);
-        const criticalGaps = Object.entries(reqMin).filter(([pos, min]) => (counts[pos] || 0) < min);
-        if (criticalGaps.length) {
-          teamState = "Structurally Weak";
-          structuralNote = ` Overridden from value rank due to critical gap(s) at ${criticalGaps.map(([pos]) => pos).join(", ")}.`;
-        }
+      const model = state.seasonModel;
+      const mineState = model?.myState;
+      if (mineState) {
+        sections.push({
+          title: "Team State",
+          rows: [`<div style="font-size:13px;"><span class="pill gold">${escapeHTML(mineState.state)}</span> <span class="pill ${mineState.strategy === "SELL" ? "bad" : mineState.strategy === "BUY" ? "teal" : ""}">${mineState.strategy}</span> <span style="color:var(--text-dim); font-size:11px;">— ${escapeHTML(mineState.reasons.join("; "))}. From the season model over the real schedule; thresholds are UNCALIBRATED.</span></div>`],
+        });
       }
-
-      sections.push({
-        title: "Team State",
-        rows: [`<div style="font-size:13px;"><span class="pill gold">${teamState}</span> <span style="color:var(--text-dim); font-size:11px;">— based on roster-value rank (#${myRank}/${n}), not standings. Preseason heuristic, will be less reliable once games start.${structuralNote}</span></div>`],
-      });
-
       sections.push({
         title: "Power Ranking (total roster value)",
         rows: powerRanked.map((t, i) => `
@@ -1624,7 +1903,7 @@
       const byeGroups = {};
       assigned.forEach(a => {
         if (!a.player || !a.player.team) return;
-        const teamData = state.scheduleData.teams[a.player.team];
+        const teamData = state.scheduleData.teams[a.player.team] || state.scheduleData.teams[{ LAR: "LA" }[a.player.team]];
         const bye = teamData ? teamData.bye_week : null;
         if (bye !== null && bye !== undefined) {
           byeGroups[bye] = byeGroups[bye] || [];
@@ -1658,7 +1937,7 @@
     }
 
     if (!sections.length) {
-      $("command-content").innerHTML = `<p style="color:var(--text-muted); font-size:14px;">No material alerts right now. Check back after your next data refresh, or browse the other tabs directly.</p>`;
+      $("command-content").innerHTML = freshnessBannerHTML() + seasonHeadlineHTML() + `<p style="color:var(--text-muted); font-size:14px;">No material alerts right now. Check back after your next data refresh, or browse the other tabs directly.</p>`;
       return;
     }
 
@@ -1674,7 +1953,7 @@
         <span style="color:var(--text-muted); font-size:13px;">${criticalRowCount === 0 ? "items need your attention right now" : criticalRowCount === 1 ? "item needs your attention right now" : "items need your attention right now"}</span>
       </div>`;
 
-    $("command-content").innerHTML = rosterEngineSummaryHTML() + decisionSummaryHTML() + heroHTML + sections.map((s, i) => {
+    $("command-content").innerHTML = freshnessBannerHTML() + seasonHeadlineHTML() + rosterEngineSummaryHTML() + decisionSummaryHTML() + heroHTML + sections.map((s, i) => {
       const isCritical = CRITICAL_TITLES.has(s.title);
       const accentColor = isCritical ? "var(--red)" : "var(--gold)";
       return `
@@ -1802,6 +2081,7 @@
 
   function renderTargets() {
     const finder = state.targetFinder;
+    const stale = projectionFreshness().stale;
     if (!finder) {
       $("targets-count").textContent = "Target Finder needs a selected roster and league-wide projection state.";
       $("drop-candidates").innerHTML = "";
@@ -1833,13 +2113,13 @@
       (state.posFilter === "ALL" || target.position === state.posFilter) &&
       (state.targetPathFilter === "ALL" || target.path.type === state.targetPathFilter || (state.targetPathFilter === "ACTIONABLE" && target.actionable))
     );
-    $("targets-list").innerHTML = `<div class="target-board">${filtered.slice(0, 150).map(target => {
+    $("targets-list").innerHTML = freshnessBannerHTML() + `<div class="target-board">${filtered.slice(0, 150).map(target => {
       const titleDelta = `${target.championshipProbabilityAdded >= 0 ? "+" : ""}${(target.championshipProbabilityAdded * 100).toFixed(1)} pp`;
-      const cost = target.path.type === "WAIVER" ? `FAAB $${target.faabCost} · no permanent asset` : `owner est. ${Math.round(target.permanentAssetCost).toLocaleString()} · market ${Math.round(target.marketValue).toLocaleString()}`;
-      const owner = target.path.type === "WAIVER" ? "Available now" : `Rostered by ${escapeHTML(target.path.ownerName)}`;
+      const cost = target.path.type === "WAIVER" ? (stale ? "FAAB bid hidden until projections refresh" : `FAAB $${target.faabCost} · no permanent asset`) : `owner est. ${Math.round(target.permanentAssetCost).toLocaleString()} · market ${Math.round(target.marketValue).toLocaleString()}`;
+      const owner = (target.path.type === "WAIVER" ? "Available now" : `Rostered by ${escapeHTML(target.path.ownerName)}`) + (target.eligibility?.reason ? ` · <span data-eligibility="${target.eligibility.eligible === false ? "blocked" : "ok"}" style="color:${target.eligibility.eligible === false ? "var(--red)" : "var(--text-dim)"}">${escapeHTML(target.eligibility.reason)}</span>` : "");
       const alternative = target.path.type === "TRADE" && target.waiverAlternative
-        ? `${escapeHTML(target.waiverAlternative.name)} offers ${Math.round((target.waiverPerformanceShare || 0) * 100)}% of this EWA for FAAB $${target.waiverAlternative.faabCost}` : "";
-      const data = target.dataStatus === "NO_PROJECTION" ? "Projection unavailable" : target.actionable
+        ? `${escapeHTML(target.waiverAlternative.name)} offers ${Math.round((target.waiverPerformanceShare || 0) * 100)}% of this EWA${stale ? "" : ` for FAAB $${target.waiverAlternative.faabCost}`}` : "";
+      const data = target.dataStatus === "NO_PROJECTION" ? "Projection unavailable" : target.dataStatus === "INELIGIBLE" ? "Filtered out" : target.actionable
         ? `${target.weeklyPointGain >= 0 ? "+" : ""}${target.weeklyPointGain.toFixed(1)} starter pts/wk · +${target.ewa.toFixed(2)} EWA` : "No current lineup gain";
       const drop = target.path.type === "WAIVER" ? lowestDropForTarget(target.position) : null;
       const dropGuidance = target.path.type === "WAIVER"
@@ -1848,7 +2128,7 @@
       const pathDetail = alternative || (target.path.type === "WAIVER" ? `Use $${finder.budgetRemaining} remaining FAAB` : "Market price is a constraint, not the objective");
       const recommendation = target.path.type === "TRADE" ? recommendedOffers.get(String(target.id)) : null;
       const suggestedPackage = recommendation?.packages?.[0] || null;
-      const packageDetail = target.path.type !== "TRADE" ? "" : suggestedPackage
+      const packageDetail = target.path.type !== "TRADE" ? "" : stale ? `<div class="target-detail" style="margin-top:7px">Offers hidden until projections refresh.</div>` : suggestedPackage
         ? `<div style="margin-top:7px;padding:7px;border:1px solid var(--border-hover);border-radius:5px;background:var(--bg)"><strong style="color:var(--gold-light);font-size:10px">SUGGESTED OFFER</strong><div class="target-detail" style="margin-top:3px">${suggestedPackage.assets.map(asset => `${escapeHTML(asset.name)} (${Math.round(asset.marketValue || asset.value || 0).toLocaleString()})`).join(" + ")}</div><div class="target-detail" style="margin-top:2px">Give ${Math.round(suggestedPackage.offerValue).toLocaleString()} vs owner ask ${Math.round(suggestedPackage.targetValue).toLocaleString()} · ${suggestedPackage.acceptance.probability}% estimated acceptance</div></div>`
         : `<div class="target-detail" style="margin-top:7px"><strong>Assets:</strong> no package clears lineup-impact and protected-core guardrails at the estimated ${Math.round(target.permanentAssetCost).toLocaleString()} ask.</div>`;
       return `<article class="target-card" data-actionable="${target.actionable}" data-target-id="${escapeHTML(target.id)}">
@@ -1960,8 +2240,13 @@
         remainingWeeks: state.rosterEngine?.remainingWeeks || 6, direction: teamDirection(ownerRoster),
         activity, needPositions: ownerNeeds, maxAssets: 3, limit: 3,
       });
-      if (!packages.length) return;
-      recommendations.push({ target, targetAsset, ownerRoster, ownerProfile, ownerNeeds, ownerSurplus, activity, packages, futurePickCount: futurePicks.length });
+      const strategy = state.seasonModel?.myState?.strategy || "HOLD";
+      const withAge = asset => ({ ...asset, age: asset.type === "pick" ? null : state.allPlayers[asset.id]?.age ?? null });
+      const allowed = window.FFOSeasonModel ? packages.filter(pkg => !window.FFOSeasonModel.strategyBlocks({
+        strategy, give: pkg.assets.map(withAge), receive: [withAge(targetAsset)], policy: decisionPolicy(),
+      })) : packages;
+      if (!allowed.length) return;
+      recommendations.push({ target, targetAsset, ownerRoster, ownerProfile, ownerNeeds, ownerSurplus, activity, packages: allowed, futurePickCount: futurePicks.length });
     });
     return recommendations.sort((a, b) => {
       const preferred = (String(b.target.id) === String(state.preferredTradeTargetId)) - (String(a.target.id) === String(state.preferredTradeTargetId));
@@ -1979,6 +2264,10 @@
     count.textContent = `${recommendations.length} attainable of ${positiveTargets} impact-positive trade targets`;
     if (!state.targetFinder) {
       list.innerHTML = '<div class="quality-note"><span class="rie-caveat">Connect a league and select your roster to generate targets and acquisition packages.</span></div>';
+      return;
+    }
+    if (projectionFreshness().stale) {
+      list.innerHTML = freshnessBannerHTML();
       return;
     }
     if (!recommendations.length) {
@@ -2471,6 +2760,24 @@
   });
 
   // ---------- Render: Validation ----------
+  function scorecardHTML() {
+    const summary = state.scorecardSummary;
+    if (!summary || !Array.isArray(summary.weeks)) {
+      return `<div class="rie-caveat">No scorecard yet. The weekly workflow scores every completed week against that week's own projection snapshot.</div>`;
+    }
+    const scored = summary.weeks.filter(week => week.league);
+    const total = summary.season_to_date || {};
+    const fmt = value => value === null || value === undefined ? "—" : Number(value).toFixed(1);
+    const rows = scored.map(week => {
+      const mine = week.mine || {};
+      return `<tr style="border-top:1px solid var(--border)"><td style="padding:4px 6px">W${week.week}</td><td style="padding:4px 6px;text-align:right">${fmt(week.league.actual)}</td><td style="padding:4px 6px;text-align:right">${fmt(week.league.dashboard)}</td><td style="padding:4px 6px;text-align:right">${fmt(week.league.optimal)}</td><td style="padding:4px 6px;text-align:right">${fmt(week.league.benchmark)}</td><td style="padding:4px 6px;text-align:right">${fmt(mine.actual)} / ${fmt(mine.dashboard)}</td><td style="padding:4px 6px;text-align:right">${mine.result_actual || "—"} / ${mine.result_if_dashboard || "—"}</td></tr>`;
+    }).join("");
+    const skipped = summary.weeks.filter(week => week.skipped).map(week => `W${week.week}`);
+    return `<div class="metric-grid"><div class="metric"><b>${fmt(total.dashboard)}</b><small>dashboard lineup, pts/team-week</small></div><div class="metric"><b>${fmt(total.actual)}</b><small>managers' lineups</small></div><div class="metric"><b>${total.dashboard_minus_actual === null || total.dashboard_minus_actual === undefined ? "—" : `${total.dashboard_minus_actual >= 0 ? "+" : ""}${Number(total.dashboard_minus_actual).toFixed(1)}`}</b><small>dashboard minus managers</small></div><div class="metric"><b>${total.wins_flipped_to_losses ?? "—"} / ${total.losses_flipped_to_wins ?? "—"}</b><small>wins lost / gained if followed</small></div></div>
+      <div style="overflow-x:auto;margin-top:8px"><table class="mono" data-scorecard style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="color:var(--text-dim)"><th style="padding:4px 6px;text-align:left">Week</th><th style="padding:4px 6px;text-align:right">Managers</th><th style="padding:4px 6px;text-align:right">Dashboard</th><th style="padding:4px 6px;text-align:right">Optimal</th><th style="padding:4px 6px;text-align:right">Sleeper proj.</th><th style="padding:4px 6px;text-align:right">You: actual / dash</th><th style="padding:4px 6px;text-align:right">You: result / if followed</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="quality-note">League averages per team-week, scored with actual points. Each week uses only that week's pre-game projection snapshot; the decision ledger in <span class="mono">data/ledger/</span> keeps every lineup recommendation and its outcome.${skipped.length ? ` Not scored (no snapshot): ${skipped.join(", ")}.` : ""}</div>`;
+  }
+
   function renderValidation() {
     const myRoster = state.rosters.find(r => r.roster_id === state.myRosterId);
     const fcMap = fcBySleeperId();
@@ -2487,6 +2794,8 @@
         html: `<div style="color:${source.status === "CURRENT" ? "var(--green)" : source.status === "STALE" ? "var(--gold-light)" : "var(--red)"};font-size:13px">${source.status}${source.ageHours === null ? "" : ` · ${source.ageHours.toFixed(1)}h old`} · ${source.usable ? "usable" : "excluded from predictive decisions"}</div>`,
       }));
     }
+
+    blocks.push({ title: "Weekly Scorecard", html: scorecardHTML() });
 
     if (window.FFODashboardObservability) {
       const observed = window.FFODashboardObservability.snapshot();
@@ -2517,7 +2826,7 @@
       }
       blocks.push({
         title: "FantasyPros Snapshot",
-        html: `<div style="color:${color}; font-size:13px;">${daysOld === 0 ? "Today" : daysOld + "d old"} (${state.fpData.generated_at})${daysOld > 3 ? " — re-export from Colab" : ""}</div>
+        html: `<div style="color:${color}; font-size:13px;">${daysOld === 0 ? "Today" : daysOld + "d old"} (${state.fpData.generated_at})${daysOld > 3 ? " — stale; not used for weekly decisions" : ""}</div>
                <div style="color:var(--text-dim); font-size:12px; margin-top:4px;">${projCount} player projections loaded (real count, confirms data actually arrived)</div>`,
       });
     } else {
@@ -2526,9 +2835,11 @@
 
     if (state.weeklyProjectionData?.quality) {
       const weekly = state.weeklyProjectionData;
+      const fresh = projectionFreshness();
       blocks.push({
         title: `Open Weekly Projection · Week ${weekly.week}`,
-        html: `<div style="color:${weekly.quality.status === "publishable" ? "var(--green)" : "var(--gold-light)"}; font-size:13px;">${weekly.quality.status.toUpperCase()} · ${weekly.quality.usable_players}/${weekly.quality.players} usable</div>
+        html: `<div style="color:${fresh.stale ? "var(--red)" : "var(--green)"}; font-size:13px;">${fresh.stale ? `STALE · ${escapeHTML(fresh.reason)}` : `CURRENT for NFL Week ${fresh.nflWeek ?? "—"} · built ${Number.isFinite(fresh.ageHours) ? `${fresh.ageHours.toFixed(1)}h` : "—"} ago`} · model ${escapeHTML(weekly.model_version || "—")}</div>
+               <div style="color:${weekly.quality.status === "publishable" ? "var(--green)" : "var(--gold-light)"}; font-size:13px;">${weekly.quality.status.toUpperCase()} · ${weekly.quality.usable_players}/${weekly.quality.players} usable</div>
                <div style="color:var(--text-dim); font-size:12px; margin-top:4px;">Role, opportunity, injury, depth, opponent, and uncertainty · no-lookahead ${weekly.quality.no_lookahead ? "verified" : "unverified"}</div>`,
       });
     }

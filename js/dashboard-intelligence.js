@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const HOUR = 3600000;
   const POSITION_DEPTH = { QB: 2, RB: 4, WR: 5, TE: 2, K: 1, DEF: 1, DST: 1 };
 
@@ -55,6 +55,15 @@
     };
   }
 
+  // Positions that can fill at least one starting slot. Depth targets exist only
+  // for these, so a league without a kicker slot never asks for kicker depth.
+  function startingPositions(slots) {
+    const expand = { FLEX: ["RB", "WR", "TE"], SUPER_FLEX: ["QB", "RB", "WR", "TE"], WRRB_FLEX: ["RB", "WR"], REC_FLEX: ["WR", "TE"], DEF: ["DEF", "DST"], DST: ["DEF", "DST"] };
+    const positions = new Set();
+    (slots || []).filter(slot => !["BN", "IR", "TAXI"].includes(slot)).forEach(slot => (expand[slot] || [slot]).forEach(position => positions.add(position)));
+    return [...positions];
+  }
+
   function leagueProfile(league) {
     const scoring = league?.scoring_settings || {};
     const settings = league?.settings || {};
@@ -68,6 +77,7 @@
       superflex: slots.includes("SUPER_FLEX"),
       tePremium: finite(scoring.bonus_rec_te) > 0 || finite(scoring.rec_te) > receptions,
       starters: slots.filter(slot => !["BN", "IR", "TAXI"].includes(slot)).length,
+      startingPositions: startingPositions(slots),
       bench: slots.filter(slot => slot === "BN").length,
       waiverBudget: settings.waiver_budget === undefined ? null : finite(settings.waiver_budget),
       playoffStart: finite(settings.playoff_week_start, null),
@@ -101,10 +111,12 @@
     return false;
   }
 
+  // Any projected player outranks every unprojected one: market value orders
+  // only the players nobody has projected, never against real projections.
   function decisionMetric(player) {
     if (!player) return -Infinity;
     if (player.projection !== null && player.projection !== undefined) return finite(player.projection) * 1000 + finite(player.marketValue) / 100;
-    return finite(player.marketValue);
+    return -1e9 + finite(player.marketValue);
   }
 
   function optimizeLineup(players, rosterPositions) {
@@ -128,8 +140,9 @@
       return ai - bi || finite(slotOrder.get(a.slot + ":0")) - finite(slotOrder.get(b.slot + ":0"));
     });
     const bench = ranked.filter(player => !used.has(player.id));
-    const projected = assigned.filter(row => row.player?.projection !== null).reduce((sum, row) => sum + finite(row.player.projection), 0);
-    return { assigned, bench, projected, projectedStarters: assigned.filter(row => row.player?.projection !== null).length };
+    const hasProjection = row => row.player && row.player.projection !== null && row.player.projection !== undefined;
+    const projected = assigned.filter(hasProjection).reduce((sum, row) => sum + finite(row.player.projection), 0);
+    return { assigned, bench, projected, projectedStarters: assigned.filter(hasProjection).length };
   }
 
   function lineupMoves(assigned, bench) {
@@ -153,7 +166,8 @@
       counts[player.position] = (counts[player.position] || 0) + 1;
       values[player.position] = (values[player.position] || 0) + finite(player.marketValue);
     });
-    const gaps = Object.entries(POSITION_DEPTH).filter(([position, minimum]) => {
+    const starting = Array.isArray(profile?.startingPositions) && profile.startingPositions.length ? new Set(profile.startingPositions) : null;
+    const gaps = Object.entries(POSITION_DEPTH).filter(([position]) => !starting || starting.has(position)).filter(([position, minimum]) => {
       const adjusted = position === "QB" && profile?.superflex ? Math.max(3, minimum) : minimum;
       return (counts[position] || 0) < adjusted;
     }).map(([position, minimum]) => ({ position, count: counts[position] || 0, target: position === "QB" && profile?.superflex ? 3 : minimum }));
@@ -214,7 +228,7 @@
   }
 
   return {
-    VERSION, POSITION_DEPTH, finite, clamp, ageHours, freshness, sourceManifest, leagueProfile,
+    VERSION, POSITION_DEPTH, finite, clamp, ageHours, freshness, sourceManifest, leagueProfile, startingPositions,
     normalizedPlayer, eligible, optimizeLineup, lineupMoves, rosterAssessment, acquisitionDecision,
     tradeDecision, rankActions, confidenceLabel,
   };

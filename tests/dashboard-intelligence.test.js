@@ -68,3 +68,20 @@ assert.equal(ranked[0].id, 'high');
 assert.equal(D.confidenceLabel(.82), 'HIGH');
 
 console.log('dashboard intelligence phase contracts passed');
+
+// Week 6 review fixes: a slot nobody can fill does not crash the optimizer,
+// projected players always outrank unprojected ones, and depth targets follow
+// the league's starting slots.
+const shortRoster = [
+  { id: 'qb', position: 'QB', projection: 18, marketValue: 100 },
+  { id: 'wr', position: 'WR', projection: 0.1, marketValue: 50 },
+  { id: 'wr-unprojected', position: 'WR', projection: null, marketValue: 9000 },
+];
+const short = D.optimizeLineup(shortRoster, ['QB', 'RB', 'WR', 'FLEX', 'BN']);
+assert.equal(short.assigned.find(row => row.slot === 'RB').player, null, 'an unfillable slot stays empty');
+assert.equal(short.projected, 18.1);
+assert.equal(short.assigned.find(row => row.slot === 'WR').player.id, 'wr', 'a projected player starts ahead of an unprojected one');
+const noKicker = D.leagueProfile({ roster_positions: ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'SUPER_FLEX', 'BN'] });
+assert.ok(!noKicker.startingPositions.includes('K'));
+assert.ok(!D.rosterAssessment(players, noKicker).gaps.some(gap => ['K', 'DEF', 'DST'].includes(gap.position)), 'no kicker or defense depth without those slots');
+assert.ok(D.rosterAssessment(players, D.leagueProfile({ roster_positions: ['QB', 'K', 'DEF', 'BN'] })).gaps.some(gap => gap.position === 'K'));

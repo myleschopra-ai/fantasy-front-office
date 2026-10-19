@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "updated": "2026-10-19",
+  "notes": "Every constant that changes an in-season recommendation. 'evidence' names where a value came from; UNCALIBRATED means it has not passed time-frozen testing yet.",
+  "season_model": {
+    "weekly_sd_fallback": 24.5,
+    "sd_prior_games": 6,
+    "min_games_for_empirical_sd": 3,
+    "season_weight_k": 4,
+    "strength_shrink": 0.8,
+    "simulations": 3000,
+    "sd_floor": 6,
+    "evidence": {
+      "weekly_sd_fallback": "Within-team SD of weekly scores, The League of Shadows weeks 1-5 of 2026 (Week 6 review).",
+      "season_weight_k": "UNCALIBRATED",
+      "strength_shrink": "UNCALIBRATED"
+    }
+  },
+  "team_state": {
+    "contender_playoff": 0.65,
+    "fringe_playoff": 0.35,
+    "productive_all_play": 0.5,
+    "structural_value_tercile": 0.67,
+    "evidence": "UNCALIBRATED thresholds; state labels follow the project brief."
+  },
+  "sell_window": {
+    "age_cutoff": 28,
+    "min_market_value": 300,
+    "contender_playoff": 0.6,
+    "young_age_max": 25,
+    "old_age_min": 29,
+    "evidence": "Week 6 review; age cutoff awaiting Myles's confirmation (doc comment). UNCALIBRATED."
+  },
+  "availability": {
+    "out": 0.0,
+    "doubtful": 0.25,
+    "questionable": 0.78,
+    "healthy": 0.96,
+    "unavailable_statuses": ["OUT", "IR", "PUP", "SUS", "NA", "DNR", "COV", "RESERVE", "SUSPENDED", "NFI"],
+    "evidence": "Questionable/doubtful/healthy weights match scripts/weekly_projection_engine.py status_availability. Out and reserve lists are zero at render time because the player cannot play."
+  },
+  "freshness": {
+    "max_projection_age_hours": 192,
+    "evidence": "Weekly workflow runs Tue/Thu/Sat/Sun; 8 days means at least three missed runs."
+  },
+  "target_gates": {
+    "min_availability": 0.5,
+    "require_recent_game_after_week": 3,
+    "role_loss_trend": -0.15,
+    "evidence": "Week 6 review: 4 of the top 14 targets were on IR or Out and 4 more had not played since Week 2. UNCALIBRATED."
+  },
+  "alerts": {
+    "min_value": 500,
+    "trend_share": 0.08,
+    "rearm_share": 0.5,
+    "cooldown_days": 7,
+    "digest_hour_utc": 13,
+    "riser_min_trend": 150,
+    "evidence": "Week 6 review: 200 pushes in 31 days under a flat +/-50 threshold. UNCALIBRATED."
+  }
+}

@@ -7,6 +7,7 @@ import json
 import statistics
 import sys
 from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -66,6 +67,7 @@ def main() -> int:
     parser.add_argument("--nflverse-dir", type=Path, default=Path("data/raw/nflverse"))
     parser.add_argument("--output", type=Path, default=Path("reports/weekly_projection_backtest.json"))
     parser.add_argument("--strict", action="store_true")
+    parser.add_argument("--season", type=int, default=None, help="Current NFL season; it and later seasons are excluded because they are not complete.")
     args = parser.parse_args()
     rows = load_parquet_rows(args.nflverse_dir / "weekly_stats.parquet")
     extra = {}
@@ -77,7 +79,9 @@ def main() -> int:
         if path.exists():
             extra[name] = load_parquet_rows(path)
     seasons = sorted({int(finite(value(row, "season"), 0) or 0) for row in rows})
-    results = [evaluate(rows, season, extra) for season in seasons[-2:] if season - 1 in seasons]
+    current = args.season if args.season is not None else datetime.now(timezone.utc).year
+    completed = [season for season in seasons if season < current]
+    results = [evaluate(rows, season, extra) for season in completed[-2:] if season - 1 in seasons]
     payload = {"schema_version": 1, "generated_at": utc_now(), "method": "walk-forward; each projection uses rows strictly before its target week", "baseline": "prior-season half-PPR points per game", "passed": bool(results) and all(row["passed"] for row in results), "seasons": results}
     write_json_atomic(args.output, payload)
     print(json.dumps(payload, indent=2))

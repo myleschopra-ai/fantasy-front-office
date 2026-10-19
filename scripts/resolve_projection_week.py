@@ -19,7 +19,9 @@ def resolve(rows: list[dict], season: int, today: date) -> int:
         except ValueError:
             continue
         week = int(finite(row.get("week"), 1) or 1)
-        if gameday >= today - timedelta(days=1):
+        # A week stays current through its last game day; the morning after
+        # Monday night the next week's lineups are the live decision.
+        if gameday >= today:
             candidates.append((gameday, week))
     return min(candidates)[1] if candidates else 1
 
