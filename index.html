@@ -927,6 +927,7 @@
       return { eligible: false, reason: "No game in the last two weeks" };
     }
     if (week > Number(gates.require_recent_game_after_week) && Number(features.role_absent_weeks || 0) >= 2) return { eligible: false, reason: "Healthy but not playing" };
+    if (week > Number(gates.require_recent_game_after_week) && candidate.weekly && Number(features.games_this_season || 0) === 0) return { eligible: false, reason: "No game this season" };
     if (state.seasonModel?.myState?.strategy === "SELL" && candidate.acquisitionType === "TRADE" && Number(candidate.age) >= Number(sell.old_age_min)) {
       return { eligible: false, reason: `Selling team: no age-${candidate.age} veterans` };
     }
