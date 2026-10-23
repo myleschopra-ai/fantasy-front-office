@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import bisect
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -20,20 +21,78 @@ HISTORY_FIELDS = ["sleeper_id", "gsis_id", "name", "position", "team", "projecte
                   "availability_probability", "injury_status", "unavailable_reason", "opponent", "games_last_2"]
 
 
-def load_depth_for_players(path: Path, players: list[dict]) -> list[dict]:
-    """Filter the million-row daily depth history before converting it to Python objects."""
+DEPTH_COLUMNS = ["gsis_id", "full_name", "player_name", "position", "pos_abb", "pos_grp", "season", "week", "pos_rank", "dt", "team"]
+KEEP_SPECIAL_TEAMS = {"PK", "K"}
+
+
+def week_starts(schedules: list[dict]) -> list[tuple[str, int, int]]:
+    """First gameday of every (season, week), ascending: [(YYYY-MM-DD, season, week)]."""
+    first: dict[tuple[int, int], str] = {}
+    for game in schedules:
+        season = int(finite(value(game, "season"), -1) or -1)
+        week = int(finite(value(game, "week"), -1) or -1)
+        day = str(game.get("gameday") or "")[:10]
+        if season < 0 or week < 0 or len(day) != 10:
+            continue
+        key = (season, week)
+        first[key] = min(first.get(key, day), day)
+    return sorted((day, season, week) for (season, week), day in first.items())
+
+
+def depth_week(stamp: str, starts: list[tuple[str, int, int]]) -> tuple[int, int] | None:
+    """The last NFL week that had kicked off when a dated depth chart was published.
+
+    nflverse depth charts from 2025 on carry only a UTC timestamp. Tagging each
+    chart with the week already under way lets the engine's season/week cutoff
+    keep a chart away from any projection for that week or earlier.
+    Timestamps are shifted to US Eastern (UTC-5, conservative) before comparing
+    with schedule gamedays.
+    """
+    if not stamp or not starts:
+        return None
+    try:
+        moment = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    day = (moment - timedelta(hours=5)).date().isoformat()
+    index = bisect.bisect_right([start[0] for start in starts], day) - 1
+    if index < 0:
+        return starts[0][1], 0
+    return starts[index][1], starts[index][2]
+
+
+def load_depth_for_players(path: Path, players: list[dict], schedules: list[dict] | None = None) -> list[dict]:
+    """Filter the million-row daily depth history before converting it to Python objects.
+
+    Reads whichever columns the file has (the 2025+ format has no season, week,
+    position or full_name), drops kick/punt return slots, dates timestamp-only
+    rows to an NFL week, and returns rows oldest first so the latest chart
+    before the cutoff is the one the engine reads.
+    """
     if not path.exists():
         return []
     import pyarrow as pa
     import pyarrow.compute as pc
     import pyarrow.parquet as parquet
-    table = parquet.read_table(path, columns=[
-        "gsis_id", "full_name", "player_name", "position", "pos_abb", "season", "week", "pos_rank", "dt", "team"
-    ])
+    available = set(parquet.read_schema(path).names)
+    table = parquet.read_table(path, columns=[column for column in DEPTH_COLUMNS if column in available])
     identifiers = sorted({str((player.get("source_ids") or {}).get("gsis")) for player in players if (player.get("source_ids") or {}).get("gsis")})
-    if identifiers:
+    if identifiers and "gsis_id" in available:
         table = table.filter(pc.is_in(table["gsis_id"], value_set=pa.array(identifiers)))
-    return table.to_pylist()
+    rows = table.to_pylist()
+    starts = week_starts(schedules or [])
+    result = []
+    for row in rows:
+        if str(row.get("pos_grp") or "") == "Special Teams" and str(row.get("pos_abb") or "") not in KEEP_SPECIAL_TEAMS:
+            continue
+        if row.get("season") is None or row.get("week") is None:
+            tagged = depth_week(str(row.get("dt") or ""), starts)
+            if tagged is None:
+                continue
+            row["season"], row["week"] = tagged
+        result.append(row)
+    result.sort(key=lambda row: (str(row.get("dt") or ""), -int(finite(row.get("pos_rank"), 0) or 0)))
+    return result
 
 
 def _int(row: dict, name: str, default: int = -1) -> int:
@@ -150,7 +209,7 @@ def main() -> int:
         players = active_universe(board, datasets["rosters"], datasets.get("weekly", []), identity, args.season, args.week)
     depth_path = args.nflverse_dir / "depth_charts.parquet"
     if depth_path.exists():
-        datasets["depth"] = load_depth_for_players(depth_path, players)
+        datasets["depth"] = load_depth_for_players(depth_path, players, datasets.get("schedules", []))
     rows = build(players, datasets, args.season, args.week)
     usable = sum(row["data_confidence"]["score"] >= 45 for row in rows)
     generated_at = utc_now()

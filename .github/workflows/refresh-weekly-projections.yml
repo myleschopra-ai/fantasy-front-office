@@ -55,7 +55,7 @@ jobs:
         run: python -m pip install -r requirements-data.txt
       - name: Run engine regression tests
         run: |
-          python -m unittest tests.test_weekly_projection_engine tests.test_backtest_open_projections
+          python -m unittest tests.test_weekly_projection_engine tests.test_backtest_open_projections tests.test_build_weekly_projections
           node tests/roster-improvement-engine.test.js
           node tests/season-model.test.js
           node tests/weekly-scorecard.test.js
